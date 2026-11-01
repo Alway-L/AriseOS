@@ -7,7 +7,7 @@
     <string name="steamvr_recovery_cancel">إبقاؤه مفتوحًا</string>
     <string name="steamvr_recovery_restarting">جارٍ إعادة ضبط الرسومات وإعادة فتح SteamVR…</string>
     <string name="steamvr_recovery_failed">تعذّر على DroidDeck إعادة التشغيل تلقائيًا. أغلق التطبيق تمامًا، ثم أعد فتحه.</string>
-    <string name="app_name">DroidDeck</string>
+    <string name="app_name">AriseOS</string>
     <string-array name="loading_hints">
         <item>يُنزَّل Steam عند التشغيل الأول. قد يستغرق ذلك بضع دقائق.</item>
         <item>افتراضيًا، يؤدي الخروج من التطبيق إلى إيقاف Steam مؤقتًا، ويُستأنف من حيث توقف عند عودتك.</item>

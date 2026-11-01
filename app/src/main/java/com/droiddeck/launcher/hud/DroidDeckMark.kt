@@ -5,49 +5,73 @@ import android.graphics.Matrix
 import android.graphics.Paint
 import android.graphics.Path
 
-/** artwork/droiddeck-mark.svg: the split D with its circular cut-out and the blue orb. */
+/** The AriseOS mark: the A peak with the rising chevron above it and the inner triangle in the accent colour. */
 internal object DroidDeckMark {
-    private const val VIEW_X = -55.98f
-    const val VIEW_W = 239.92f
-    const val VIEW_H = 223.72f
+    private const val VIEW_X = 254f
+    private const val VIEW_Y = 175f
+    const val VIEW_W = 516f
+    const val VIEW_H = 575f
+    private const val CHEVRON_STROKE = 22f
 
     private val body: Path by lazy {
-        val d = Path().apply {
-            moveTo(-31.98f, 0f)
-            lineTo(63.97f, 0f)
-            cubicTo(125.81f, 0f, 175.93f, 50.08f, 175.93f, 111.86f)
-            cubicTo(175.93f, 173.64f, 125.81f, 223.72f, 63.97f, 223.72f)
-            lineTo(-31.98f, 223.72f)
+        Path().apply {
+            moveTo(512f, 250f)
+            lineTo(760f, 740f)
+            lineTo(650f, 740f)
+            lineTo(512f, 462f)
+            lineTo(374f, 740f)
+            lineTo(264f, 740f)
             close()
+            offset(-VIEW_X, -VIEW_Y)
         }
-        val cut = Path().apply {
-            addCircle(63.98f, 111.86f, 71.81f, Path.Direction.CW)
-            addRect(56.055f, 0f, 71.885f, 45f, Path.Direction.CW)
-            addRect(56.055f, 178.72f, 71.885f, 223.72f, Path.Direction.CW)
+    }
+
+    private val chevron: Path by lazy {
+        Path().apply {
+            moveTo(392f, 270f)
+            lineTo(512f, 190f)
+            lineTo(632f, 270f)
+            offset(-VIEW_X, -VIEW_Y)
         }
-        d.op(cut, Path.Op.DIFFERENCE)
-        d.offset(-VIEW_X, 0f)
-        d
+    }
+
+    private val accent: Path by lazy {
+        Path().apply {
+            moveTo(512f, 560f)
+            lineTo(590f, 716f)
+            lineTo(434f, 716f)
+            close()
+            offset(-VIEW_X, -VIEW_Y)
+        }
     }
 
     private val scaled = Path()
     private val matrix = Matrix()
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.FILL }
+    private val stroke = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        style = Paint.Style.STROKE
+        strokeCap = Paint.Cap.ROUND
+        strokeJoin = Paint.Join.ROUND
+    }
 
     fun widthFor(height: Float): Float = height * VIEW_W / VIEW_H
 
-    /** Where the drawn mark starts and ends inside [widthFor]: the artwork has empty space on both sides. */
-    fun inkLeftFor(height: Float): Float = (-31.98f - VIEW_X) * height / VIEW_H
-    fun inkRightFor(height: Float): Float = (175.93f - VIEW_X) * height / VIEW_H
+    fun inkLeftFor(height: Float): Float = (264f - VIEW_X) * height / VIEW_H
+    fun inkRightFor(height: Float): Float = (760f - VIEW_X) * height / VIEW_H
 
     fun draw(canvas: Canvas, left: Float, top: Float, height: Float, bodyColor: Int, orbColor: Int) {
         val s = height / VIEW_H
         matrix.setScale(s, s)
         matrix.postTranslate(left, top)
-        body.transform(matrix, scaled)
         paint.color = bodyColor
+        body.transform(matrix, scaled)
         canvas.drawPath(scaled, paint)
+        stroke.color = bodyColor
+        stroke.strokeWidth = CHEVRON_STROKE * s
+        chevron.transform(matrix, scaled)
+        canvas.drawPath(scaled, stroke)
         paint.color = orbColor
-        canvas.drawCircle(left + (63.98f - VIEW_X) * s, top + 111.86f * s, 55.98f * s, paint)
+        accent.transform(matrix, scaled)
+        canvas.drawPath(scaled, paint)
     }
 }

@@ -7,7 +7,7 @@
     <string name="steamvr_recovery_cancel">Biarkan terbuka</string>
     <string name="steamvr_recovery_restarting">Menetapkan semula grafik dan membuka SteamVR sekali lagi…</string>
     <string name="steamvr_recovery_failed">DroidDeck tidak dapat dimulakan semula secara automatik. Tutup apl sepenuhnya, kemudian buka semula.</string>
-    <string name="app_name">DroidDeck</string>
+    <string name="app_name">AriseOS</string>
     <string-array name="loading_hints">
         <item>Larian pertama memuat turun Steam. Ini mungkin mengambil beberapa minit.</item>
         <item>Secara lalai, meninggalkan apl ini menjedakan Steam; ia menyambung semula dari tempat ia berhenti apabila anda kembali.</item>

@@ -7,7 +7,7 @@
     <string name="steamvr_recovery_cancel">Nyitva tartás</string>
     <string name="steamvr_recovery_restarting">A grafika visszaállítása és a SteamVR újranyitása…</string>
     <string name="steamvr_recovery_failed">A DroidDeck nem tudott automatikusan újraindulni. Zárja be teljesen az alkalmazást, majd nyissa meg újra.</string>
-    <string name="app_name">DroidDeck</string>
+    <string name="app_name">AriseOS</string>
     <string-array name="loading_hints">
         <item>Az első indítás letölti a Steamet. Ez néhány percet vehet igénybe.</item>
         <item>Alapértelmezés szerint az alkalmazás elhagyása szünetelteti a Steamet; visszatéréskor ott folytatja, ahol abbahagyta.</item>

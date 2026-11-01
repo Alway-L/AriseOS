@@ -654,9 +654,9 @@ class DroidDeckHudView(context: Context) : View(context) {
         headerMark = RectF(markLeft, markTop, markLeft + DroidDeckMark.widthFor(markH), markTop + markH)
         val midY = markTop + markH / 2f
         var x = markLeft + DroidDeckMark.inkRightFor(markH) + sp(6f)
-        wordmarkPaint.getTextBounds("DroidDeck", 0, 9, inkRect)
-        glyphs.add(Glyph(x, midY - inkRect.exactCenterY(), "DroidDeck", blend(colValue), wordPx, sans = true))
-        x += measureSans("DroidDeck", wordPx)
+        wordmarkPaint.getTextBounds("AriseOS", 0, 7, inkRect)
+        glyphs.add(Glyph(x, midY - inkRect.exactCenterY(), "AriseOS", blend(colValue), wordPx, sans = true))
+        x += measureSans("AriseOS", wordPx)
         if (showClockTime) {
             measurePaint.textSize = clockPx
             measurePaint.getTextBounds("0", 0, 1, inkRect)

@@ -7,7 +7,7 @@
     <string name="steamvr_recovery_cancel">保持開啟</string>
     <string name="steamvr_recovery_restarting">正在重設圖形並重新開啟 SteamVR…</string>
     <string name="steamvr_recovery_failed">DroidDeck 無法自動重新啟動。請完全關閉應用程式，然後重新開啟。</string>
-    <string name="app_name">DroidDeck</string>
+    <string name="app_name">AriseOS</string>
     <string-array name="loading_hints">
         <item>首次執行會下載 Steam，可能需要幾分鐘。</item>
         <item>預設情況下，離開應用程式會暫停 Steam；返回時會從上次中斷的地方繼續。</item>

@@ -7,7 +7,7 @@
     <string name="steamvr_recovery_cancel">Pidä auki</string>
     <string name="steamvr_recovery_restarting">Nollataan grafiikkaa ja avataan SteamVR uudelleen…</string>
     <string name="steamvr_recovery_failed">DroidDeck ei pystynyt käynnistymään uudelleen automaattisesti. Sulje sovellus kokonaan ja avaa se sitten uudelleen.</string>
-    <string name="app_name">DroidDeck</string>
+    <string name="app_name">AriseOS</string>
     <string-array name="loading_hints">
         <item>Ensimmäinen käynnistys lataa Steamin. Tämä voi kestää muutaman minuutin.</item>
         <item>Oletuksena sovelluksesta poistuminen keskeyttää Steamin; se jatkuu siitä mihin jäit, kun palaat takaisin.</item>

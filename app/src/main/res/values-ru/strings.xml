@@ -7,7 +7,7 @@
     <string name="steamvr_recovery_cancel">Не закрывать</string>
     <string name="steamvr_recovery_restarting">Сброс графики и повторный запуск SteamVR…</string>
     <string name="steamvr_recovery_failed">Не удалось автоматически перезапустить DroidDeck. Полностью закройте приложение и откройте его снова.</string>
-    <string name="app_name">DroidDeck</string>
+    <string name="app_name">AriseOS</string>
     <string-array name="loading_hints">
         <item>При первом запуске будет загружен Steam. Это может занять несколько минут.</item>
         <item>По умолчанию при выходе из приложения Steam приостанавливается; при возвращении работа возобновляется с того же места.</item>

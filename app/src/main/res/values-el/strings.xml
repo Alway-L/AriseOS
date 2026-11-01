@@ -7,7 +7,7 @@
     <string name="steamvr_recovery_cancel">Να μείνει ανοιχτό</string>
     <string name="steamvr_recovery_restarting">Επαναφορά γραφικών και εκ νέου άνοιγμα του SteamVR…</string>
     <string name="steamvr_recovery_failed">Το DroidDeck δεν μπόρεσε να κάνει αυτόματη επανεκκίνηση. Κλείστε εντελώς την εφαρμογή και ανοίξτε την ξανά.</string>
-    <string name="app_name">DroidDeck</string>
+    <string name="app_name">AriseOS</string>
     <string-array name="loading_hints">
         <item>Η πρώτη εκτέλεση κάνει λήψη του Steam. Αυτό μπορεί να διαρκέσει μερικά λεπτά.</item>
         <item>Από προεπιλογή, η έξοδος από την εφαρμογή θέτει το Steam σε παύση· συνεχίζει από εκεί που είχε μείνει όταν επιστρέψετε.</item>

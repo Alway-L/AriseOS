@@ -7,7 +7,7 @@
     <string name="steamvr_recovery_cancel">Açık kalsın</string>
     <string name="steamvr_recovery_restarting">Grafikler sıfırlanıyor ve SteamVR yeniden açılıyor…</string>
     <string name="steamvr_recovery_failed">DroidDeck otomatik olarak yeniden başlatılamadı. Uygulamayı tamamen kapatıp yeniden açın.</string>
-    <string name="app_name">DroidDeck</string>
+    <string name="app_name">AriseOS</string>
     <string-array name="loading_hints">
         <item>İlk çalıştırmada Steam indirilir. Bu işlem birkaç dakika sürebilir.</item>
         <item>Varsayılan olarak uygulamadan çıkınca Steam duraklatılır; geri döndüğünüzde kaldığı yerden devam eder.</item>
