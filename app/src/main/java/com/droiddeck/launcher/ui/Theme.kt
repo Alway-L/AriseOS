@@ -107,9 +107,9 @@ object Themes {
     val all: List<Palette> = listOf(
         Palette(
             GRAPHITE, R.string.theme_graphite, R.string.theme_graphite_detail,
-            background = Color(0xFF0A0B0D), surface = Color(0xFF121417), surfaceVariant = Color(0xFF1A1D22), line = Color(0xFF262A31), line2 = Color(0xFF343A43),
-            onBackground = Color(0xFFF2F4F7), onSurfaceVariant = Color(0xFF9AA3AF),
-            primary = Color(0xFF1A9FFF), primary2 = Color(0xFF1487DB), onPrimary = Color(0xFF03111F), signal = Color(0xFF1A9FFF),
+            background = Color(0xFF0B0717), surface = Color(0xFF130D24), surfaceVariant = Color(0xFF1B1331), line = Color(0xFF2A1F47), line2 = Color(0xFF3A2D5E),
+            onBackground = Color(0xFFF4F1FB), onSurfaceVariant = Color(0xFFA79CC4),
+            primary = Color(0xFF8B5CF6), primary2 = Color(0xFF22D3EE), onPrimary = Color(0xFFFFFFFF), signal = Color(0xFF22D3EE),
             good = Color(0xFF4CD37F),
         ),
         Palette(

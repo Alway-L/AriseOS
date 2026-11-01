@@ -1566,8 +1566,8 @@
     <string name="store_updates_check_failed">Não foi possível procurar atualizações no Flathub</string>
     <string name="content_rom_installed">instalado</string>
     <string name="content_rom_folder">pasta</string>
-    <string name="theme_graphite">Grafite</string>
-    <string name="theme_graphite_detail">Superfícies em grafite, com o azul da esfera do logótipo para tudo o que está selecionado, focado ou premido.</string>
+    <string name="theme_graphite">Arise</string>
+    <string name="theme_graphite_detail">Superfícies em roxo escuro, com o roxo do logótipo para tudo o que está selecionado, focado ou premido, e ciano nos destaques.</string>
     <string name="theme_paper">Papel sobre preto</string>
     <string name="theme_paper_detail">O branco é a cor principal; o azul do ícone é o sinal para linhas, anéis e pontos.</string>
     <string name="theme_icon_blue">Azul do ícone</string>

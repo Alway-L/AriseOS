@@ -149,7 +149,7 @@ class DroidDeckHudView(context: Context) : View(context) {
     // DroidDeck look: the theme's main colour for the FPS label, graph and accent outline, the theme's
     // surface behind the readouts, a DroidDeck header (wordmark) on Full/Tiles/Minimal/Mega and the logo
     // chip on the Pill.
-    private var accent = 0xFF1A9FFF.toInt()
+    private var accent = 0xFF8B5CF6.toInt()
     private var surfaceRgb = 0x121417
     private var headerMark: RectF? = null
     private var chipRect: RectF? = null
@@ -178,7 +178,7 @@ class DroidDeckHudView(context: Context) : View(context) {
     private val colVram = 0xFFC98BFF.toInt()
     private val colRam = 0xFFFF7BC0.toInt()
     private val colBat = 0xFFFFAB5E.toInt()
-    private var colFps = 0xFF1A9FFF.toInt()
+    private var colFps = 0xFF22D3EE.toInt()
     private var colGraph = 0xFF5CB8FF.toInt()
     private val colValue = 0xFFF2F5F9.toInt()
     private val colDim = 0xFF9AA4B2.toInt()

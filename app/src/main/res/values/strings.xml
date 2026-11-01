@@ -1651,8 +1651,8 @@
     <string name="store_updates_check_failed">Could not check Flathub for updates</string>
     <string name="content_rom_installed">installed</string>
     <string name="content_rom_folder">folder</string>
-    <string name="theme_graphite">Graphite</string>
-    <string name="theme_graphite_detail">Graphite surfaces, with the logo\'s own orb blue for everything selected, focused or pressed.</string>
+    <string name="theme_graphite">Arise</string>
+    <string name="theme_graphite_detail">Deep purple surfaces, with the logo\'s purple for everything selected, focused or pressed and cyan for signals.</string>
     <string name="theme_paper">Paper on black</string>
     <string name="theme_paper_detail">White is the primary, the icon\'s blue is the signal for rules, rings and dots.</string>
     <string name="theme_icon_blue">Icon blue</string>
