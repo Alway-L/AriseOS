@@ -30,7 +30,7 @@ data class EpicGame(
 
 object EpicLibrary {
     const val KEY_CACHE = "library_cache"
-    const val KEY_SYNCED_AT = "library_synced_at"
+    const val KEY_SYNCED_AT = "library_synced_at_v2"  // v2: AriseOS 1.3.2 re-reads the whole library once
     private const val THROTTLE_MS = 6 * 60 * 60 * 1000L
     private const val MAX_SIZE = 1L shl 40
 
@@ -84,7 +84,7 @@ object EpicLibrary {
     private fun tidy(games: List<EpicGame>): List<EpicGame> =
         games.distinctBy { it.appName }.sortedBy { it.title.lowercase() }
 
-    fun cached(context: Context): List<EpicGame> = fromCacheJson(EpicPrefs.get(context).getString(KEY_CACHE, null)).filterNot(::untitled)
+    fun cached(context: Context): List<EpicGame> = fromCacheJson(EpicPrefs.get(context).getString(KEY_CACHE, null))
 
     fun forget(context: Context) {
         EpicPrefs.get(context).edit().remove(KEY_CACHE).remove(KEY_SYNCED_AT).apply()
@@ -136,15 +136,37 @@ object EpicLibrary {
         )
     }
 
-    private val HASH_NAME = Regex("^[0-9a-f]{32}$")
-
-    /** Records Epic returns no catalog title or art for, such as Fab and Unreal Engine content named by a hash. */
-    internal fun untitled(g: EpicGame) = g.title == g.appName && HASH_NAME.matches(g.appName) && g.artCover.isEmpty() && g.artSquare.isEmpty()
+    /** Whether the game still lacks its catalog name and art (its details could not be fetched yet). */
+    internal fun missingDetails(g: EpicGame) = g.title == g.appName && g.artCover.isEmpty() && g.artSquare.isEmpty()
 
     internal fun visible(games: List<EpicGame>): List<EpicGame> {
-        val titled = games.filterNot { untitled(it) }
-        val base = titled.filterNot { it.isDlc }
-        return tidy(if (base.isEmpty()) titled else base)
+        val base = games.filterNot { it.isDlc }
+        return tidy(if (base.isEmpty()) games else base)
+    }
+
+    /**
+     * AriseOS: the catalog is asked once per owned game, which for a big library (hundreds of games) used to run
+     * into Epic's rate limit; every failed answer left a game named by its hash with no art. Ask a few at a time
+     * and try a failed one again after a pause.
+     */
+    private fun detailsFor(token: String, records: List<JSONObject>, progress: (Int) -> Unit): Array<JSONObject?> {
+        val out = arrayOfNulls<JSONObject>(records.size)
+        val done = java.util.concurrent.atomic.AtomicInteger()
+        val pool = java.util.concurrent.Executors.newFixedThreadPool(4)
+        try {
+            records.indices.map { i ->
+                pool.submit {
+                    val r = records[i]
+                    for (attempt in 0 until 4) {
+                        out[i] = try { EpicApiClient.catalogDetails(token, r.optString("namespace"), r.optString("catalogItemId")) } catch (_: Exception) { null }
+                        if (out[i] != null) break
+                        Thread.sleep(700L * (attempt + 1))
+                    }
+                    progress(done.incrementAndGet())
+                }
+            }.forEach { it.get() }
+        } finally { pool.shutdownNow() }
+        return out
     }
 
     fun sync(context: Context, force: Boolean, status: (String) -> Unit): SyncResult {
@@ -171,13 +193,20 @@ object EpicLibrary {
             }
 
             val before = cache.associateBy { it.appName }
-            val total = records.length()
+            val list = (0 until records.length()).mapNotNull { records.optJSONObject(it) }
+            val total = list.size
+            // Games already known with their name and art keep them; only new or nameless ones are asked again.
+            val ask = list.filter { r -> force || (before[r.optString("appName")]?.let(::missingDetails) ?: true) }
+            val answers = detailsFor(token, ask) { n -> if (n % 5 == 0 || n == ask.size) status(app.getString(R.string.stores_sync_details, n, ask.size)) }
+            val byApp = HashMap<String, JSONObject?>()
+            ask.forEachIndexed { i, r -> byApp[r.optString("appName")] = answers[i] }
             val games = ArrayList<EpicGame>(total)
-            for (i in 0 until total) {
-                val record = records.optJSONObject(i) ?: continue
-                if (i % 5 == 0) status(app.getString(R.string.stores_sync_details, i, total))
-                val details = EpicApiClient.catalogDetails(token, record.optString("namespace"), record.optString("catalogItemId"))
-                games += gameFrom(record, details, before[record.optString("appName")])
+            for (record in list) {
+                val app0 = record.optString("appName")
+                val details = byApp[app0]
+                // Something the catalog answers for but with no title at all is not a game (Fab / engine content).
+                if (details != null && details.optString("title").isEmpty() && before[app0] == null) continue
+                games += gameFrom(record, details, before[app0])
             }
             val shown = visible(games)
             prefs.edit().putString(KEY_CACHE, toCacheJson(shown)).putLong(KEY_SYNCED_AT, System.currentTimeMillis()).apply()
