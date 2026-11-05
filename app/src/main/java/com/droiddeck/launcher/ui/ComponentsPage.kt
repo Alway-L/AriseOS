@@ -36,6 +36,12 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Delete
+import androidx.compose.material.icons.outlined.Memory
+import androidx.compose.material.icons.outlined.Layers
+import androidx.compose.material.icons.outlined.Bolt
+import androidx.compose.material.icons.outlined.AutoAwesome
+import androidx.compose.material.icons.outlined.Translate
+import androidx.compose.material.icons.outlined.Extension
 import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material3.CircularProgressIndicator
 import com.droiddeck.launcher.ui.GlideAlertDialog as AlertDialog
@@ -959,6 +965,7 @@ private fun Stack(
     val card: @Composable (String) -> Unit = { l ->
         val st = view?.components?.get(l)
         LayerCard(
+            layer = l,
             title = LayerTitle(l),
             value = when (l) {
                 GPU_TAB -> gpuCardValue(gpu, auto)
@@ -997,38 +1004,55 @@ private fun StackHeading(text: String) {
 
 @Composable
 private fun LayerCard(
-    title: String, value: String, swapped: Boolean, selected: Boolean, landed: Int, ring: Int,
+    layer: String, title: String, value: String, swapped: Boolean, selected: Boolean, landed: Int, ring: Int,
     modifier: Modifier, onFocus: () -> Unit, onClick: () -> Unit,
 ) {
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
     val src = remember { MutableInteractionSource() }
     val hot = rememberHot(src)
-    val under = selected && androidx.compose.ui.platform.LocalInputModeManager.current.inputMode != androidx.compose.ui.input.InputMode.Keyboard
-    Box(Modifier.fillMaxWidth().heightIn(min = 44.dp), contentAlignment = Alignment.Center) {
+    val (icon, accent) = layerLook(layer)
+    val shape = RoundedCornerShape(16.dp)
+    val ground = if (selected) androidx.compose.ui.graphics.Brush.linearGradient(listOf(pal.primary.copy(alpha = 0.28f), colors.surface))
+        else androidx.compose.ui.graphics.SolidColor(colors.surface)
+    Box(Modifier.fillMaxWidth().heightIn(min = 60.dp).padding(vertical = 2.dp), contentAlignment = Alignment.Center) {
         Row(
-            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp),
-            modifier = modifier.fillMaxWidth().height(40.dp)
+            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp),
+            modifier = modifier.fillMaxWidth().height(58.dp)
                 .landingPop(landed).pulseRing(ring, pal.signal)
-                .clip(LAYER_SHAPE)
-                .background(if (under) Color.Transparent else colors.surface)
-                .shownBar(selected, pal.signal, vertical = true)
-                .glideBorder(hot, LAYER_SHAPE, pal.signal, if (under) Color.Transparent else pal.line)
+                .clip(shape)
+                .background(ground)
+                .glideBorder(hot, shape, pal.signal, if (selected) pal.primary else pal.line)
                 .onFocusChanged { if (it.isFocused) onFocus() }
                 .hoverable(src).clickable(interactionSource = src, indication = null, role = Role.Tab, onClick = onClick)
                 .controllerConfirm(onClick = onClick)
-                .padding(horizontal = 12.dp),
+                .padding(horizontal = 10.dp),
         ) {
-            if (swapped) Box(Modifier.size(7.dp).clip(CircleShape).background(pal.signal))
-            Text(title, fontSize = 13.5.sp, fontWeight = FontWeight.Bold, color = if (selected || hot) colors.onBackground else colors.onSurfaceVariant, maxLines = 1)
-            Spacer(Modifier.weight(1f))
-            AnimatedContent(
-                value,
-                transitionSpec = { (slideInVertically(Motion.tw(260)) { it / 2 } + fadeIn(Motion.tw(260))) togetherWith (slideOutVertically(Motion.tw(160)) { -it / 2 } + fadeOut(Motion.tw(160))) },
-                label = "layerValue",
-            ) { v -> Text(v, fontSize = 12.sp, color = colors.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis) }
+            Box(Modifier.size(38.dp).clip(RoundedCornerShape(12.dp)).background(accent.copy(alpha = 0.16f)), contentAlignment = Alignment.Center) {
+                Icon(icon, contentDescription = null, tint = accent, modifier = Modifier.size(22.dp))
+            }
+            Column(Modifier.weight(1f)) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text(title, fontSize = 14.5.sp, fontWeight = FontWeight.Bold, color = colors.onBackground, maxLines = 1)
+                    if (swapped) Box(Modifier.size(7.dp).clip(CircleShape).background(pal.signal))
+                }
+                AnimatedContent(
+                    value,
+                    transitionSpec = { (slideInVertically(Motion.tw(260)) { it / 2 } + fadeIn(Motion.tw(260))) togetherWith (slideOutVertically(Motion.tw(160)) { -it / 2 } + fadeOut(Motion.tw(160))) },
+                    label = "layerValue",
+                ) { v -> Text(v, fontSize = 12.sp, color = if (selected) pal.signal else colors.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis) }
+            }
         }
     }
+}
+
+private fun layerLook(layer: String): Pair<ImageVector, Color> = when (layer) {
+    GPU_TAB -> Icons.Outlined.Memory to Color(0xFFFBBF24)
+    PROTON_TAB -> Icons.Outlined.Layers to Color(0xFF22D3EE)
+    "dxvk" -> Icons.Outlined.Bolt to Color(0xFFA78BFA)
+    "vkd3d" -> Icons.Outlined.AutoAwesome to Color(0xFF60A5FA)
+    "fex" -> Icons.Outlined.Translate to Color(0xFFF472B6)
+    else -> Icons.Outlined.Extension to Color(0xFF9AA3AF)
 }
 
 @Composable
@@ -1056,7 +1080,11 @@ private fun RowGroup(title: String, content: @Composable ColumnScope.() -> Unit)
             Text(title.uppercase(), fontSize = 12.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.5.sp, color = colors.onSurfaceVariant, maxLines = 1)
             Box(Modifier.weight(1f).height(1.dp).background(pal.line))
         }
-        Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(colors.surface).border(1.dp, pal.line, RoundedCornerShape(14.dp)), content = content)
+        Column(
+            Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(colors.surface)
+                .border(1.dp, androidx.compose.ui.graphics.Brush.linearGradient(listOf(pal.primary.copy(alpha = 0.55f), pal.line, pal.signal.copy(alpha = 0.35f))), RoundedCornerShape(18.dp)),
+            content = content,
+        )
     }
 }
 

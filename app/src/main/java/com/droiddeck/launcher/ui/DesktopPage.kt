@@ -123,9 +123,7 @@ internal fun DesktopPage(s: FrontEndState, a: FrontEndActions, modifier: Modifie
         onOpen = a.onDesktopSettings, onPrimary = a.onDesktop,
         modifier = modifier.clipToBounds(),
         start = if (narrow) 20.dp else 44.dp, bottom = 44.dp,
-        background = {
-            DesktopWall(installed.map { it.iconRes } + apps.mapNotNull { it.icon })
-        },
+        background = { StoreBackdrop(LocalPalette.current.primary, Modifier.fillMaxSize(), centerY = 0.62f) },
         scrim = { lifted ->
             WallFade()
             Box(Modifier.graphicsLayer { val v = lifted(); alpha = 1f - v; translationY = -12.dp.toPx() * v }) {
@@ -133,10 +131,19 @@ internal fun DesktopPage(s: FrontEndState, a: FrontEndActions, modifier: Modifie
             }
         },
         words = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                val pal = LocalPalette.current
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Box(Modifier.size(8.dp).background(androidx.compose.ui.graphics.Brush.linearGradient(listOf(pal.primary, pal.signal)), androidx.compose.foundation.shape.CircleShape))
+                    Text(stringResource(R.string.workspace_desktop).uppercase(), fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 1.6.sp, color = colors.onSurfaceVariant)
+                }
                 if (LocalConfiguration.current.screenHeightDp >= 400) Text(
-                    stringResource(R.string.rail_desktop), fontSize = if (short) 30.sp else 42.sp, lineHeight = if (short) 34.sp else 46.sp,
+                    stringResource(R.string.rail_workspace), fontSize = if (short) 30.sp else 40.sp, lineHeight = if (short) 34.sp else 44.sp,
                     fontWeight = FontWeight.Black, color = colors.onBackground,
+                )
+                Text(
+                    stringResource(if (s.desktopInstalled) R.string.arise_desktop_ready else R.string.arise_desktop_missing),
+                    fontSize = 14.sp, color = if (s.desktopInstalled) pal.signal else colors.onSurfaceVariant,
                 )
                 BusyChip(s)
             }

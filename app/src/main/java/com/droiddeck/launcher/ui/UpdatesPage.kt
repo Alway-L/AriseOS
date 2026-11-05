@@ -22,6 +22,10 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.ui.platform.testTag
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
@@ -164,15 +168,31 @@ private fun StatusPanel(s: FrontEndState, u: UpdatesState, ua: UpdatesActions, m
             stringResource(R.string.upd_gone_detail))
         else -> Look(pal.good, stringResource(R.string.upd_current_status), stringResource(R.string.upd_current_headline, name), null)
     }
+    val edge = androidx.compose.ui.graphics.Brush.linearGradient(listOf(pal.primary, pal.signal))
+    val cardShape = androidx.compose.foundation.shape.RoundedCornerShape(22.dp)
     Column(
-        modifier = Modifier.fillMaxWidth().clip(Shape16).background(colors.surface).border(1.dp, pal.line, Shape16).padding(18.dp),
+        modifier = Modifier.fillMaxWidth().clip(cardShape).background(colors.surface).border(1.dp, edge, cardShape),
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-            Box(Modifier.size(7.dp).clip(CircleShape).background(look.tint))
-            Text(look.status, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = look.tint)
-            if (offered) Text(stringResource(R.string.upd_dot_ago, ago(release!!.publishedAt)), fontSize = 13.sp, color = colors.onSurfaceVariant)
+        Box(Modifier.fillMaxWidth().height(210.dp)) {
+            StoreBackdrop(pal.primary, Modifier.matchParentSize(), centerY = 0.36f)
+            Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.align(Alignment.Center).padding(top = 6.dp)) {
+                LogoThrobber(Modifier.width(64.dp), running = u.checking || u.stage != null)
+                Row(
+                    verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp),
+                    modifier = Modifier.padding(top = 14.dp).clip(CircleShape).background(look.tint.copy(alpha = 0.14f)).padding(horizontal = 12.dp, vertical = 5.dp),
+                ) {
+                    Box(Modifier.size(7.dp).clip(CircleShape).background(look.tint))
+                    Text(look.status, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = look.tint)
+                    if (offered) Text(stringResource(R.string.upd_dot_ago, ago(release!!.publishedAt)), fontSize = 13.sp, color = colors.onSurfaceVariant)
+                }
+                Text(
+                    stringResource(R.string.arise_version, me.version), fontSize = 28.sp, fontWeight = FontWeight.Black,
+                    color = colors.onBackground, modifier = Modifier.padding(top = 8.dp),
+                )
+            }
         }
-        Text(look.headline, fontSize = 22.sp, fontWeight = FontWeight.Bold, color = colors.onBackground, modifier = Modifier.padding(top = 4.dp))
+        Column(Modifier.fillMaxWidth().padding(start = 18.dp, end = 18.dp, bottom = 18.dp)) {
+        Text(look.headline, fontSize = 18.sp, fontWeight = FontWeight.Bold, color = colors.onBackground, modifier = Modifier.padding(top = 4.dp))
         if (offered) {
             ReleaseNotes(changeTitle(release!!.title.ifBlank { release.tag }), release.summary, release.tag)
         }
@@ -204,6 +224,7 @@ private fun StatusPanel(s: FrontEndState, u: UpdatesState, ua: UpdatesActions, m
         if (u.follow.channel == Channel.NIGHTLY) {
             PreviewHistory(catalog, me)
         }
+    }
     }
 }
 
@@ -263,19 +284,25 @@ private fun ChannelPicker(u: UpdatesState, ua: UpdatesActions) {
     val catalog = u.catalog
     val tests = catalog?.tests.orEmpty()
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        ChannelCard(
-            Icons.Outlined.Verified, stringResource(R.string.upd_stable), stringResource(R.string.upd_stable_hint),
-            catalog?.stable?.let { stringResource(R.string.upd_version_ago, it.version ?: it.tag, ago(it.publishedAt)) }, u.follow.channel == Channel.STABLE,
-        ) { ua.onFollow(Follow(Channel.STABLE)) }
-        ChannelCard(
-            Icons.Outlined.Bolt, stringResource(R.string.upd_preview), stringResource(R.string.upd_preview_hint),
-            catalog?.preview?.let { ago(it.publishedAt) }, u.follow.channel == Channel.NIGHTLY,
-        ) { ua.onFollow(Follow(Channel.NIGHTLY)) }
-        ChannelCard(
-            Icons.Outlined.Science, stringResource(R.string.upd_tests), stringResource(R.string.upd_tests_hint),
-            if (tests.isEmpty()) stringResource(R.string.upd_tests_none) else pluralStringResource(R.plurals.upd_tests_count, tests.size, tests.size),
-            u.follow.channel == Channel.TEST, enabled = tests.isNotEmpty() || u.follow.channel == Channel.TEST,
-        ) { tests.firstOrNull()?.let { ua.onFollow(Follow(Channel.TEST, it.pr)) } }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth().height(androidx.compose.foundation.layout.IntrinsicSize.Min)) {
+            ChannelTile(
+                Icons.Outlined.Verified, stringResource(R.string.upd_stable),
+                catalog?.stable?.let { it.version ?: it.tag }, u.follow.channel == Channel.STABLE, Modifier.weight(1f),
+            ) { ua.onFollow(Follow(Channel.STABLE)) }
+            ChannelTile(
+                Icons.Outlined.Bolt, stringResource(R.string.upd_preview),
+                catalog?.preview?.let { ago(it.publishedAt) }, u.follow.channel == Channel.NIGHTLY, Modifier.weight(1f),
+            ) { ua.onFollow(Follow(Channel.NIGHTLY)) }
+            ChannelTile(
+                Icons.Outlined.Science, stringResource(R.string.upd_tests),
+                if (tests.isEmpty()) stringResource(R.string.upd_tests_none) else pluralStringResource(R.plurals.upd_tests_count, tests.size, tests.size),
+                u.follow.channel == Channel.TEST, Modifier.weight(1f), enabled = tests.isNotEmpty() || u.follow.channel == Channel.TEST,
+            ) { tests.firstOrNull()?.let { ua.onFollow(Follow(Channel.TEST, it.pr)) } }
+        }
+        Text(
+            stringResource(when (u.follow.channel) { Channel.STABLE -> R.string.upd_stable_hint; Channel.NIGHTLY -> R.string.upd_preview_hint; Channel.TEST -> R.string.upd_tests_hint }),
+            fontSize = 12.5.sp, color = colors.onSurfaceVariant, modifier = Modifier.padding(horizontal = 4.dp),
+        )
         AnimatedVisibility(u.follow.channel == Channel.TEST && tests.isNotEmpty(), enter = expandVertically(Motion.sp(1f)) + fadeIn(Motion.sp(1f)), exit = shrinkVertically(Motion.sp(1f)) + fadeOut(Motion.sp(1f))) {
             Column(Modifier.padding(start = 18.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 tests.forEach { t -> TestRow(t, u.follow.pr == t.pr) { ua.onFollow(Follow(Channel.TEST, t.pr)) } }
@@ -337,6 +364,34 @@ private fun PreviewHistory(catalog: AppUpdates.Catalog?, me: AppUpdates.Installe
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun ChannelTile(
+    icon: ImageVector, title: String, latest: String?, selected: Boolean, modifier: Modifier,
+    enabled: Boolean = true, onClick: () -> Unit,
+) {
+    val colors = MaterialTheme.colorScheme
+    val pal = LocalPalette.current
+    val src = remember { MutableInteractionSource() }
+    val hot = rememberHot(src)
+    val shape = Shape16
+    val ground = if (selected) androidx.compose.ui.graphics.Brush.linearGradient(listOf(pal.primary.copy(alpha = 0.32f), pal.signal.copy(alpha = 0.12f)))
+        else androidx.compose.ui.graphics.SolidColor(colors.surface)
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp),
+        modifier = modifier.fillMaxHeight().paneItem("channel:$title").testTag("channel-$title")
+            .clip(shape).background(ground).glideBorder(hot, shape, pal.signal, if (selected) pal.primary else pal.line)
+            .alpha(if (enabled) 1f else 0.5f)
+            .hoverable(src)
+            .selectable(selected = selected, interactionSource = src, indication = null, enabled = enabled, role = Role.RadioButton, onClick = onClick)
+            .controllerConfirm(enabled = enabled, onClick = onClick)
+            .padding(horizontal = 8.dp, vertical = 14.dp),
+    ) {
+        Icon(icon, contentDescription = null, tint = if (selected) pal.signal else colors.onSurfaceVariant, modifier = Modifier.size(24.dp))
+        Text(title, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = colors.onBackground, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        if (latest != null) Text(latest, fontSize = 11.5.sp, color = if (selected) pal.signal else colors.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
 

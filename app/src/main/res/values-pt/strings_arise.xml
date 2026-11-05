@@ -16,4 +16,7 @@
     <string name="user_apps_unpacking">Descompactando %1$s…</string>
     <string name="arise_comp_subtitle">O que roda seus jogos</string>
     <string name="arise_updates_subtitle">Ligado ao seu GitHub</string>
+    <string name="arise_version">AriseOS %1$s</string>
+    <string name="arise_desktop_ready">Pronta para abrir</string>
+    <string name="arise_desktop_missing">Ainda não instalada</string>
 </resources>
