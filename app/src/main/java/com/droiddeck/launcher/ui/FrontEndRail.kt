@@ -107,7 +107,7 @@ internal fun BottomBar(
     val pill = RoundedCornerShape(24.dp)
     val line = LocalPalette.current.line
     Row(
-        modifier.fillMaxWidth().background(MaterialTheme.colorScheme.background).padding(horizontal = 10.dp, vertical = 8.dp)
+        modifier.fillMaxWidth().background(MaterialTheme.colorScheme.background).padding(horizontal = 10.dp, vertical = 4.dp)
             .graphicsLayer { shadowElevation = 16.dp.toPx(); shape = pill; clip = false }
             .clip(pill).background(MaterialTheme.colorScheme.surface).border(1.dp, line, pill).padding(horizontal = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
