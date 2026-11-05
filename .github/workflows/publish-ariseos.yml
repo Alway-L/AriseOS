@@ -25,16 +25,25 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.sha }}
+          ref: main
 
-      - name: Baixar o APK assinado do build de main
+      - name: Baixar o APK assinado do build mais recente de main
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          id=$(gh run list -R "$GITHUB_REPOSITORY" --workflow build.yml --branch main --commit "$GITHUB_SHA" \
-                 --status success --json databaseId -L 1 -q '.[0].databaseId // empty')
-          [ -n "$id" ] || { echo "::error::main ${GITHUB_SHA::7} ainda não tem um build com sucesso: espere ele terminar"; exit 1; }
+          id=""; sha=""
+          while read -r run head; do
+            ok=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run/jobs?per_page=100" \
+                   -q '[.jobs[] | select(.name == "sign / sign standard" and .conclusion == "success")] | length')
+            if [ "$ok" = 1 ]; then id=$run; sha=$head; break; fi
+          done < <(gh run list -R "$GITHUB_REPOSITORY" --workflow build.yml --branch main --status completed \
+                     --json databaseId,headSha -L 15 -q '.[] | "\(.databaseId) \(.headSha)"')
+          [ -n "$id" ] || { echo "::error::nenhum build assinado de main encontrado: rode o Build APK primeiro"; exit 1; }
+          echo "Usando o build $id (main ${sha::7})" >> "$GITHUB_STEP_SUMMARY"
+          echo "BUILD_SHA=$sha" >> "$GITHUB_ENV"
+          git fetch -q --depth 1 origin "$sha"
+          git checkout -q "$sha"
           gh run download "$id" -R "$GITHUB_REPOSITORY" -n droiddeck-signed-standard -D signed
           ls -la signed
 
@@ -57,7 +66,7 @@ jobs:
           apk="AriseOS-$name.apk"
           cp "${apks[0]}" "$apk"
           body=${NOTES:-"AriseOS $name"}
-          gh release create "$tag" "$apk" -R "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "AriseOS $name" --notes "$body"
+          gh release create "$tag" "$apk" -R "$GITHUB_REPOSITORY" --target "$BUILD_SHA" --title "AriseOS $name" --notes "$body"
 
           export TAG="$tag" NAME="$name" CODE="$code" SIGNER="$signer" APK="$apk" BODY="$body"
           python3 - <<'PY'
@@ -69,7 +78,7 @@ jobs:
               "tag": os.environ["TAG"],
               "title": f"AriseOS {os.environ['NAME']}",
               "summary": os.environ["BODY"][:400],
-              "commit": os.environ["GITHUB_SHA"],
+              "commit": os.environ["BUILD_SHA"],
               "pr": 0,
               "version": os.environ["NAME"],
               "versionCode": int(os.environ["CODE"]),
