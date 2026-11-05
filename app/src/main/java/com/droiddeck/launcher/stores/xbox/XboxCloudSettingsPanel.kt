@@ -111,8 +111,8 @@ private fun PanelContent(
             Choice("Frame generation", XboxNativeVideo.modes(lsfg).map { it to XboxNativeVideo.modeName(it) }, settings.frameGen) {
                 onChange(settings.copy(frameGen = it))
             }
-            Text("Native engine (experimental): Google's WebRTC and DroidDeck's own compositor, so DroidDeck frame generation " +
-                "(DDFG) or LSFG can add frames. LSFG uses the Lossless.dll DroidDeck already uses for games. Screen effects " +
+            Text("Native engine (experimental): Google's WebRTC and AriseOS's own compositor, so AriseOS frame generation " +
+                "(DDFG) or LSFG can add frames. LSFG uses the Lossless.dll AriseOS already uses for games. Screen effects " +
                 "apply to the web engine.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(start = 8.dp, bottom = 6.dp))
         }

@@ -224,7 +224,7 @@ class XboxNativePlayerActivity : ComponentActivity() {
         super.onStart()
         backgroundEnd?.let { root.removeCallbacks(it); log("back before the stream was ended") }
         backgroundEnd = null
-        if (endedInBackground && notice == null) showNotice("The stream ended while DroidDeck was in the background",
+        if (endedInBackground && notice == null) showNotice("The stream ended while AriseOS was in the background",
             "Cloud sessions are closed after ${BACKGROUND_GRACE_MS / 1000} s away, before Android pauses the app. Restart the " +
                 "stream to play again: the game starts over, unsaved progress is lost.", webPlayer = false)
     }
@@ -651,13 +651,13 @@ class XboxNativePlayerActivity : ComponentActivity() {
                             val modes = if (lsfg) FG_MODES else FG_MODES.take(2)
                             modes.forEachIndexed { i, mode ->
                                 XboxMenuEntry((if (current.frameGen == mode) "✓  " else "") + fgName(mode), when (mode) {
-                                    XboxNativeVideo.FG_DDFG -> "DroidDeck's own frame generation (DDFG); doubles the shown frame rate"
+                                    XboxNativeVideo.FG_DDFG -> "AriseOS's own frame generation (DDFG); doubles the shown frame rate"
                                     XboxNativeVideo.FG_LSFG, XboxNativeVideo.FG_LSFG3, XboxNativeVideo.FG_LSFG4 ->
-                                        "Lossless Scaling frame generation (the Lossless.dll DroidDeck uses for games); the frame-rate target caps the output"
+                                        "Lossless Scaling frame generation (the Lossless.dll AriseOS uses for games); the frame-rate target caps the output"
                                     else -> "Show the stream's own frames only"
                                 }, choices[i]) { current = current.copy(frameGen = mode); setFrameGen(mode) }
                             }
-                            if (!lsfg) androidx.compose.material3.Text("LSFG appears here once DroidDeck has the Lossless.dll (frame generation settings).",
+                            if (!lsfg) androidx.compose.material3.Text("LSFG appears here once AriseOS has the Lossless.dll (frame generation settings).",
                                 style = androidx.compose.material3.MaterialTheme.typography.bodySmall, color = cs.onSurfaceVariant,
                                 modifier = androidx.compose.ui.Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
                             if (current.zeroCopy) androidx.compose.material3.Text(

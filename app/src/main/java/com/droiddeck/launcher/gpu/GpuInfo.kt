@@ -50,7 +50,7 @@ data class GpuInfo(
             Support.UNTESTED -> if (isA850) "Experimental Adreno 850 support: requires compatible experimental display and game drivers; not verified on this device"
                 else if (family == Family.A7XX_LOW) "Experimental: its drivers are test builds"
                 else "Outside tested hardware (Adreno 650, 725 and newer): it may not run"
-            Support.UNSUPPORTED -> "Not supported: DroidDeck needs an Adreno (Snapdragon) GPU"
+            Support.UNSUPPORTED -> "Not supported: AriseOS needs an Adreno (Snapdragon) GPU"
         }
 
     fun supportText(context: Context): String = context.getString(when (support) {

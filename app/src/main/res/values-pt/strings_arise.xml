@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="rail_workspace">Área de trabalho</string>
+    <string name="workspace_stores">Lojas</string>
+    <string name="workspace_desktop">Desktop Linux</string>
+    <string name="workspace_android_apps">Apps Android</string>
+</resources>

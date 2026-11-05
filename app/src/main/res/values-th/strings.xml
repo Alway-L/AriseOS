@@ -1,12 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="steamvr_recovery_title">กราฟิกของ SteamVR หยุดทำงาน</string>
-    <string name="steamvr_recovery_countdown">DroidDeck จะรีสตาร์ทใน %1$d วินาทีเพื่อรีเซ็ตกราฟิกและเปิด SteamVR อีกครั้ง เกมที่กำลังเล่นอยู่จะถูกปิด และความคืบหน้าที่ยังไม่ได้บันทึกจะกู้คืนไม่ได้</string>
+    <string name="steamvr_recovery_countdown">AriseOS จะรีสตาร์ทใน %1$d วินาทีเพื่อรีเซ็ตกราฟิกและเปิด SteamVR อีกครั้ง เกมที่กำลังเล่นอยู่จะถูกปิด และความคืบหน้าที่ยังไม่ได้บันทึกจะกู้คืนไม่ได้</string>
     <string name="steamvr_recovery_repeated">ปัญหากราฟิกกลับมาอีกหลังรีสตาร์ทไปไม่นาน จึงหยุดการกู้คืนอัตโนมัติไว้ชั่วคราวเพื่อไม่ให้วนซ้ำ การรีสตาร์ทจะปิดเกมของคุณ และความคืบหน้าที่ยังไม่ได้บันทึกจะกู้คืนไม่ได้</string>
     <string name="steamvr_recovery_restart">รีสตาร์ทเลย</string>
     <string name="steamvr_recovery_cancel">เปิดไว้ต่อ</string>
     <string name="steamvr_recovery_restarting">กำลังรีเซ็ตกราฟิกและเปิด SteamVR อีกครั้ง…</string>
-    <string name="steamvr_recovery_failed">DroidDeck รีสตาร์ทโดยอัตโนมัติไม่ได้ ปิดแอปให้สนิทแล้วเปิดใหม่อีกครั้ง</string>
+    <string name="steamvr_recovery_failed">AriseOS รีสตาร์ทโดยอัตโนมัติไม่ได้ ปิดแอปให้สนิทแล้วเปิดใหม่อีกครั้ง</string>
     <string name="app_name">AriseOS</string>
     <string-array name="loading_hints">
         <item>การเริ่มใช้งานครั้งแรกจะดาวน์โหลด Steam ซึ่งอาจใช้เวลาสักครู่</item>
@@ -143,7 +143,7 @@
     <string name="user_apps_remove_confirm">กดอีกครั้งเพื่อลบ</string>
     <string name="user_apps_stop_session">หยุดเซสชันก่อนเพื่อลบ</string>
     <string name="user_apps_script_linked">เรียกใช้ %1$s จากโฟลเดอร์ของมัน โดยเชื่อมโยงเข้าสู่เซสชันในตำแหน่งเดิม การลบแอปจะไม่กระทบโฟลเดอร์นั้น</string>
-    <string name="user_apps_script_copied">เรียกใช้ %1$s จากสำเนาโฟลเดอร์ของมันภายใน DroidDeck การลบแอปจะลบสำเนานี้ ไม่ใช่ต้นฉบับ</string>
+    <string name="user_apps_script_copied">เรียกใช้ %1$s จากสำเนาโฟลเดอร์ของมันภายใน AriseOS การลบแอปจะลบสำเนานี้ ไม่ใช่ต้นฉบับ</string>
     <string name="user_apps_runtime_required">ติดตั้งรันไทม์ Linux ก่อน</string>
     <string name="user_apps_file_gone">ไฟล์หายไปแล้ว</string>
     <string name="user_apps_no_space">พื้นที่ว่างไม่พอ: การคัดลอกโฟลเดอร์ต้องใช้ %1$s</string>
@@ -178,8 +178,8 @@
     <string name="app_fex_off">ปิด</string>
     <string name="app_fex_hint">FEX รันโปรแกรม Linux x86 บนอุปกรณ์ ARM64 นี้ อัตโนมัติจะใช้งานเมื่อโปรแกรมถูกสร้างมาสำหรับ x86</string>
     <string name="app_fex_x86">%1$s ผ่าน FEX</string>
-    <string name="app_fex_not_ready">โปรแกรมนี้สร้างมาสำหรับพีซี %1$s และรันผ่าน FEX ซึ่งยังไม่ได้ตั้งค่า เปิด Steam สักครั้งขณะลงชื่อเข้าใช้: DroidDeck จะดาวน์โหลด FEX และ Steam Linux Runtime ที่จำเป็น จากนั้นโปรแกรมนี้จะเปิดขึ้น</string>
-    <string name="session_proot_missing">ดาวน์โหลด proot ของ DroidDeck ไม่ได้ ตรวจสอบการเชื่อมต่อแล้วลองใหม่ เซสชันไม่ได้เริ่มเพราะ proot สำรองช้าเกินกว่าจะเล่นได้</string>
+    <string name="app_fex_not_ready">โปรแกรมนี้สร้างมาสำหรับพีซี %1$s และรันผ่าน FEX ซึ่งยังไม่ได้ตั้งค่า เปิด Steam สักครั้งขณะลงชื่อเข้าใช้: AriseOS จะดาวน์โหลด FEX และ Steam Linux Runtime ที่จำเป็น จากนั้นโปรแกรมนี้จะเปิดขึ้น</string>
+    <string name="session_proot_missing">ดาวน์โหลด proot ของ AriseOS ไม่ได้ ตรวจสอบการเชื่อมต่อแล้วลองใหม่ เซสชันไม่ได้เริ่มเพราะ proot สำรองช้าเกินกว่าจะเล่นได้</string>
     <string name="session_directaudio_missing">ดาวน์โหลด DirectAudio ไม่ได้ เสียงเกมในเซสชันนี้จึงใช้เส้นทางที่ช้ากว่า</string>
     <string name="session_end_program">โปรแกรมนี้</string>
     <string name="session_end_steam_download">ดาวน์โหลดไคลเอนต์ Steam ไม่ได้ เครือข่ายหรือ VPN ของคุณอาจบล็อกเซิร์ฟเวอร์ของ Steam ตรวจสอบการเชื่อมต่อแล้วลองอีกครั้ง</string>
@@ -217,13 +217,13 @@
     <string name="edit_app_save">บันทึก</string>
     <string name="add_app_checking_folder">กำลังตรวจสอบโฟลเดอร์…</string>
     <string name="add_app_folder_linked">โฟลเดอร์ของมันเชื่อมโยงเข้าสู่เซสชัน: %1$s</string>
-    <string name="add_app_folder_copied">โฟลเดอร์ของมันมีโปรแกรม Linux ซึ่งพื้นที่จัดเก็บที่ใช้ร่วมกันไม่สามารถรันได้ จึงถูกคัดลอกเข้าสู่ DroidDeck (%1$s)</string>
+    <string name="add_app_folder_copied">โฟลเดอร์ของมันมีโปรแกรม Linux ซึ่งพื้นที่จัดเก็บที่ใช้ร่วมกันไม่สามารถรันได้ จึงถูกคัดลอกเข้าสู่ AriseOS (%1$s)</string>
     <string name="add_app_confirm">เพิ่ม</string>
     <string name="add_app_cancel">ยกเลิก</string>
     <string name="add_app_runtime_required">ติดตั้งรันไทม์ Linux จากการตั้งค่าก่อน</string>
     <string name="add_app_busy">รอให้ %1$s เสร็จก่อน</string>
     <string name="steam_compat_label">เข้ากันได้</string>
-    <string name="proton_compatible_note">บิลด์ที่มีเครื่องหมาย “%1$s” ในเมนู Compatibility ของ Steam มีการแก้ไข prefix ของ DroidDeck และสามารถเริ่มเกมบนอุปกรณ์นี้ได้ ค่าเริ่มต้นคือ Proton Experimental ARM64 (%1$s) หรือ Proton 11.0 ARM64 (%1$s) เมื่อติดตั้งบิลด์ใหม่กว่านั้นแล้ว รายการ Proton ของ Valve เองที่ไม่มีเครื่องหมายนี้ไม่สามารถเริ่มเกมบนอุปกรณ์นี้ได้</string>
+    <string name="proton_compatible_note">บิลด์ที่มีเครื่องหมาย “%1$s” ในเมนู Compatibility ของ Steam มีการแก้ไข prefix ของ AriseOS และสามารถเริ่มเกมบนอุปกรณ์นี้ได้ ค่าเริ่มต้นคือ Proton Experimental ARM64 (%1$s) หรือ Proton 11.0 ARM64 (%1$s) เมื่อติดตั้งบิลด์ใหม่กว่านั้นแล้ว รายการ Proton ของ Valve เองที่ไม่มีเครื่องหมายนี้ไม่สามารถเริ่มเกมบนอุปกรณ์นี้ได้</string>
     <string name="proton_installed_compatible">ติดตั้งแล้ว %1$s · %2$s</string>
     <string name="common_cancel">ยกเลิก</string>
     <string name="common_auto">อัตโนมัติ</string>
@@ -303,7 +303,7 @@
     <string name="back_double_tap_window">ช่วงเวลาแตะสองครั้ง</string>
     <string name="back_tap_ms">%1$d ms</string>
     <string name="brightness_permission_title">อนุญาตการควบคุมความสว่าง</string>
-    <string name="brightness_permission_text">ตั้งค่าการควบคุมความสว่างใน DroidDeck</string>
+    <string name="brightness_permission_text">ตั้งค่าการควบคุมความสว่างใน AriseOS</string>
     <string name="back_menu_then_qam">เมนู → QAM</string>
     <string name="back_qam_then_menu">QAM → เมนู</string>
     <string name="mode_session">เซสชัน</string>
@@ -316,8 +316,8 @@
     <string name="mode_background_downloads_hint">เลื่อนการหยุดพื้นหลังชั่วคราวออกไปขณะ Steam กำลังดาวน์โหลดอยู่</string>
     <string name="mode_suspend_note">อัตโนมัติจะหยุดชั่วคราวเมื่ออยู่ในพื้นหลังและดำเนินการต่อเมื่อแสดงผล กำหนดเองรอการกดดำเนินการต่อ ไม่มีวันทำงานต่อเนื่องตลอด</string>
     <string name="mode_startup">การเริ่มทำงาน</string>
-    <string name="mode_steam_startup">เริ่ม Steam พร้อมกับ DroidDeck</string>
-    <string name="mode_steam_startup_hint">เปิดเซสชัน Steam เมื่อ DroidDeck เริ่มทำงาน</string>
+    <string name="mode_steam_startup">เริ่ม Steam พร้อมกับ AriseOS</string>
+    <string name="mode_steam_startup_hint">เปิดเซสชัน Steam เมื่อ AriseOS เริ่มทำงาน</string>
     <string name="mode_decky">Decky</string>
     <string name="mode_decky_checking">กำลังค้นหารุ่นที่เผยแพร่…</string>
     <string name="mode_decky_ready">พร้อมติดตั้ง %1$s</string>
@@ -340,8 +340,8 @@
     <string name="mode_client">ไคลเอนต์</string>
     <string name="mode_mangoapp">โอเวอร์เลย์แสดงประสิทธิภาพ</string>
     <string name="mode_mangoapp_hint">ปิดหากเกมขัดข้องหรือจอดำในโหมด Deck จะมีผลในเซสชันถัดไป</string>
-    <string name="mode_return_after_game">กลับไปที่ DroidDeck หลังเล่นเกม</string>
-    <string name="mode_return_after_game_hint">เมื่อเกมที่คุณเริ่มจาก DroidDeck หรือตัวเปิดเกมอื่นปิดลง Steam จะออกอย่างเรียบร้อย (บันทึกบนคลาวด์เสร็จก่อน) แล้วคุณจะกลับไปที่นั่น ปิด: อยู่ใน Steam ต่อ</string>
+    <string name="mode_return_after_game">กลับไปที่ AriseOS หลังเล่นเกม</string>
+    <string name="mode_return_after_game_hint">เมื่อเกมที่คุณเริ่มจาก AriseOS หรือตัวเปิดเกมอื่นปิดลง Steam จะออกอย่างเรียบร้อย (บันทึกบนคลาวด์เสร็จก่อน) แล้วคุณจะกลับไปที่นั่น ปิด: อยู่ใน Steam ต่อ</string>
     <string name="mode_shader_precache">แคชเชเดอร์ล่วงหน้า</string>
     <string name="mode_shader_precache_hint">Steam จะดาวน์โหลดเชเดอร์ที่สร้างไว้แล้วสำหรับเกมของคุณและประมวลผลในเบื้องหลัง เกมจึงกระตุกน้อยลง การปิดช่วยประหยัดข้อมูล พื้นที่จัดเก็บ และแบตเตอรี่ โดยเกมจะสร้างเชเดอร์ระหว่างเล่นแทน เป็นการตั้งค่าเดียวกับ Downloads > Shader Pre-Caching ของ Steam มีผลในเซสชันถัดไป</string>
     <string name="mode_steam_repair">ซ่อมแซมไคลเอนต์ Steam</string>
@@ -420,7 +420,7 @@
     <string name="mode_wifi_open_settings">เปิดการตั้งค่า</string>
     <string name="mode_wifi_continue">ดำเนินการต่อ</string>
     <string name="mode_wifi_explain_title">เปิดการค้นหา Wi-Fi?</string>
-    <string name="mode_wifi_explain_text">Android กำหนดให้ต้องมีสิทธิ์ตำแหน่งเพื่ออ่านชื่อ Wi-Fi และค้นหาเครือข่ายใกล้เคียง DroidDeck ใช้สิทธิ์นี้เพื่อแสดงเครือข่ายเหล่านั้นใน Steam เราไม่ติดตามตำแหน่งของคุณ การเข้าถึงอินเทอร์เน็ตทำงานได้โดยไม่ต้องมีสิทธิ์นี้</string>
+    <string name="mode_wifi_explain_text">Android กำหนดให้ต้องมีสิทธิ์ตำแหน่งเพื่ออ่านชื่อ Wi-Fi และค้นหาเครือข่ายใกล้เคียง AriseOS ใช้สิทธิ์นี้เพื่อแสดงเครือข่ายเหล่านั้นใน Steam เราไม่ติดตามตำแหน่งของคุณ การเข้าถึงอินเทอร์เน็ตทำงานได้โดยไม่ต้องมีสิทธิ์นี้</string>
     <string name="mode_storage">พื้นที่จัดเก็บเกม</string>
     <string name="mode_storage_auto">อัตโนมัติ - การ์ด SD เมื่อมีอยู่ รวมกับโฟลเดอร์ Games ของคุณ</string>
     <string name="mode_storage_auto_none">อัตโนมัติ - โฟลเดอร์ Games ของคุณ รวมกับการ์ด SD เมื่อมีอยู่ (ยังไม่มีในขณะนี้)</string>
@@ -540,7 +540,7 @@
     <string name="comp_nightlies_count">ใน Nightlies · %1$d</string>
     <string name="comp_channel_stable">เสถียร</string>
     <string name="comp_channel_nightly">Nightly</string>
-    <string name="comp_refresh_to_list">รีเฟรชเพื่อแสดงรายการแพ็กเกจใน Nightlies และ DroidDeck</string>
+    <string name="comp_refresh_to_list">รีเฟรชเพื่อแสดงรายการแพ็กเกจใน Nightlies และ AriseOS</string>
     <string name="comp_nothing_new">ไม่มีอะไรใหม่ตั้งแต่การตรวจสอบครั้งล่าสุด</string>
     <string name="comp_import_wcp">นำเข้า .wcp</string>
     <string name="comp_restore_original">คืนค่าต้นฉบับของ Proton นี้</string>
@@ -694,7 +694,7 @@
     <string name="hud_temp_red_battery">แบตเตอรี่แดงที่</string>
     <string name="hud_group_more">เพิ่มเติม</string>
     <string name="hud_export">การวินิจฉัย HUD</string>
-    <string name="hud_export_hint">บันทึกรายงานของเซนเซอร์ทุกตัวที่ HUD อ่านไปที่ Downloads/DroidDeck</string>
+    <string name="hud_export_hint">บันทึกรายงานของเซนเซอร์ทุกตัวที่ HUD อ่านไปที่ Downloads/AriseOS</string>
     <string name="hud_export_button">บันทึก</string>
     <string name="hud_export_done">บันทึกไปที่ %1$s แล้ว</string>
     <string name="hud_export_failed">บันทึกรายงาน HUD ไม่ได้</string>
@@ -852,7 +852,7 @@
     <string name="setup_language_system">ค่าเริ่มต้นของระบบ (%1$s)</string>
     <string name="setup_language_system_short">ค่าเริ่มต้นของระบบ</string>
     <string name="setup_app_scale">ขนาดแอป</string>
-    <string name="setup_app_scale_hint">ข้อความและการควบคุมของ DroidDeck</string>
+    <string name="setup_app_scale_hint">ข้อความและการควบคุมของ AriseOS</string>
     <string name="setup_app_scale_default">%1$d%% (ค่าเริ่มต้น)</string>
     <string name="setup_theme">ธีม</string>
     <string name="setup_theme_hint">รูปลักษณ์ของตัวเปิดแอป</string>
@@ -860,8 +860,8 @@
     <string name="setup_launcher_icon_dark">มืด</string>
     <string name="setup_launcher_icon_light">สว่าง</string>
     <string name="setup_home">ใช้เป็นหน้าจอหลัก</string>
-    <string name="setup_home_on">DroidDeck สามารถเป็นแอปหน้าจอหลักได้</string>
-    <string name="setup_home_off">DroidDeck จะไม่ถูกเสนอให้เป็นแอปหน้าจอหลัก</string>
+    <string name="setup_home_on">AriseOS สามารถเป็นแอปหน้าจอหลักได้</string>
+    <string name="setup_home_off">AriseOS จะไม่ถูกเสนอให้เป็นแอปหน้าจอหลัก</string>
     <string name="setup_orientation">การวางแนว</string>
     <string name="setup_launcher_orientation">การวางแนวของตัวเปิดใช้</string>
     <string name="setup_launcher_orientation_auto">หมุนตามอุปกรณ์</string>
@@ -956,16 +956,16 @@
     <string name="store_website">เว็บไซต์</string>
     <string name="store_verified">ยืนยันแล้ว</string>
     <string name="upd_title">การอัปเดต</string>
-    <string name="upd_build">DroidDeck %1$s · %2$s</string>
+    <string name="upd_build">AriseOS %1$s · %2$s</string>
     <string name="upd_checked">ตรวจสอบล่าสุด %1$s</string>
     <string name="upd_not_checked">ยังไม่ตรวจสอบ</string>
-    <string name="upd_perm_title">ให้ DroidDeck อัปเดตตัวเองได้</string>
+    <string name="upd_perm_title">ให้ AriseOS อัปเดตตัวเองได้</string>
     <string name="upd_perm_text">ในหน้าจอถัดไป เปิด “อนุญาตจากแหล่งนี้” แล้วกลับมาที่นี่ การอัปเดตจะดำเนินต่อไปเอง</string>
     <string name="upd_open_settings">เปิดการตั้งค่า</string>
     <string name="upd_not_now">ไม่ใช่ตอนนี้</string>
     <string name="upd_signed_status">ลงนามต่างกัน</string>
     <string name="upd_signed_headline">อัปเดตทับไม่ได้</string>
-    <string name="upd_signed_detail">สำเนานี้ไม่ได้ลงนามด้วยคีย์รุ่นวางจำหน่ายของ DroidDeck จึงไม่สามารถติดตั้งอัปเดตทับได้ ถอนการติดตั้งเพื่อเปลี่ยน</string>
+    <string name="upd_signed_detail">สำเนานี้ไม่ได้ลงนามด้วยคีย์รุ่นวางจำหน่ายของ AriseOS จึงไม่สามารถติดตั้งอัปเดตทับได้ ถอนการติดตั้งเพื่อเปลี่ยน</string>
     <string name="upd_available">มีอัปเดต</string>
     <string name="upd_blocked_status">ติดตั้งไม่ได้</string>
     <string name="upd_switch">พร้อมเปลี่ยน</string>
@@ -987,7 +987,7 @@
     <string name="upd_stop_session">หยุดเซสชันที่กำลังทำงานอยู่เพื่ออัปเดต</string>
     <string name="upd_less">น้อยลง</string>
     <string name="upd_more">เพิ่มเติม</string>
-    <string name="upd_new_stable">DroidDeck %1$s</string>
+    <string name="upd_new_stable">AriseOS %1$s</string>
     <string name="upd_new_preview">บิลด์ Preview ใหม่</string>
     <string name="upd_new_test">บิลด์ทดสอบ PR #%1$d</string>
     <string name="upd_mb">%1$d MB</string>
@@ -1002,7 +1002,7 @@
     <string name="upd_tests_hint">ลองการแก้ไขก่อนเผยแพร่จริง</string>
     <string name="upd_tests_none">ไม่มีในขณะนี้</string>
     <string name="upd_pr">PR #%1$d</string>
-    <string name="upd_not_built">ไม่ได้สร้างไว้สำหรับสำเนานี้ของ DroidDeck</string>
+    <string name="upd_not_built">ไม่ได้สร้างไว้สำหรับสำเนานี้ของ AriseOS</string>
     <string name="upd_updated">อัปเดตแล้ว %1$s</string>
     <string name="upd_test_name">การทดสอบ PR #%1$d</string>
     <string name="upd_while_ago">สักพักที่แล้ว</string>
@@ -1022,13 +1022,13 @@
     <string name="gate_fix_for_me">แก้ให้ฉันเลย</string>
     <string name="gate_toggle_steps">เปิด “ปิดการจำกัดการประมวลผลข้อมูลย่อย” แล้วกลับมาที่นี่ เปิดตัวเลือกสำหรับนักพัฒนาไว้เสมอ ไม่เช่นนั้นสวิตช์จะปิดลงอีก</string>
     <string name="gate_open_dev">เปิดตัวเลือกสำหรับนักพัฒนา</string>
-    <string name="gate_no_toggle">Android รุ่นนี้ไม่มีสวิตช์สำหรับสิ่งนี้ ดังนั้น DroidDeck จะเปลี่ยนค่าผ่าน Wireless debugging ใช้เวลาประมาณหนึ่งนาที ไม่ต้องใช้คอมพิวเตอร์</string>
+    <string name="gate_no_toggle">Android รุ่นนี้ไม่มีสวิตช์สำหรับสิ่งนี้ ดังนั้น AriseOS จะเปลี่ยนค่าผ่าน Wireless debugging ใช้เวลาประมาณหนึ่งนาที ไม่ต้องใช้คอมพิวเตอร์</string>
     <string name="gate_needs_wifi">Wireless debugging ต้องใช้ Wi-Fi เครือข่ายใดก็ได้ ไม่จำเป็นต้องมีอินเทอร์เน็ต</string>
-    <string name="gate_needs_notifications">รหัสจับคู่จะแสดงในการแจ้งเตือน อนุญาตการแจ้งเตือนสำหรับ DroidDeck หรือใช้วิธีอื่น</string>
+    <string name="gate_needs_notifications">รหัสจับคู่จะแสดงในการแจ้งเตือน อนุญาตการแจ้งเตือนสำหรับ AriseOS หรือใช้วิธีอื่น</string>
     <string name="gate_allow_notifications">อนุญาตการแจ้งเตือน</string>
     <string name="gate_step1">เปิดการตั้งค่า → ตัวเลือกสำหรับนักพัฒนา → Wireless debugging แล้วเปิดใช้งาน</string>
     <string name="gate_step2">แตะ “Pair device with pairing code”</string>
-    <string name="gate_step3">พิมพ์รหัสลงในการแจ้งเตือนของ DroidDeck</string>
+    <string name="gate_step3">พิมพ์รหัสลงในการแจ้งเตือนของ AriseOS</string>
     <string name="pairguide_build_number">ในเกี่ยวกับโทรศัพท์ แตะหมายเลขบิลด์ 7 ครั้ง</string>
     <string name="pairguide_wireless">เปิดการแก้ไขข้อบกพร่องผ่าน Wi-Fi</string>
     <string name="pairguide_pair">เปิดการแก้ไขข้อบกพร่องผ่าน Wi-Fi แล้วแตะ “จับคู่อุปกรณ์ด้วยรหัสการจับคู่”</string>
@@ -1154,7 +1154,7 @@
     <string name="desktop_removing">กำลังลบเดสก์ท็อป</string>
     <string name="desktop_removed">ลบเดสก์ท็อปแล้ว</string>
     <string name="desktop_cleaning_legacy">กำลังลบไฟล์ LXQt เก่า</string>
-    <string name="desktop_removal_unknown">อัปเดต DroidDeck ก่อนลบเดสก์ท็อปรุ่นนี้</string>
+    <string name="desktop_removal_unknown">อัปเดต AriseOS ก่อนลบเดสก์ท็อปรุ่นนี้</string>
     <string name="content_linux_desktop">เดสก์ท็อป Linux</string>
     <string name="content_linux_desktop_hint">KDE Plasma, Firefox และโปรแกรมจำลองของคุณ</string>
     <string name="games_empty">เกมที่คุณติดตั้งใน Steam จะปรากฏที่นี่หลังจากจบเซสชัน</string>
@@ -1192,8 +1192,8 @@
     <string name="gpu_show_other">แสดงไดรเวอร์สำหรับ GPU อื่น</string>
     <string name="gpu_advanced">ขั้นสูง</string>
     <string name="gpu_ubwc_title">ความเข้ากันได้ของ UBWC</string>
-    <string name="gpu_ubwc_hint">ลองเปิดหรือปิดหาก Steam หรือ Android แสดงเป็นแถบลายหรือกะพริบ มีผลกับไดรเวอร์ทั้งสองหลังรีสตาร์ท DroidDeck</string>
-    <string name="gpu_ubwc_restart">รีสตาร์ท DroidDeck เพื่อใช้การเปลี่ยนแปลง</string>
+    <string name="gpu_ubwc_hint">ลองเปิดหรือปิดหาก Steam หรือ Android แสดงเป็นแถบลายหรือกะพริบ มีผลกับไดรเวอร์ทั้งสองหลังรีสตาร์ท AriseOS</string>
+    <string name="gpu_ubwc_restart">รีสตาร์ท AriseOS เพื่อใช้การเปลี่ยนแปลง</string>
     <string name="gpu_set_with_display">ตั้งค่าร่วมกับไดรเวอร์แสดงผล: %1$s รวมทั้งสองอย่าง</string>
     <string name="gpu_set_with_runtime">ตั้งค่าร่วมกับไดรเวอร์รันไทม์: %1$s รวมทั้งสองอย่าง</string>
     <string name="gpu_runtime_hint">ใช้โดยเกมและเดสก์ท็อป</string>
@@ -1201,7 +1201,7 @@
     <string name="gpu_auto_by_gpu">อัตโนมัติ - เลือกตาม GPU</string>
     <string name="gpu_manage">ดาวน์โหลด นำเข้า หรือลบ…</string>
     <string name="gpu_in_use_caps">กำลังใช้งาน</string>
-    <string name="gpu_builtin">ไดรเวอร์ที่มีในตัว DroidDeck</string>
+    <string name="gpu_builtin">ไดรเวอร์ที่มีในตัว AriseOS</string>
     <string name="gpu_matched_pair">ไดรเวอร์รันไทม์และแสดงผลตั้งค่าร่วมกันเป็นคู่ที่เข้ากัน</string>
     <string name="gpu_recommended_for">แนะนำสำหรับ GPU นี้: %1$s</string>
     <string name="gpu_refresh_hint">รีเฟรชเพื่อค้นหาไดรเวอร์สำหรับ GPU นี้</string>
@@ -1306,7 +1306,7 @@
     <string name="unfolded_controls_with_controller_hint">แสดงปุ่มสัมผัสเหล่านี้ด้วยขณะเชื่อมต่อคอนโทรลเลอร์</string>
     <string name="pip_suspended">หยุดชั่วคราว</string>
     <string name="pip_not_ready">ภาพซ้อนภาพจะพร้อมใช้งานเมื่อเซสชันพร้อม</string>
-    <string name="pip_permission">อนุญาตภาพซ้อนภาพสำหรับ DroidDeck ในการตั้งค่า Android</string>
+    <string name="pip_permission">อนุญาตภาพซ้อนภาพสำหรับ AriseOS ในการตั้งค่า Android</string>
     <string name="pip_unavailable">Android ไม่สามารถเปิดภาพซ้อนภาพได้</string>
     <string name="game_more">เพิ่มเติม</string>
     <string name="game_edit_art">แก้ไขภาพปก</string>
@@ -1319,7 +1319,7 @@
     <string name="game_link_copied">คัดลอกลิงก์เปิดเกมแล้ว</string>
     <string name="game_shortcut_unsupported">ตัวเปิดแอปนี้ไม่สามารถเพิ่มช็อตคัตได้ ใช้คัดลอกลิงก์เปิดเกมแทน</string>
     <string name="game_link_invalid">ลิงก์เปิดเกมไม่ถูกต้อง</string>
-    <string name="game_link_missing">เกมนี้ไม่มีอยู่ในไลบรารี DroidDeck ของคุณแล้ว</string>
+    <string name="game_link_missing">เกมนี้ไม่มีอยู่ในไลบรารี AriseOS ของคุณแล้ว</string>
     <string name="game_link_session_busy">หยุดเซสชันปัจจุบันก่อนเปิดเกม Steam</string>
     <string name="game_link_failed">ไม่สามารถส่งเกมไปยัง Steam ได้ ลองเปิดอีกครั้ง</string>
     <string name="setup_retry_removal">ลองลบใหม่</string>
@@ -1346,7 +1346,7 @@
         <item quantity="other">นำเข้า %1$d ไฟล์จาก %2$s สู่ %3$s แล้ว</item>
     </plurals>
     <plurals name="main_saves_imported_backup">
-        <item quantity="other">นำเข้า %1$d ไฟล์จาก %2$s สู่ %3$s แล้ว เซฟเก่าสำรองไว้ที่ Download/DroidDeck/Saves/backups</item>
+        <item quantity="other">นำเข้า %1$d ไฟล์จาก %2$s สู่ %3$s แล้ว เซฟเก่าสำรองไว้ที่ Download/AriseOS/Saves/backups</item>
     </plurals>
     <string name="main_saves_pick_zip">เลือกไฟล์ zip เซฟสำหรับ %1$s</string>
     <string name="main_saves_exporting">กำลังส่งออก %1$s</string>
@@ -1405,7 +1405,7 @@
 
     <string name="upd_unknown_apps_failed">ไม่สามารถเปิดการตั้งค่า “Install unknown apps” ของ Android ได้</string>
     <string name="upd_couldnt_check">ไม่สามารถตรวจสอบได้: %1$s</string>
-    <string name="upd_no_download">บิลด์นี้ไม่มีให้ดาวน์โหลดสำหรับสำเนานี้ของ DroidDeck</string>
+    <string name="upd_no_download">บิลด์นี้ไม่มีให้ดาวน์โหลดสำหรับสำเนานี้ของ AriseOS</string>
     <string name="upd_stop_first">หยุดเซสชันที่กำลังทำงานก่อน แล้วจึงอัปเดต</string>
     <string name="upd_stage_downloading">กำลังดาวน์โหลด</string>
     <string name="upd_stage_installing">กำลังติดตั้ง</string>
@@ -1434,22 +1434,22 @@
     <string name="drivers_recommended_unpublished">ไดรเวอร์ที่แนะนำยังไม่ได้เผยแพร่ในขณะนี้</string>
     <string name="drivers_downloading_pair">กำลังดาวน์โหลด %1$s %2$s…</string>
     <string name="drivers_updated_to">อัปเดตเป็น %1$s %2$s แล้ว</string>
-    <string name="drivers_updated_to_restart">อัปเดตเป็น %1$s %2$s แล้ว ไดรเวอร์แสดงผลจะมีผลหลัง DroidDeck รีสตาร์ท</string>
+    <string name="drivers_updated_to_restart">อัปเดตเป็น %1$s %2$s แล้ว ไดรเวอร์แสดงผลจะมีผลหลัง AriseOS รีสตาร์ท</string>
     <string name="drivers_auto_waits_for_session">การอัปเดตไดรเวอร์จะรอจนกว่าเซสชันจะหยุด</string>
     <string name="drivers_auto_waits_for_network">%1$s %2$s จะดาวน์โหลดเมื่อคุณออกจากข้อมูลมือถือและโหมดประหยัดแบตเตอรี่</string>
     <string name="drivers_skipping_bad">%1$s %2$s ไม่ได้เริ่มเซสชันที่นี่ อัตโนมัติจึงใช้ไดรเวอร์ที่เริ่มได้</string>
     <string name="drivers_rolled_back">%1$s เริ่มเซสชันไม่สำเร็จสองครั้ง อัตโนมัติจึงกลับไปใช้ไดรเวอร์ที่ทำงานได้</string>
     <string name="drivers_switched_to">สลับเป็น %1$s %2$s แล้ว</string>
-    <string name="drivers_switched_to_restart">สลับเป็น %1$s %2$s แล้ว ไดรเวอร์แสดงผลจะมีผลหลัง DroidDeck รีสตาร์ท</string>
+    <string name="drivers_switched_to_restart">สลับเป็น %1$s %2$s แล้ว ไดรเวอร์แสดงผลจะมีผลหลัง AriseOS รีสตาร์ท</string>
     <string name="drivers_using">กำลังใช้ %1$s %2$s</string>
-    <string name="drivers_using_restart">กำลังใช้ %1$s %2$s ไดรเวอร์แสดงผลจะมีผลหลัง DroidDeck รีสตาร์ท</string>
+    <string name="drivers_using_restart">กำลังใช้ %1$s %2$s ไดรเวอร์แสดงผลจะมีผลหลัง AriseOS รีสตาร์ท</string>
     <string name="drivers_using_quest">กำลังใช้ไดรเวอร์จอที่มากับ Quest และรันไทม์ค่าเริ่มต้น</string>
-    <string name="drivers_using_quest_restart">กำลังใช้ไดรเวอร์จอที่มากับ Quest และรันไทม์ค่าเริ่มต้น ไดรเวอร์จอจะมีผลหลังรีสตาร์ต DroidDeck</string>
+    <string name="drivers_using_quest_restart">กำลังใช้ไดรเวอร์จอที่มากับ Quest และรันไทม์ค่าเริ่มต้น ไดรเวอร์จอจะมีผลหลังรีสตาร์ต AriseOS</string>
     <string name="drivers_not_a_driver">ไม่ใช่ไฟล์ zip ไดรเวอร์: ไม่ใช่ไดรเวอร์ AdrenoTools, Turnip -Linux หรือแพ็ก Android + Linux</string>
     <string name="drivers_import_failed">นำเข้าล้มเหลว: %1$s</string>
     <string name="drivers_imported_unnamed">นำเข้าไดรเวอร์แล้ว</string>
     <string name="drivers_using_bundle">กำลังใช้ %1$s เป็นทั้งไดรเวอร์รันไทม์และแสดงผล</string>
-    <string name="drivers_using_bundle_restart">กำลังใช้ %1$s เป็นทั้งไดรเวอร์รันไทม์และแสดงผล ไดรเวอร์แสดงผลจะมีผลหลัง DroidDeck รีสตาร์ท</string>
+    <string name="drivers_using_bundle_restart">กำลังใช้ %1$s เป็นทั้งไดรเวอร์รันไทม์และแสดงผล ไดรเวอร์แสดงผลจะมีผลหลัง AriseOS รีสตาร์ท</string>
     <string name="drivers_deleted_bundle">ลบ %1$s แล้ว (ไดรเวอร์ทั้งสอง)</string>
     <string name="drivers_deleted">ลบ %1$s แล้ว</string>
     <string name="drivers_release_status">ล่าสุด: %1$s · ตรวจสอบเมื่อ %2$s</string>
@@ -1463,7 +1463,7 @@
     <plurals name="drivers_ago_days">
         <item quantity="other">%1$d วันที่แล้ว</item>
     </plurals>
-    <string name="drivers_checking_sources">กำลังตรวจสอบ Banners-Turnip, WinNative และ DroidDeck…</string>
+    <string name="drivers_checking_sources">กำลังตรวจสอบ Banners-Turnip, WinNative และ AriseOS…</string>
     <string name="drivers_check_failed">ตรวจสอบล้มเหลว</string>
     <string name="drivers_installed_pick_either">ติดตั้ง %1$s แล้ว - เลือกจากรายการใดก็ได้เพื่อตั้งค่าไดรเวอร์ทั้งสอง</string>
     <string name="drivers_installed_pick">ติดตั้ง %1$s แล้ว - เลือกจากเมนู</string>
@@ -1679,7 +1679,7 @@
     <string name="fm_decline">ปฏิเสธ</string>
     <string name="fm_drive_not_readable">%1$s ติดตั้งอยู่แต่อ่านไม่ได้ในขณะนี้</string>
     <string name="fm_drive_access_title">อนุญาตให้เข้าถึง %1$s</string>
-    <string name="fm_drive_access_text">Android ให้ DroidDeck เห็นไดรฟ์นี้แต่อ่านไม่ได้ เปิดสิทธิ์เข้าถึงไฟล์ทั้งหมดให้ DroidDeck แล้วกลับมาที่นี่</string>
+    <string name="fm_drive_access_text">Android ให้ AriseOS เห็นไดรฟ์นี้แต่อ่านไม่ได้ เปิดสิทธิ์เข้าถึงไฟล์ทั้งหมดให้ AriseOS แล้วกลับมาที่นี่</string>
     <string name="fm_list_view">มุมมองรายการ</string>
     <string name="fm_grid_view">มุมมองตาราง</string>
     <string name="fm_search">ค้นหา</string>
@@ -1779,7 +1779,7 @@
     <string name="flatpakmgr_not_ready">ตั้งค่า Flatpak ก่อน</string>
     <string name="flatpakmgr_starting">กำลังเริ่ม</string>
     <string name="flatpakmgr_exit_status">Flatpak ออกด้วยสถานะ %1$d</string>
-    <string name="flatpakmgr_wrong_arch">%1$s สร้างมาสำหรับ %2$s ซึ่ง DroidDeck เรียกใช้ไม่ได้ แอป Flatpak ที่นี่ต้องเป็นเวอร์ชัน ARM64 หรือ x86_64</string>
+    <string name="flatpakmgr_wrong_arch">%1$s สร้างมาสำหรับ %2$s ซึ่ง AriseOS เรียกใช้ไม่ได้ แอป Flatpak ที่นี่ต้องเป็นเวอร์ชัน ARM64 หรือ x86_64</string>
     <string name="flatpakmgr_installing">กำลังติดตั้ง %1$s</string>
     <string name="flatpakmgr_updating">กำลังอัปเดต %1$s</string>
     <string name="flatpakmgr_removing">กำลังลบ %1$s</string>
@@ -1862,7 +1862,7 @@
     <string name="adbfix_no_pairing">ไม่มีการจับคู่ Wireless debugging ที่บันทึกไว้</string>
     <string name="adbfix_enter_address">กรอกที่อยู่ IP และพอร์ตปัจจุบันของ Wireless debugging</string>
 
-    <string name="adbpair_timed_out">รอป๊อปอัปการจับคู่หมดเวลา ลองใหม่จาก DroidDeck</string>
+    <string name="adbpair_timed_out">รอป๊อปอัปการจับคู่หมดเวลา ลองใหม่จาก AriseOS</string>
     <string name="adbpair_discovery_failed_code">ไม่สามารถค้นหาป๊อปอัปการจับคู่ได้ (%1$d) ตรวจสอบว่าเปิด Wi-Fi อยู่</string>
     <string name="adbpair_discovery_failed">ไม่สามารถค้นหาป๊อปอัปการจับคู่ได้: %1$s</string>
     <string name="adbpair_six_digits">กรอกรหัสให้ครบทั้ง 6 หลัก</string>
@@ -1885,20 +1885,20 @@
     <string name="adbpair_enter_code">กรอกรหัส</string>
     <string name="adbpair_title_working">กำลังตั้งค่า Steam</string>
     <string name="adbpair_title_done">Steam พร้อมแล้ว</string>
-    <string name="adbpair_done_text">แตะเพื่อกลับไปที่ DroidDeck คุณสามารถปิด Wireless debugging ได้แล้วตอนนี้</string>
+    <string name="adbpair_done_text">แตะเพื่อกลับไปที่ AriseOS คุณสามารถปิด Wireless debugging ได้แล้วตอนนี้</string>
     <string name="adbpair_title_failed">การตั้งค่า Wireless debugging หยุดแล้ว</string>
 
     <string name="selfinst_download_failed">ดาวน์โหลดไม่สำเร็จ</string>
     <string name="selfinst_size_mismatch">ขนาดการดาวน์โหลดไม่ตรงกับ APK ที่เผยแพร่และถูกยกเลิก - ลองใหม่</string>
     <string name="selfinst_checksum_mismatch">การดาวน์โหลดไม่ตรงกับค่าตรวจสอบและถูกยกเลิก - ลองใหม่</string>
     <string name="selfinst_wrong_package">อัปเดตนี้สำหรับแพ็กเกจ Android %1$s ไม่ใช่ %2$s</string>
-    <string name="selfinst_metadata_signer">ข้อมูลเมตาของอัปเดตไม่ได้ระบุคีย์ลงนามรุ่นวางจำหน่ายของ DroidDeck</string>
+    <string name="selfinst_metadata_signer">ข้อมูลเมตาของอัปเดตไม่ได้ระบุคีย์ลงนามรุ่นวางจำหน่ายของ AriseOS</string>
     <string name="selfinst_unreadable">Android ไม่สามารถอ่าน APK ที่ดาวน์โหลดได้</string>
     <string name="selfinst_apk_wrong_package">APK ที่ดาวน์โหลดสำหรับ %1$s ไม่ใช่ %2$s</string>
     <string name="selfinst_version_mismatch">APK ที่ดาวน์โหลดระบุ versionCode %1$d ไม่ใช่ %2$d ที่เผยแพร่</string>
     <string name="selfinst_downgrade">Android จะไม่ติดตั้ง versionCode %1$d ทับ %2$d ที่ติดตั้งอยู่</string>
     <string name="selfinst_no_signing">APK ที่ดาวน์โหลดไม่มีข้อมูลการลงนาม</string>
-    <string name="selfinst_wrong_signer">APK ที่ดาวน์โหลดไม่ได้ลงนามด้วยคีย์รุ่นวางจำหน่ายของ DroidDeck</string>
+    <string name="selfinst_wrong_signer">APK ที่ดาวน์โหลดไม่ได้ลงนามด้วยคีย์รุ่นวางจำหน่ายของ AriseOS</string>
     <string name="appupd_http">แคตตาล็อกอัปเดตตอบกลับด้วย HTTP %1$d</string>
 
     <string name="loadstate_starting">กำลังเริ่มเซสชัน…</string>
@@ -1944,7 +1944,7 @@
     <string name="cmgr_original_kept">ต้นฉบับของบิลด์ที่ติดตั้งไว้ถูกเก็บไว้: นี่คือทางกลับ</string>
     <string name="cmgr_not_stored">ไม่ได้บันทึกไว้</string>
     <string name="cmgr_deleted_original">ลบต้นฉบับ %1$s ของ %2$s แล้ว</string>
-    <string name="cmgr_nightlies_only">การดาวน์โหลดมาจากรุ่นที่เผยแพร่ใน Nightlies และ DroidDeck เท่านั้น</string>
+    <string name="cmgr_nightlies_only">การดาวน์โหลดมาจากรุ่นที่เผยแพร่ใน Nightlies และ AriseOS เท่านั้น</string>
     <string name="cmgr_nightly_replaced">ดาวน์โหลดไม่สำเร็จ: บิลด์ nightly นี้อาจถูกแทนที่ด้วยบิลด์ที่ใหม่กว่า รีเฟรชรายการแล้วลองอีกครั้ง</string>
     <string name="cmgr_list_predates_checksums">รายการแพ็กเกจนี้เก่ากว่าระบบค่าตรวจสอบ - รีเฟรชแล้วลองใหม่</string>
     <string name="cmgr_checksum_mismatch">ค่าตรวจสอบไม่ตรงกัน</string>
@@ -1984,7 +1984,7 @@
     <string name="gpuinfo_experimental">ทดลอง: ไดรเวอร์เป็นบิลด์ทดสอบ</string>
     <string name="gpuinfo_a850_experimental">รองรับ Adreno 850 แบบทดลอง: ต้องใช้ไดรเวอร์จอแสดงผลและไดรเวอร์เกมแบบทดลองที่เข้ากันได้ ยังไม่ได้ตรวจสอบบนอุปกรณ์นี้</string>
     <string name="gpuinfo_below_tested">ต่ำกว่าฮาร์ดแวร์ที่ทดสอบแล้ว (Adreno 725 และรุ่นใหม่กว่า): อาจรันไม่ได้</string>
-    <string name="gpuinfo_unsupported">ไม่รองรับ: DroidDeck ต้องใช้ GPU Adreno (Snapdragon)</string>
+    <string name="gpuinfo_unsupported">ไม่รองรับ: AriseOS ต้องใช้ GPU Adreno (Snapdragon)</string>
 
     <string name="turnip_rate_limited">ติดขีดจำกัดอัตราของ GitHub - ลองใหม่ในหลัง</string>
     <string name="turnip_github_http">GitHub ตอบกลับด้วย HTTP %1$d</string>
@@ -2027,10 +2027,10 @@
     <string name="phantom_instructions_not_applicable">Android รุ่นนี้ไม่ใช้ขีดจำกัดนี้</string>
     <string name="phantom_fix_toggle">เปิด “ปิดการจำกัดการประมวลผลข้อมูลย่อย” ในตัวเลือกสำหรับนักพัฒนา และเปิดตัวเลือกสำหรับนักพัฒนาไว้ต่อไปหลังจากนั้น</string>
     <string name="phantom_fix_no_toggle">Android รุ่นนี้ไม่มีสวิตช์สำหรับสิ่งนี้ ใช้ Wireless debugging เพื่อเปลี่ยนค่าจากอุปกรณ์นี้</string>
-    <string name="upd_block_no_apk">บิลด์นี้ไม่มีให้ดาวน์โหลดสำหรับสำเนานี้ของ DroidDeck</string>
+    <string name="upd_block_no_apk">บิลด์นี้ไม่มีให้ดาวน์โหลดสำหรับสำเนานี้ของ AriseOS</string>
     <string name="upd_block_version_code">Android จะไม่ติดตั้งทับบิลด์นี้ เพราะ versionCode %1$d ต่ำกว่า %2$d ที่ติดตั้งอยู่</string>
     <string name="upd_fail_downgrade">Android จะไม่ติดตั้งรุ่นเก่าทับรุ่นใหม่ ใช้บิลด์นี้ต่อไปจนกว่าช่องทางนี้จะตามทัน</string>
-    <string name="upd_fail_signature">สำเนานี้ของ DroidDeck ลงนามต่างกัน (อาจเป็นบิลด์ที่สร้างเอง) จึง Android จะไม่อัปเดตทับให้</string>
+    <string name="upd_fail_signature">สำเนานี้ของ AriseOS ลงนามต่างกัน (อาจเป็นบิลด์ที่สร้างเอง) จึง Android จะไม่อัปเดตทับให้</string>
     <string name="upd_fail_storage">มีพื้นที่ว่างไม่พอสำหรับการอัปเดต</string>
     <string name="upd_fail_aborted">การอัปเดตถูกยกเลิก</string>
     <string name="upd_fail_with_message">อัปเดตไม่สามารถติดตั้งได้: %1$s</string>
@@ -2055,7 +2055,7 @@
     <string name="gstore_volume_free">%1$s · เหลือ %2$s</string>
     <string name="mode_storage_auto_short">อัตโนมัติ</string>
     <string name="appupd_catalog_rejected">แคตตาล็อกอัปเดตไม่ผ่านการตรวจสอบ (%1$s)</string>
-    <string name="main_adb_clip_label">การตั้งค่าโพรเซสลูกของ DroidDeck</string>
+    <string name="main_adb_clip_label">การตั้งค่าโพรเซสลูกของ AriseOS</string>
     <string name="setup_signed_in_offline_unnamed">ลงชื่อเข้าใช้แล้ว · โหมดออฟไลน์</string>
     <string name="setup_signed_in_unnamed">ลงชื่อเข้าใช้แล้ว</string>
     <string name="driver_tag_bundled">มีในตัว</string>
@@ -2450,7 +2450,7 @@
     <string name="gpu_display_next">วาดหน้าจอ มีผลตั้งแต่เซสชันถัดไป</string>
     <string name="gpu_previous_driver">ไดรเวอร์ก่อนหน้า</string>
     <string name="gpu_restart_banner">รีสตาร์ตเพื่อเปลี่ยนไดรเวอร์จอ</string>
-    <string name="gpu_restart_blocked">หยุดเซสชันปัจจุบันและรีสตาร์ต DroidDeck เพื่อเปลี่ยนไดรเวอร์จอ</string>
+    <string name="gpu_restart_blocked">หยุดเซสชันปัจจุบันและรีสตาร์ต AriseOS เพื่อเปลี่ยนไดรเวอร์จอ</string>
     <string name="gpu_restart_now">รีสตาร์ตเลย</string>
     <string name="gpu_restart_later">ไว้ทีหลัง</string>
     <string name="gpu_auto_title">อัตโนมัติเลือกคู่นี้สำหรับ %1$s ของคุณ</string>
@@ -2527,7 +2527,7 @@
     <string name="touch_speed_normal">ปกติ</string>
     <string name="touch_speed_fast">เร็ว</string>
     <string name="touch_edit_layout">แก้ไขเค้าโครง</string>
-    <string name="touch_droiddeck_menu">เมนู DroidDeck</string>
+    <string name="touch_droiddeck_menu">เมนู AriseOS</string>
     <string name="touch_drag_hint">ลากปุ่มควบคุมไปวางบนหน้าจอ</string>
     <string name="touch_arrange">จัดเรียง</string>
     <string name="touch_discard">ละทิ้ง</string>
@@ -2591,7 +2591,7 @@
     <string name="glasses_driver_missing">บิลด์นี้ไม่มีไดรเวอร์สำหรับแว่นตานี้</string>
     <string name="glasses_connection_failed">เชื่อมต่อกับแว่นตาไม่ได้ เสียบสายใหม่ หรือแตะ “อนุญาต” เพื่อลองอีกครั้ง</string>
     <string name="glasses_allow">อนุญาต</string>
-    <string name="glasses_allow_hint">ให้ DroidDeck ตั้งค่าอัตรารีเฟรช โหมด 3D ความสว่าง ระดับเสียง และการกันแดดของแว่นตา รวมถึงอ่านข้อมูลการติดตามศีรษะ</string>
+    <string name="glasses_allow_hint">ให้ AriseOS ตั้งค่าอัตรารีเฟรช โหมด 3D ความสว่าง ระดับเสียง และการกันแดดของแว่นตา รวมถึงอ่านข้อมูลการติดตามศีรษะ</string>
     <string name="glasses_asking">กำลังรอให้คุณอนุญาตในกล่องโต้ตอบของ Android…</string>
     <string name="glasses_denied">การควบคุมถูกปฏิเสธ โปรดอนุญาตเพื่อเปลี่ยนการตั้งค่าของแว่นตา</string>
     <string name="glasses_no_control">แว่นตานี้แสดงเกมได้ แต่เปลี่ยนการตั้งค่าจากที่นี่ไม่ได้</string>
@@ -2769,7 +2769,7 @@
     <string name="storage_internal">พื้นที่จัดเก็บภายใน</string>
     <string name="storage_used_of">ใช้ %1$s จาก %2$s</string>
     <string name="storage_free">ว่าง %1$s</string>
-    <string name="storage_droiddeck_uses">DroidDeck ใช้ %1$s วัดเมื่อ %2$s</string>
+    <string name="storage_droiddeck_uses">AriseOS ใช้ %1$s วัดเมื่อ %2$s</string>
     <string name="storage_rescanning">กำลังสแกนใหม่…</string>
     <string name="storage_other_apps">แอป Android อื่น</string>
     <string name="storage_safe_now">ล้างได้ตอนนี้</string>
@@ -2803,7 +2803,7 @@
     <string name="storage_desktop_hint">แอปและรันไทม์ Flatpak</string>
     <string name="storage_system">ระบบ Linux และไคลเอนต์ Steam</string>
     <string name="storage_system_hint">จำเป็นต่อการทำงานของทุกอย่าง</string>
-    <string name="storage_app_data">ข้อมูล DroidDeck</string>
+    <string name="storage_app_data">ข้อมูล AriseOS</string>
     <string name="storage_app_data_hint">ล็อกเซสชันเก่า %1$s · แคช · ไดรเวอร์</string>
     <string name="storage_legend_games">เกม</string>
     <string name="storage_legend_data">ข้อมูลเกม</string>
@@ -2811,7 +2811,7 @@
     <string name="storage_legend_stores">สโตร์อื่น</string>
     <string name="storage_legend_desktop">แอปเดสก์ท็อป</string>
     <string name="storage_legend_system">ระบบ Linux</string>
-    <string name="storage_legend_app">DroidDeck</string>
+    <string name="storage_legend_app">AriseOS</string>
     <string name="storage_clean_up_title">ล้าง</string>
     <string name="storage_clean_up_lede">ไม่มีอะไรตรงนี้แตะเกมที่ติดตั้งหรือดาวน์โหลดที่กำลังทำงาน</string>
     <string name="storage_nothing_to_clean">ไม่มีอะไรให้ล้างตอนนี้</string>
@@ -2860,8 +2860,8 @@
     <string name="storage_tool_redist">ตัวติดตั้ง VC++ และ DirectX ที่เกมต้องใช้</string>
     <string name="storage_tool_fex">รันเกม Linux x86</string>
     <string name="storage_tool_steam">เครื่องมือ Steam</string>
-    <string name="storage_tool_old_runtime">DroidDeck รันเกมได้โดยไม่ต้องใช้รันไทม์นี้</string>
-    <string name="storage_tool_x86_proton">Proton x86 ซึ่ง DroidDeck รันไม่ได้</string>
+    <string name="storage_tool_old_runtime">AriseOS รันเกมได้โดยไม่ต้องใช้รันไทม์นี้</string>
+    <string name="storage_tool_x86_proton">Proton x86 ซึ่ง AriseOS รันไม่ได้</string>
     <string name="storage_tool_custom_default">ค่าเริ่มต้นสำหรับทุกเกม</string>
     <string name="storage_tool_custom_unused">ไม่มีเกมใช้</string>
     <string name="storage_tool_custom_unknown">อ่านการตั้งค่า Steam ไม่ได้ จึงเก็บไว้</string>
@@ -2895,8 +2895,8 @@
         <item quantity="one">%d เกม</item>
         <item quantity="other">%d เกม</item>
     </plurals>
-    <string name="storage_tool_default_proton">Proton ค่าเริ่มต้นของ DroidDeck</string>
-    <string name="storage_tool_proton">ตัวเลือก Proton 11 ของ DroidDeck</string>
+    <string name="storage_tool_default_proton">Proton ค่าเริ่มต้นของ AriseOS</string>
+    <string name="storage_tool_proton">ตัวเลือก Proton 11 ของ AriseOS</string>
     <plurals name="storage_tool_custom_games">
         <item quantity="one">%d เกมใช้</item>
         <item quantity="other">%d เกมใช้</item>
@@ -2953,7 +2953,7 @@
     </plurals>
     <string name="boot_movie">วิดีโอบูต</string>
     <string name="boot_movie_video">วิดีโอ</string>
-    <string name="boot_movie_droiddeck">DroidDeck · %1$d fps</string>
+    <string name="boot_movie_droiddeck">AriseOS · %1$d fps</string>
     <string name="boot_movie_note">60 fps ลื่นกว่าแต่ใช้ CPU มากขึ้นระหว่างที่ Steam กำลังเริ่ม วิดีโอที่เลือกในการตั้งค่าของ Steam เองจะแสดงที่นี่ด้วย</string>
     <string name="boot_movie_sound">เสียง</string>
     <string name="boot_movie_custom">วิดีโอของคุณเอง</string>
@@ -2965,24 +2965,24 @@
     <string name="boot_movie_imported_silent">%1$s เป็นวิดีโอบูตแล้ว แบบไม่มีเสียง</string>
     <string name="boot_movie_too_long">วิดีโอที่ต้องแปลงต้องยาวไม่เกิน %1$d วินาที</string>
     <string name="boot_movie_converting">กำลังแปลง %1$d%%</string>
-    <string name="boot_movie_converting_started">กำลังแปลง %1$s สำหรับ Steam โปรดเปิด DroidDeck ค้างไว้</string>
+    <string name="boot_movie_converting_started">กำลังแปลง %1$s สำหรับ Steam โปรดเปิด AriseOS ค้างไว้</string>
     <string name="boot_movie_unsupported">อุปกรณ์นี้ถอดรหัสวิดีโอนั้นไม่ได้</string>
     <string name="boot_movie_import_failed">นำเข้าวิดีโอนี้ไม่ได้</string>
     <string name="boot_movie_remove_confirm">ลบ %1$s หรือไม่?</string>
-    <string name="boot_movie_remove_confirm_body">วิดีโอจะถูกลบออกจาก DroidDeck และจากโฟลเดอร์วิดีโอของ Steam</string>
+    <string name="boot_movie_remove_confirm_body">วิดีโอจะถูกลบออกจาก AriseOS และจากโฟลเดอร์วิดีโอของ Steam</string>
     <string name="boot_movie_tab_installed">ติดตั้งแล้ว</string>
     <string name="boot_movie_tab_import">นำเข้า</string>
     <string name="boot_movie_tab_repo">SteamDeckRepo</string>
     <string name="boot_movie_tab_sound">เสียง</string>
     <string name="boot_movie_installed">วิดีโอที่ติดตั้งแล้ว</string>
     <string name="boot_movie_browse">เรียกดู</string>
-    <string name="boot_movie_source_droiddeck">DroidDeck</string>
+    <string name="boot_movie_source_droiddeck">AriseOS</string>
     <string name="boot_movie_source_import">นำเข้าแล้ว</string>
     <string name="boot_movie_source_repo">SteamDeckRepo</string>
     <string name="boot_movie_source_steam">Steam</string>
     <string name="boot_movie_source_pointshop">ร้านค้าแต้ม</string>
     <string name="boot_movie_report">รายงานวิดีโอเปิดเครื่อง</string>
-    <string name="boot_movie_report_hint">บันทึกสิ่งที่ DroidDeck และ Steam รู้เกี่ยวกับวิดีโอเปิดเครื่องลงในไฟล์ข้อความ เพื่อแนบกับรายงานข้อบกพร่อง</string>
+    <string name="boot_movie_report_hint">บันทึกสิ่งที่ AriseOS และ Steam รู้เกี่ยวกับวิดีโอเปิดเครื่องลงในไฟล์ข้อความ เพื่อแนบกับรายงานข้อบกพร่อง</string>
     <string name="boot_movie_report_save">บันทึก</string>
     <string name="boot_movie_report_saved">บันทึกไปที่ %1$s แล้ว</string>
     <string name="boot_movie_report_failed">ไม่สามารถบันทึกรายงานได้</string>
@@ -3018,7 +3018,7 @@
     <string name="glasses_joycons_hint">ใช้กล้องของแว่นตาอัจฉริยะเพื่อกำหนดตำแหน่งคอนโทรลเลอร์ Joy-Con ที่จับคู่ไว้ การหมุนและการกดปุ่มจะมาจากคอนโทรลเลอร์ Joy-Con ตำแหน่งจะถูกประมาณเมื่อข้อมือของคุณถูกซ่อนอยู่ แทนที่คอนโทรลเลอร์ที่ใช้งานด้วยมือเปล่าและหยุดการติดตามของกล้องโทรศัพท์ชั่วคราว ชี้คอนโทรลเลอร์ Joy-Con ไปข้างหน้าเมื่อเชื่อมต่อหรือรีเซ็ตศูนย์กลางการติดตาม</string>
     <string name="glasses_joycons_requires_position">เปิดใช้งานการติดตามตำแหน่งก่อน ต้องใช้คอนโทรลเลอร์ Joy-Con ที่รองรับการเคลื่อนไหวบน Android 12 หรือใหม่กว่า ปิดใช้งานโดยค่าเริ่มต้น</string>
     <string name="setup_tab_glasses">แว่นตาอัจฉริยะ</string>
-    <string name="setup_glasses_scope">การตั้งค่าการแสดงผลและการติดตามศีรษะจะใช้ร่วมกันในเมนู DroidDeck เกม และเซสชันเดสก์ท็อป</string>
+    <string name="setup_glasses_scope">การตั้งค่าการแสดงผลและการติดตามศีรษะจะใช้ร่วมกันในเมนู AriseOS เกม และเซสชันเดสก์ท็อป</string>
     <string name="setup_glasses_connect">เชื่อมต่อแว่นตาอัจฉริยะเพื่อเปลี่ยนการตั้งค่าการแสดงผลและการติดตาม การตั้งค่าที่บันทึกไว้ของคุณจะยังคงอยู่เมื่อคุณตัดการเชื่อมต่อ</string>
     <string name="glasses_vr">VR</string>
     <string name="glasses_display_mode">โหมดการแสดงผล</string>
@@ -3037,7 +3037,7 @@
     <string name="glasses_refresh_30_hint">เปิดใช้งาน Game on smart glasses เพื่อเลือกโหมด 30 Hz ดั้งเดิมของจอแสดงผล</string>
     <string name="glasses_3dof">หน้าจอเสมือน 3DoF</string>
     <string name="glasses_3dof_hint">ตรึงเกมแบบแบนไว้ข้างหน้าคุณเพื่อให้คุณสามารถมองไปรอบๆ ได้ เปิดใช้งาน Game on smart glasses โดยไม่ต้องเปลี่ยนเป็น 3 มิติ</string>
-    <string name="glasses_screen_app_wide">ความกว้างและระยะทางจะอัปเดตหน้าจอเสมือนที่ติดตามสำหรับเมนู เกม และเซสชันเดสก์ท็อปของ DroidDeck ทันที</string>
+    <string name="glasses_screen_app_wide">ความกว้างและระยะทางจะอัปเดตหน้าจอเสมือนที่ติดตามสำหรับเมนู เกม และเซสชันเดสก์ท็อปของ AriseOS ทันที</string>
     <string name="glasses_head_tracking_spatial_vr_hint">การติดตามตำแหน่งรวมถึงการหมุนศีรษะใน SteamVR สำหรับการติดตามการหมุนอย่างเดียว ให้ปิดการติดตามตำแหน่ง</string>
     <string name="glasses_head_tracking_spatial_hint">ควบคุมการเคลื่อนไหวของศีรษะบนหน้าจอเสมือน การติดตามตำแหน่งรวมถึงการหมุนศีรษะใน SteamVR</string>
     <string name="glasses_quick_actions">การดำเนินการด่วน</string>
@@ -3133,8 +3133,8 @@
     <string name="spatial_timing_values">%1$.1f Hz • อายุภาพ %2$.1f ms • การประมวลผล %3$.1f ms</string>
     <string name="spatial_input_values">ขีดจำกัดอินพุต %1$.1f Hz • %2$.0f%% ของภาพของกล้อง การติดตามศีรษะยังคงดำเนินต่อไปที่ความถี่สูงสุด</string>
     <string name="spatial_frame_counts">%1$d ประมวลผลแล้ว • %2$d ลดลง • %3$d ข้ามตามขีดจำกัดอินพุต</string>
-    <string name="spatial_print_job">DroidDeck ChArUco 30 mm</string>
-    <string name="spatial_print_title">DroidDeck - การสอบเทียบ Luma Ultra</string>
+    <string name="spatial_print_job">AriseOS ChArUco 30 mm</string>
+    <string name="spatial_print_title">AriseOS - การสอบเทียบ Luma Ultra</string>
     <string name="spatial_print_scale" formatted="false">พิมพ์ที่ 100% / ขนาดจริง แต่ละสี่เหลี่ยมจัตุรัส: 30 มม. (1.181 นิ้ว)</string>
     <string name="spatial_print_stationary">รักษาเป้าหมายการสอบเทียบให้เรียบและอยู่กับที่ ย้ายแว่นตาอัจฉริยะระหว่างการจับภาพ</string>
     <string name="spatial_print_check">การตรวจสอบสเกล: 100 มม. (3.937 นิ้ว) ระหว่างขีด</string>
@@ -3221,22 +3221,22 @@
     <string name="session_end_gpu_unsupported">เซสชันนี้เริ่มไม่ได้เพราะ GPU นี้ไม่มีไดรเวอร์ Linux Vulkan ที่เข้ากันได้ในการตั้งค่าปัจจุบัน ไดรเวอร์ Adreno Turnip ไม่สามารถเปิดการรองรับ GPU ของ MediaTek/Mali ได้</string>
     <string name="setup_group_memory">หน่วยความจำ</string>
     <string name="setup_clear_cached">ปิดแอปที่แคชไว้ก่อนเริ่มเซสชัน</string>
-    <string name="setup_clear_cached_hint">เมื่อเซสชันเริ่ม DroidDeck จะปิดแอปที่ Android พักไว้ในพื้นหลัง เพื่อให้เกมมีหน่วยความจำมากขึ้น ต้องเปิด Wireless debugging ไว้</string>
-    <string name="setup_clear_cached_unpaired">ต้องจับคู่ DroidDeck กับ Wireless debugging ก่อน (จับคู่ ด้านล่าง)</string>
+    <string name="setup_clear_cached_hint">เมื่อเซสชันเริ่ม AriseOS จะปิดแอปที่ Android พักไว้ในพื้นหลัง เพื่อให้เกมมีหน่วยความจำมากขึ้น ต้องเปิด Wireless debugging ไว้</string>
+    <string name="setup_clear_cached_unpaired">ต้องจับคู่ AriseOS กับ Wireless debugging ก่อน (จับคู่ ด้านล่าง)</string>
     <string name="setup_memory_hud">การแสดงหน่วยความจำ</string>
-    <string name="setup_memory_hud_hint">หน่วยความจำและ swap ที่ใช้อยู่ บนหน้าจอเซสชัน โหมดขั้นสูงจะแยกเป็นเกม, DroidDeck, Android และ GPU</string>
+    <string name="setup_memory_hud_hint">หน่วยความจำและ swap ที่ใช้อยู่ บนหน้าจอเซสชัน โหมดขั้นสูงจะแยกเป็นเกม, AriseOS, Android และ GPU</string>
     <string name="setup_memory_hud_simple">แบบง่าย</string>
     <string name="setup_memory_hud_advanced">ขั้นสูง</string>
     <string name="memory_hud_simple">RAM %1$s/%2$s GB · swap %3$s/%4$s GB</string>
-    <string name="memory_hud_split">เกม %1$s · DroidDeck %2$s · Android %3$s GB</string>
+    <string name="memory_hud_split">เกม %1$s · AriseOS %2$s · Android %3$s GB</string>
     <string name="memory_hud_gpu">GPU %1$s GB</string>
     <string name="setup_bg_limit">แอปพื้นหลังระหว่างเซสชัน</string>
-    <string name="setup_bg_limit_hint">ระหว่างที่เซสชันทำงาน Android จะเก็บแอปไว้ในแคชไม่เกินจำนวนนี้และปิดแอปที่เหลือ เพื่อให้เกมได้หน่วยความจำของแอปเหล่านั้น DroidDeck จะคืนค่าขีดจำกัดเดิมเมื่อเซสชันสิ้นสุด ต้องเปิด Wireless debugging ไว้</string>
+    <string name="setup_bg_limit_hint">ระหว่างที่เซสชันทำงาน Android จะเก็บแอปไว้ในแคชไม่เกินจำนวนนี้และปิดแอปที่เหลือ เพื่อให้เกมได้หน่วยความจำของแอปเหล่านั้น AriseOS จะคืนค่าขีดจำกัดเดิมเมื่อเซสชันสิ้นสุด ต้องเปิด Wireless debugging ไว้</string>
     <string name="setup_bg_limit_4">ไม่เกิน 4</string>
     <string name="setup_bg_limit_1">ไม่เกิน 1</string>
     <string name="setup_bg_limit_0">ไม่มี</string>
     <string name="setup_adb_pair">Wireless debugging</string>
-    <string name="setup_adb_pair_hint">จับคู่ DroidDeck กับ Wireless debugging ของ Android สำหรับตัวเลือกด้านบน ขีดจำกัดโพรเซสลูกยังคงปิดอยู่</string>
+    <string name="setup_adb_pair_hint">จับคู่ AriseOS กับ Wireless debugging ของ Android สำหรับตัวเลือกด้านบน ขีดจำกัดโพรเซสลูกยังคงปิดอยู่</string>
     <string name="setup_adb_pair_button">จับคู่</string>
     <string name="spatial_restored">กู้คืนมุมมองที่บันทึกไว้แล้ว %1$d รายการ คำนวณการสอบเทียบเพื่อลองอีกครั้ง หรือเริ่มชุดใหม่เพื่อบันทึกข้อมูลเพิ่มเติม</string>
     <string name="epic_client_missing">ยังไม่ติดตั้ง</string>
@@ -3294,7 +3294,7 @@
     <string name="integration_app_info">ข้อมูลแอป</string>
     <string name="integration_wifi">ชื่อ Wi-Fi</string>
     <string name="integration_brightness">ความสว่าง</string>
-    <string name="integration_home">DroidDeck เป็นหน้าหลัก</string>
+    <string name="integration_home">AriseOS เป็นหน้าหลัก</string>
     <string name="integration_shortcuts">ทางลัดปุ่มหน้าหลัก</string>
     <string name="integration_wifi_hint">แสดงเครือข่ายใน Steam · ต้องใช้สิทธิ์ตำแหน่ง ไม่มีการติดตาม</string>
     <string name="integration_wifi_on">เครือข่ายแสดงใน Steam</string>
@@ -3303,11 +3303,11 @@
     <string name="integration_brightness_hint">แถบเลื่อนของ Steam ปรับความสว่างหน้าจอ</string>
     <string name="integration_home_hint">ปุ่มหน้าหลักเปิดเมนู Steam ในเซสชัน</string>
     <string name="integration_shortcuts_hint">กดปุ่มหน้าหลักค้างไว้เพื่อใช้คอร์ด Steam Guide</string>
-    <string name="integration_shortcuts_needs_home">ต้องตั้ง DroidDeck เป็นหน้าหลัก</string>
+    <string name="integration_shortcuts_needs_home">ต้องตั้ง AriseOS เป็นหน้าหลัก</string>
     <string name="integration_shortcuts_maybe_restricted">เป็นสีเทาใน Android? ข้อมูลแอป → ⋮ → อนุญาตการตั้งค่าที่จำกัด</string>
     <string name="integration_shortcuts_restricted">ถูกบล็อกโดย Android · ข้อมูลแอป → ⋮ → อนุญาตการตั้งค่าที่จำกัด</string>
-    <string name="integration_shortcuts_service">ปุ่มหน้าหลัก DroidDeck</string>
-    <string name="integration_shortcuts_service_description">ส่งการกดปุ่มหน้าหลักไปยัง Steam Guide ขณะเซสชัน Steam อยู่ในโฟกัสและ DroidDeck เป็นแอปหน้าหลักเริ่มต้น ไม่อ่านเนื้อหาบนหน้าจอ</string>
+    <string name="integration_shortcuts_service">ปุ่มหน้าหลัก AriseOS</string>
+    <string name="integration_shortcuts_service_description">ส่งการกดปุ่มหน้าหลักไปยัง Steam Guide ขณะเซสชัน Steam อยู่ในโฟกัสและ AriseOS เป็นแอปหน้าหลักเริ่มต้น ไม่อ่านเนื้อหาบนหน้าจอ</string>
     <string name="integration_brightness_needed">เปิดความสว่างในการตั้งค่า → การผสานรวม Steam</string>
     <string name="apps_search_hint">ค้นหาแอป</string>
     <string name="apps_no_match">ไม่มีแอปที่ตรงกับ “%1$s”</string>
@@ -3351,7 +3351,7 @@
         <item quantity="other">%d แอป</item>
     </plurals>
     <string name="desktop_restore_title">กำลังกู้คืนซอฟต์แวร์ของคุณ</string>
-    <string name="desktop_restore_body">กำลังติดตั้งแอปที่คุณเพิ่มไว้อีกครั้งหลังการอัปเดต DroidDeck</string>
+    <string name="desktop_restore_body">กำลังติดตั้งแอปที่คุณเพิ่มไว้อีกครั้งหลังการอัปเดต AriseOS</string>
     <string name="desktop_restore_done_title">กู้คืนซอฟต์แวร์แล้ว</string>
     <string name="desktop_restore_done_body">แอปที่คุณเพิ่มไว้ติดตั้งกลับมาแล้ว</string>
     <string name="desktop_restore_failed_title">กู้คืนซอฟต์แวร์บางส่วนไม่ได้</string>

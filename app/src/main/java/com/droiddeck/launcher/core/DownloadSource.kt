@@ -39,6 +39,7 @@ object DownloadSource {
     )
 
     private val CATALOGS = listOf(
+        "https://raw.githubusercontent.com/Alway-L/AriseOS/",
         "https://raw.githubusercontent.com/Droid-Deck/DroidDeck-CI/",
         "https://raw.githubusercontent.com/Droid-Deck/DroidDeck-Components/",
         "https://raw.githubusercontent.com/Droid-Deck/Drivers-CI/",

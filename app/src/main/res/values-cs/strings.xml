@@ -1,12 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="steamvr_recovery_title">Grafika SteamVR přestala fungovat</string>
-    <string name="steamvr_recovery_countdown">DroidDeck se za %1$d s restartuje, aby resetoval grafiku a znovu otevřel SteamVR. Spuštěná hra se zavře; neuložený postup nelze obnovit.</string>
+    <string name="steamvr_recovery_countdown">AriseOS se za %1$d s restartuje, aby resetoval grafiku a znovu otevřel SteamVR. Spuštěná hra se zavře; neuložený postup nelze obnovit.</string>
     <string name="steamvr_recovery_repeated">Chyba grafiky se po nedávném restartu vrátila. Automatická obnova je pozastavena, aby nevznikla smyčka. Restart zavře vaši hru; neuložený postup nelze obnovit.</string>
     <string name="steamvr_recovery_restart">Restartovat nyní</string>
     <string name="steamvr_recovery_cancel">Nechat otevřené</string>
     <string name="steamvr_recovery_restarting">Resetování grafiky a opětovné otevírání SteamVR…</string>
-    <string name="steamvr_recovery_failed">DroidDeck se nepodařilo automaticky restartovat. Aplikaci úplně zavřete a pak ji znovu otevřete.</string>
+    <string name="steamvr_recovery_failed">AriseOS se nepodařilo automaticky restartovat. Aplikaci úplně zavřete a pak ji znovu otevřete.</string>
     <string name="app_name">AriseOS</string>
     <string-array name="loading_hints">
         <item>První spuštění stáhne Steam. Může to trvat několik minut.</item>
@@ -143,7 +143,7 @@
     <string name="user_apps_remove_confirm">Pro odebrání stiskněte znovu</string>
     <string name="user_apps_stop_session">Pro odebrání ukončete relaci</string>
     <string name="user_apps_script_linked">Spouští %1$s ze své složky, propojené do relace tam, kde se nachází. Odebráním aplikace zůstane tato složka nedotčena.</string>
-    <string name="user_apps_script_copied">Spouští %1$s z kopie své složky uvnitř DroidDeck. Odebráním aplikace se smaže kopie, ne originál.</string>
+    <string name="user_apps_script_copied">Spouští %1$s z kopie své složky uvnitř AriseOS. Odebráním aplikace se smaže kopie, ne originál.</string>
     <string name="user_apps_runtime_required">Nejprve nainstalujte běhové prostředí Linuxu</string>
     <string name="user_apps_file_gone">Soubor zmizel</string>
     <string name="user_apps_no_space">Nedostatek volného místa: zkopírování složky vyžaduje %1$s</string>
@@ -178,8 +178,8 @@
     <string name="app_fex_off">Vypnuto</string>
     <string name="app_fex_hint">FEX spouští programy pro x86 Linux na tomto zařízení ARM64. Automaticky ho použije, když je program sestaven pro x86.</string>
     <string name="app_fex_x86">%1$s přes FEX</string>
-    <string name="app_fex_not_ready">Tento program je sestaven pro PC %1$s a běží přes FEX, který ještě není nastaven. Jednou spusťte přihlášený Steam: DroidDeck tím stáhne FEX a Steam Linux Runtime, který potřebuje, a pak se tento program otevře.</string>
-    <string name="session_proot_missing">Proot od DroidDeck se nepodařilo stáhnout. Zkontrolujte připojení a zkuste to znovu. Relace nebyla spuštěna, protože záložní proot je na hraní příliš pomalý.</string>
+    <string name="app_fex_not_ready">Tento program je sestaven pro PC %1$s a běží přes FEX, který ještě není nastaven. Jednou spusťte přihlášený Steam: AriseOS tím stáhne FEX a Steam Linux Runtime, který potřebuje, a pak se tento program otevře.</string>
+    <string name="session_proot_missing">Proot od AriseOS se nepodařilo stáhnout. Zkontrolujte připojení a zkuste to znovu. Relace nebyla spuštěna, protože záložní proot je na hraní příliš pomalý.</string>
     <string name="session_directaudio_missing">DirectAudio se nepodařilo stáhnout, takže zvuk her v této relaci používá pomalejší cestu.</string>
     <string name="session_end_program">Tento program</string>
     <string name="session_end_steam_download">Klienta Steam se nepodařilo stáhnout. Vaše síť nebo VPN možná blokuje servery Steamu; zkontrolujte připojení a zkuste to znovu.</string>
@@ -217,13 +217,13 @@
     <string name="edit_app_save">Uložit</string>
     <string name="add_app_checking_folder">Kontrola složky…</string>
     <string name="add_app_folder_linked">Její složka je propojena do relace: %1$s</string>
-    <string name="add_app_folder_copied">Její složka obsahuje programy pro Linux, které sdílené úložiště nemůže spustit, proto se zkopíruje do DroidDeck (%1$s).</string>
+    <string name="add_app_folder_copied">Její složka obsahuje programy pro Linux, které sdílené úložiště nemůže spustit, proto se zkopíruje do AriseOS (%1$s).</string>
     <string name="add_app_confirm">Přidat</string>
     <string name="add_app_cancel">Zrušit</string>
     <string name="add_app_runtime_required">Nejprve nainstalujte běhové prostředí Linuxu v Nastavení.</string>
     <string name="add_app_busy">Počkejte, až %1$s skončí.</string>
     <string name="steam_compat_label">Kompatibilní</string>
-    <string name="proton_compatible_note">Sestavení označená „%1$s“ v nabídce Kompatibilita Steamu mají opravy prefixu od DroidDeck a hry z nich zde spustíte. Výchozí je Proton Experimental ARM64 (%1$s), nebo Proton 11.0 ARM64 (%1$s), jakmile se nainstaluje tato novější verze. Vlastní položky Protonu od Valve bez tohoto označení nemohou na tomto zařízení spustit hru.</string>
+    <string name="proton_compatible_note">Sestavení označená „%1$s“ v nabídce Kompatibilita Steamu mají opravy prefixu od AriseOS a hry z nich zde spustíte. Výchozí je Proton Experimental ARM64 (%1$s), nebo Proton 11.0 ARM64 (%1$s), jakmile se nainstaluje tato novější verze. Vlastní položky Protonu od Valve bez tohoto označení nemohou na tomto zařízení spustit hru.</string>
     <string name="proton_installed_compatible">Nainstalováno %1$s · %2$s</string>
     <string name="common_cancel">Zrušit</string>
     <string name="common_auto">Automaticky</string>
@@ -303,7 +303,7 @@
     <string name="back_double_tap_window">Interval dvojitého klepnutí</string>
     <string name="back_tap_ms">%1$d ms</string>
     <string name="brightness_permission_title">Povolit ovládání jasu</string>
-    <string name="brightness_permission_text">Nastavte ovládání jasu v DroidDeck.</string>
+    <string name="brightness_permission_text">Nastavte ovládání jasu v AriseOS.</string>
     <string name="back_menu_then_qam">Menu → QAM</string>
     <string name="back_qam_then_menu">QAM → Menu</string>
     <string name="mode_session">Relace</string>
@@ -316,8 +316,8 @@
     <string name="mode_background_downloads_hint">Oddálí pozastavení na pozadí, pokud Steam aktivně stahuje.</string>
     <string name="mode_suspend_note">Automaticky pozastaví na pozadí a obnoví při zobrazení. Manuálně čeká na Obnovit. Nikdy běh nezastavuje.</string>
     <string name="mode_startup">Spouštění</string>
-    <string name="mode_steam_startup">Spustit Steam s DroidDeck</string>
-    <string name="mode_steam_startup_hint">Otevře relaci Steamu při spuštění DroidDeck.</string>
+    <string name="mode_steam_startup">Spustit Steam s AriseOS</string>
+    <string name="mode_steam_startup_hint">Otevře relaci Steamu při spuštění AriseOS.</string>
     <string name="mode_decky">Decky</string>
     <string name="mode_decky_checking">Hledání vydání…</string>
     <string name="mode_decky_ready">Připraveno k instalaci %1$s.</string>
@@ -340,8 +340,8 @@
     <string name="mode_client">Klient</string>
     <string name="mode_mangoapp">Výkonový overlay</string>
     <string name="mode_mangoapp_hint">Vypněte, pokud hry v režimu Deck padají nebo zčernají. Použije se od příští relace.</string>
-    <string name="mode_return_after_game">Po hře se vrátit do DroidDeck</string>
-    <string name="mode_return_after_game_hint">Když se zavře hra spuštěná z DroidDeck nebo jiného launcheru, Steam se čistě ukončí (nejprve dokončí cloudová uložení) a vrátíte se tam. Vypnuto: zůstanete ve Steamu.</string>
+    <string name="mode_return_after_game">Po hře se vrátit do AriseOS</string>
+    <string name="mode_return_after_game_hint">Když se zavře hra spuštěná z AriseOS nebo jiného launcheru, Steam se čistě ukončí (nejprve dokončí cloudová uložení) a vrátíte se tam. Vypnuto: zůstanete ve Steamu.</string>
     <string name="mode_shader_precache">Předběžné ukládání shaderů</string>
     <string name="mode_shader_precache_hint">Steam stahuje předem sestavené shadery pro vaše hry a zpracovává je na pozadí, takže hry méně trhají. Vypnutí šetří data, úložiště a baterii; hry pak shadery sestavují během hraní. Stejné nastavení jako Stahování > Předběžné ukládání shaderů ve Steamu. Použije se od příští relace.</string>
     <string name="mode_steam_repair">Opravit klienta Steam</string>
@@ -423,7 +423,7 @@
     <string name="mode_wifi_open_settings">Otevřít nastavení</string>
     <string name="mode_wifi_continue">Pokračovat</string>
     <string name="mode_wifi_explain_title">Povolit vyhledávání Wi-Fi?</string>
-    <string name="mode_wifi_explain_text">Android vyžaduje oprávnění k poloze pro čtení názvů Wi-Fi a vyhledávání okolních sítí. DroidDeck tento přístup využívá k zobrazení těchto sítí ve Steamu. Vaši polohu nesledujeme. Přístup k internetu funguje i bez tohoto oprávnění.</string>
+    <string name="mode_wifi_explain_text">Android vyžaduje oprávnění k poloze pro čtení názvů Wi-Fi a vyhledávání okolních sítí. AriseOS tento přístup využívá k zobrazení těchto sítí ve Steamu. Vaši polohu nesledujeme. Přístup k internetu funguje i bez tohoto oprávnění.</string>
     <string name="mode_storage">Úložiště her</string>
     <string name="mode_storage_auto">Automaticky – karta SD, pokud je k dispozici, a vaše složky Games</string>
     <string name="mode_storage_auto_none">Automaticky – vaše složky Games a karta SD, pokud je k dispozici (nyní žádná)</string>
@@ -546,7 +546,7 @@
     <string name="comp_nightlies_count">Na Nightlies · %1$d</string>
     <string name="comp_channel_stable">Stabilní</string>
     <string name="comp_channel_nightly">Noční</string>
-    <string name="comp_refresh_to_list">Obnovte pro zobrazení balíčků na Nightlies a DroidDeck.</string>
+    <string name="comp_refresh_to_list">Obnovte pro zobrazení balíčků na Nightlies a AriseOS.</string>
     <string name="comp_nothing_new">Od poslední kontroly nic nového.</string>
     <string name="comp_import_wcp">Importovat .wcp</string>
     <string name="comp_restore_original">Obnovit originál tohoto Protonu</string>
@@ -700,7 +700,7 @@
     <string name="hud_temp_red_battery">Baterie červeně od</string>
     <string name="hud_group_more">Více</string>
     <string name="hud_export">Diagnostika HUD</string>
-    <string name="hud_export_hint">Uloží do Downloads/DroidDeck zprávu o všech senzorech, které HUD čte.</string>
+    <string name="hud_export_hint">Uloží do Downloads/AriseOS zprávu o všech senzorech, které HUD čte.</string>
     <string name="hud_export_button">Uložit</string>
     <string name="hud_export_done">Uloženo do %1$s</string>
     <string name="hud_export_failed">Zprávu HUD se nepodařilo uložit.</string>
@@ -861,7 +861,7 @@
     <string name="setup_language_system">Výchozí systémový (%1$s)</string>
     <string name="setup_language_system_short">Výchozí systémový</string>
     <string name="setup_app_scale">Měřítko aplikace</string>
-    <string name="setup_app_scale_hint">Text a ovládání DroidDeck</string>
+    <string name="setup_app_scale_hint">Text a ovládání AriseOS</string>
     <string name="setup_app_scale_default">%1$d %% (výchozí)</string>
     <string name="setup_theme">Téma</string>
     <string name="setup_theme_hint">Vzhled spouštěče</string>
@@ -869,8 +869,8 @@
     <string name="setup_launcher_icon_dark">Tmavá</string>
     <string name="setup_launcher_icon_light">Světlá</string>
     <string name="setup_home">Použít jako domovskou obrazovku</string>
-    <string name="setup_home_on">DroidDeck může být domovská aplikace</string>
-    <string name="setup_home_off">DroidDeck se nikdy nenabízí jako domovská aplikace</string>
+    <string name="setup_home_on">AriseOS může být domovská aplikace</string>
+    <string name="setup_home_off">AriseOS se nikdy nenabízí jako domovská aplikace</string>
     <string name="setup_orientation">Orientace</string>
     <string name="setup_launcher_orientation">Orientace launcheru</string>
     <string name="setup_launcher_orientation_auto">Podle otočení zařízení</string>
@@ -965,16 +965,16 @@
     <string name="store_website">Web</string>
     <string name="store_verified">Ověřeno</string>
     <string name="upd_title">Aktualizace</string>
-    <string name="upd_build">DroidDeck %1$s · %2$s</string>
+    <string name="upd_build">AriseOS %1$s · %2$s</string>
     <string name="upd_checked">Zkontrolováno %1$s</string>
     <string name="upd_not_checked">Zatím nezkontrolováno</string>
-    <string name="upd_perm_title">Povolit DroidDecku aktualizovat se sám</string>
+    <string name="upd_perm_title">Povolit AriseOSu aktualizovat se sám</string>
     <string name="upd_perm_text">Na další obrazovce zapněte Povolit z tohoto zdroje a vraťte se zpět. Aktualizace pak pokračuje sama.</string>
     <string name="upd_open_settings">Otevřít nastavení</string>
     <string name="upd_not_now">Teď ne</string>
     <string name="upd_signed_status">Jinak podepsáno</string>
     <string name="upd_signed_headline">Nelze aktualizovat na místě</string>
-    <string name="upd_signed_detail">Tato kopie není podepsána vydávacím klíčem DroidDecku, proto se přes ni aktualizace nedají nainstalovat. Odinstalujte ji, abyste mohli přejít.</string>
+    <string name="upd_signed_detail">Tato kopie není podepsána vydávacím klíčem AriseOSu, proto se přes ni aktualizace nedají nainstalovat. Odinstalujte ji, abyste mohli přejít.</string>
     <string name="upd_available">Aktualizace k dispozici</string>
     <string name="upd_blocked_status">Nelze instalovat</string>
     <string name="upd_switch">Připraveno k přechodu</string>
@@ -996,7 +996,7 @@
     <string name="upd_stop_session">Pro aktualizaci zastavte běžící relaci.</string>
     <string name="upd_less">Méně</string>
     <string name="upd_more">Více</string>
-    <string name="upd_new_stable">DroidDeck %1$s</string>
+    <string name="upd_new_stable">AriseOS %1$s</string>
     <string name="upd_new_preview">Nová sestava Preview</string>
     <string name="upd_new_test">Testovací sestava PR #%1$d</string>
     <string name="upd_mb">%1$d MB</string>
@@ -1011,7 +1011,7 @@
     <string name="upd_tests_hint">Vyzkoušejte opravu před jejím vydáním</string>
     <string name="upd_tests_none">Momentálně žádné</string>
     <string name="upd_pr">PR #%1$d</string>
-    <string name="upd_not_built">Pro tuto kopii DroidDecku není sestavena</string>
+    <string name="upd_not_built">Pro tuto kopii AriseOSu není sestavena</string>
     <string name="upd_updated">Aktualizováno %1$s</string>
     <string name="upd_test_name">test PR #%1$d</string>
     <string name="upd_while_ago">před chvílí</string>
@@ -1040,13 +1040,13 @@
     <string name="gate_fix_for_me">Oprav to za mě</string>
     <string name="gate_toggle_steps">Zapněte „Deaktivace omezení podřízených procesů“ a vraťte se zpět. Nechte Možnosti pro vývojáře zapnuté, jinak se přepínač znovu vypne.</string>
     <string name="gate_open_dev">Otevřít Možnosti pro vývojáře</string>
-    <string name="gate_no_toggle">Tato verze Androidu pro to nemá přepínač, proto to DroidDeck změní přes Bezdrátové ladění. Zabere to asi minutu, počítač není potřeba.</string>
+    <string name="gate_no_toggle">Tato verze Androidu pro to nemá přepínač, proto to AriseOS změní přes Bezdrátové ladění. Zabere to asi minutu, počítač není potřeba.</string>
     <string name="gate_needs_wifi">Bezdrátové ladění potřebuje Wi-Fi. Funguje jakákoli síť, internet není nutný.</string>
-    <string name="gate_needs_notifications">Párovací kód se zobrazí v oznámení. Povolte oznámení pro DroidDeck, nebo použijte Jiné způsoby.</string>
+    <string name="gate_needs_notifications">Párovací kód se zobrazí v oznámení. Povolte oznámení pro AriseOS, nebo použijte Jiné způsoby.</string>
     <string name="gate_allow_notifications">Povolit oznámení</string>
     <string name="gate_step1">Otevřete Nastavení → Možnosti pro vývojáře → Bezdrátové ladění a zapněte ho</string>
     <string name="gate_step2">Klepněte na „Spárovat zařízení pomocí párovacího kódu“</string>
-    <string name="gate_step3">Zadejte kód do oznámení DroidDecku</string>
+    <string name="gate_step3">Zadejte kód do oznámení AriseOSu</string>
     <string name="pairguide_build_number">V části O telefonu klepněte 7krát na Číslo sestavení</string>
     <string name="pairguide_wireless">Zapněte Bezdrátové ladění</string>
     <string name="pairguide_pair">Otevřete Bezdrátové ladění a klepněte na „Spárovat zařízení pomocí párovacího kódu“</string>
@@ -1172,7 +1172,7 @@
     <string name="desktop_removing">Odstraňování desktopu</string>
     <string name="desktop_removed">Desktop odstraněn</string>
     <string name="desktop_cleaning_legacy">Odstraňování starých souborů LXQt</string>
-    <string name="desktop_removal_unknown">Před odstraněním této verze desktopu aktualizujte DroidDeck.</string>
+    <string name="desktop_removal_unknown">Před odstraněním této verze desktopu aktualizujte AriseOS.</string>
     <string name="content_linux_desktop">Linuxový desktop</string>
     <string name="content_linux_desktop_hint">KDE Plasma, Firefox a vaše emulátory</string>
     <string name="games_empty">Hry, které nainstalujete ve Steamu, se zde zobrazí po relaci.</string>
@@ -1210,8 +1210,8 @@
     <string name="gpu_show_other">Zobrazit ovladače pro jiné GPU</string>
     <string name="gpu_advanced">Pokročilé</string>
     <string name="gpu_ubwc_title">Kompatibilita UBWC</string>
-    <string name="gpu_ubwc_hint">Pokud Steam nebo Android zobrazuje pruhy nebo blikání, zkuste Zapnuto nebo Vypnuto. Platí pro oba ovladače po restartu DroidDeck.</string>
-    <string name="gpu_ubwc_restart">Pro použití restartujte DroidDeck.</string>
+    <string name="gpu_ubwc_hint">Pokud Steam nebo Android zobrazuje pruhy nebo blikání, zkuste Zapnuto nebo Vypnuto. Platí pro oba ovladače po restartu AriseOS.</string>
+    <string name="gpu_ubwc_restart">Pro použití restartujte AriseOS.</string>
     <string name="gpu_set_with_display">Nastaveno společně s ovladačem displeje: %1$s obsahuje oba.</string>
     <string name="gpu_set_with_runtime">Nastaveno společně s ovladačem runtime: %1$s obsahuje oba.</string>
     <string name="gpu_runtime_hint">Používají hry a desktop.</string>
@@ -1219,7 +1219,7 @@
     <string name="gpu_auto_by_gpu">Automaticky - podle GPU</string>
     <string name="gpu_manage">Stáhnout, importovat nebo smazat…</string>
     <string name="gpu_in_use_caps">POUŽÍVÁ SE</string>
-    <string name="gpu_builtin">Ovladače vestavěné v DroidDecku</string>
+    <string name="gpu_builtin">Ovladače vestavěné v AriseOSu</string>
     <string name="gpu_matched_pair">Ovladače runtime a displeje nastaveny společně jako sladěná dvojice.</string>
     <string name="gpu_recommended_for">Doporučeno pro tento GPU: %1$s.</string>
     <string name="gpu_refresh_hint">Obnovte, aby se vyhledaly ovladače pro tento GPU.</string>
@@ -1324,7 +1324,7 @@
     <string name="unfolded_controls_with_controller_hint">Zobrazovat toto dotykové ovládání i při připojeném ovladači.</string>
     <string name="pip_suspended">Pozastaveno</string>
     <string name="pip_not_ready">Obraz v obraze bude dostupný, jakmile bude relace připravena.</string>
-    <string name="pip_permission">Povolte obraz v obraze pro DroidDeck v nastavení Androidu.</string>
+    <string name="pip_permission">Povolte obraz v obraze pro AriseOS v nastavení Androidu.</string>
     <string name="pip_unavailable">Android nemohl otevřít obraz v obraze.</string>
     <string name="game_more">Další</string>
     <string name="game_edit_art">Upravit grafiku</string>
@@ -1337,7 +1337,7 @@
     <string name="game_link_copied">Odkaz pro spuštění zkopírován</string>
     <string name="game_shortcut_unsupported">Tento spouštěč neumí přidávat zkratky. Použijte místo toho Kopírovat odkaz pro spuštění.</string>
     <string name="game_link_invalid">Neplatný odkaz pro spuštění hry.</string>
-    <string name="game_link_missing">Tato hra už není ve vaší knihovně DroidDeck.</string>
+    <string name="game_link_missing">Tato hra už není ve vaší knihovně AriseOS.</string>
     <string name="game_link_session_busy">Před spuštěním hry ze Steamu zastavte aktuální relaci.</string>
     <string name="game_link_failed">Hru se nepodařilo odeslat do Steamu. Zkuste ji spustit znovu.</string>
     <string name="setup_retry_removal">Zkusit odstranění znovu</string>
@@ -1367,10 +1367,10 @@
         <item quantity="other">Importováno %1$d souborů z %2$s do %3$s</item>
     </plurals>
     <plurals name="main_saves_imported_backup">
-        <item quantity="one">Importován %1$d soubor z %2$s do %3$s. Staré uložené pozice byly zálohovány do Download/DroidDeck/Saves/backups</item>
-        <item quantity="few">Importovány %1$d soubory z %2$s do %3$s. Staré uložené pozice byly zálohovány do Download/DroidDeck/Saves/backups</item>
-        <item quantity="many">Importováno %1$d souborů z %2$s do %3$s. Staré uložené pozice byly zálohovány do Download/DroidDeck/Saves/backups</item>
-        <item quantity="other">Importováno %1$d souborů z %2$s do %3$s. Staré uložené pozice byly zálohovány do Download/DroidDeck/Saves/backups</item>
+        <item quantity="one">Importován %1$d soubor z %2$s do %3$s. Staré uložené pozice byly zálohovány do Download/AriseOS/Saves/backups</item>
+        <item quantity="few">Importovány %1$d soubory z %2$s do %3$s. Staré uložené pozice byly zálohovány do Download/AriseOS/Saves/backups</item>
+        <item quantity="many">Importováno %1$d souborů z %2$s do %3$s. Staré uložené pozice byly zálohovány do Download/AriseOS/Saves/backups</item>
+        <item quantity="other">Importováno %1$d souborů z %2$s do %3$s. Staré uložené pozice byly zálohovány do Download/AriseOS/Saves/backups</item>
     </plurals>
     <string name="main_saves_pick_zip">Vyberte ZIP s uloženou pozicí pro %1$s</string>
     <string name="main_saves_exporting">Exportování %1$s</string>
@@ -1435,7 +1435,7 @@
 
     <string name="upd_unknown_apps_failed">Nepodařilo se otevřít nastavení Androidu „Instalace neznámých aplikací“</string>
     <string name="upd_couldnt_check">Nepodařilo se zkontrolovat: %1$s</string>
-    <string name="upd_no_download">Toto sestavení nemá stažení pro tuto kopii DroidDecku</string>
+    <string name="upd_no_download">Toto sestavení nemá stažení pro tuto kopii AriseOSu</string>
     <string name="upd_stop_first">Nejprve zastavte běžící relaci, pak aktualizujte</string>
     <string name="upd_stage_downloading">Stahování</string>
     <string name="upd_stage_installing">Instalování</string>
@@ -1464,22 +1464,22 @@
     <string name="drivers_recommended_unpublished">Doporučené ovladače nejsou právě zveřejněné</string>
     <string name="drivers_downloading_pair">Stahování %1$s %2$s…</string>
     <string name="drivers_updated_to">Aktualizováno na %1$s %2$s.</string>
-    <string name="drivers_updated_to_restart">Aktualizováno na %1$s %2$s. Ovladač zobrazení se použije po restartu DroidDecku.</string>
+    <string name="drivers_updated_to_restart">Aktualizováno na %1$s %2$s. Ovladač zobrazení se použije po restartu AriseOSu.</string>
     <string name="drivers_auto_waits_for_session">Aktualizace ovladačů počkají, až se relace zastaví.</string>
     <string name="drivers_auto_waits_for_network">%1$s %2$s se stáhne, jakmile opustíš mobilní data a spořič baterie.</string>
     <string name="drivers_skipping_bad">%1$s %2$s tady nespustil relaci, takže Automaticky zůstává u ovladačů, které ano.</string>
     <string name="drivers_rolled_back">%1$s dvakrát nespustil relaci, takže Automaticky se vrátil k ovladačům, které fungovaly.</string>
     <string name="drivers_switched_to">Přepnuto na %1$s %2$s.</string>
-    <string name="drivers_switched_to_restart">Přepnuto na %1$s %2$s. Ovladač zobrazení se použije po restartu DroidDecku.</string>
+    <string name="drivers_switched_to_restart">Přepnuto na %1$s %2$s. Ovladač zobrazení se použije po restartu AriseOSu.</string>
     <string name="drivers_using">Používá se %1$s %2$s.</string>
-    <string name="drivers_using_restart">Používá se %1$s %2$s. Ovladač zobrazení se použije po restartu DroidDecku.</string>
+    <string name="drivers_using_restart">Používá se %1$s %2$s. Ovladač zobrazení se použije po restartu AriseOSu.</string>
     <string name="drivers_using_quest">Používá se přibalený obrazový ovladač pro Quest a výchozí prostředí.</string>
-    <string name="drivers_using_quest_restart">Používá se přibalený obrazový ovladač pro Quest a výchozí prostředí. Obrazový ovladač platí po restartu DroidDeck.</string>
+    <string name="drivers_using_quest_restart">Používá se přibalený obrazový ovladač pro Quest a výchozí prostředí. Obrazový ovladač platí po restartu AriseOS.</string>
     <string name="drivers_not_a_driver">Toto není ZIP s ovladačem: ani ovladač AdrenoTools, ani Turnip -Linux, ani balíček Android + Linux</string>
     <string name="drivers_import_failed">Import se nezdařil: %1$s</string>
     <string name="drivers_imported_unnamed">Importovaný ovladač</string>
     <string name="drivers_using_bundle">%1$s se používá jako ovladač runtime i zobrazení.</string>
-    <string name="drivers_using_bundle_restart">%1$s se používá jako ovladač runtime i zobrazení. Ovladač zobrazení se použije po restartu DroidDecku.</string>
+    <string name="drivers_using_bundle_restart">%1$s se používá jako ovladač runtime i zobrazení. Ovladač zobrazení se použije po restartu AriseOSu.</string>
     <string name="drivers_deleted_bundle">Odstraněno %1$s (oba ovladače)</string>
     <string name="drivers_deleted">Odstraněno %1$s</string>
     <string name="drivers_release_status">Nejnovější: %1$s · zkontrolováno %2$s</string>
@@ -1502,7 +1502,7 @@
         <item quantity="many">před %1$d dny</item>
         <item quantity="other">před %1$d dny</item>
     </plurals>
-    <string name="drivers_checking_sources">Kontrola Banners-Turnip, WinNative a DroidDeck…</string>
+    <string name="drivers_checking_sources">Kontrola Banners-Turnip, WinNative a AriseOS…</string>
     <string name="drivers_check_failed">kontrola se nezdařila</string>
     <string name="drivers_installed_pick_either">Nainstalováno %1$s - vyberte ho v kterémkoli seznamu pro nastavení obou ovladačů</string>
     <string name="drivers_installed_pick">Nainstalováno %1$s - vyberte ho v nabídce</string>
@@ -1742,7 +1742,7 @@
     <string name="fm_decline">Odmítnout</string>
     <string name="fm_drive_not_readable">%1$s je připojeno, ale momentálně není čitelné</string>
     <string name="fm_drive_access_title">Povolit přístup k %1$s</string>
-    <string name="fm_drive_access_text">Android umožňuje aplikaci DroidDeck tento disk vidět, ale ne číst. Zapněte pro DroidDeck Přístup ke všem souborům a pak se vraťte.</string>
+    <string name="fm_drive_access_text">Android umožňuje aplikaci AriseOS tento disk vidět, ale ne číst. Zapněte pro AriseOS Přístup ke všem souborům a pak se vraťte.</string>
     <string name="fm_list_view">Zobrazení seznamu</string>
     <string name="fm_grid_view">Zobrazení mřížky</string>
     <string name="fm_search">Hledat</string>
@@ -1848,7 +1848,7 @@
     <string name="flatpakmgr_not_ready">Nejprve nastavte Flatpak</string>
     <string name="flatpakmgr_starting">Spouštění</string>
     <string name="flatpakmgr_exit_status">Flatpak skončil s návratovým kódem %1$d</string>
-    <string name="flatpakmgr_wrong_arch">%1$s je sestaveno pro %2$s, které DroidDeck neumí spustit. Aplikace Flatpak zde potřebují verzi pro ARM64 nebo x86_64.</string>
+    <string name="flatpakmgr_wrong_arch">%1$s je sestaveno pro %2$s, které AriseOS neumí spustit. Aplikace Flatpak zde potřebují verzi pro ARM64 nebo x86_64.</string>
     <string name="flatpakmgr_installing">Instalování %1$s</string>
     <string name="flatpakmgr_updating">Aktualizování %1$s</string>
     <string name="flatpakmgr_removing">Odstraňování %1$s</string>
@@ -1931,7 +1931,7 @@
     <string name="adbfix_no_pairing">Není uloženo žádné párování bezdrátového ladění</string>
     <string name="adbfix_enter_address">Zadejte aktuální IP adresu a port bezdrátového ladění</string>
 
-    <string name="adbpair_timed_out">Čekání na vyskakovací okno pro párování vypršelo. Zkuste to znovu z DroidDecku.</string>
+    <string name="adbpair_timed_out">Čekání na vyskakovací okno pro párování vypršelo. Zkuste to znovu z AriseOSu.</string>
     <string name="adbpair_discovery_failed_code">Nepodařilo se vyhledat vyskakovací okno pro párování (%1$d). Zkontrolujte, že je zapnutá Wi-Fi.</string>
     <string name="adbpair_discovery_failed">Nepodařilo se vyhledat vyskakovací okno pro párování: %1$s</string>
     <string name="adbpair_six_digits">Zadejte všech 6 číslic kódu</string>
@@ -1954,20 +1954,20 @@
     <string name="adbpair_enter_code">Zadat kód</string>
     <string name="adbpair_title_working">Nastavování Steamu</string>
     <string name="adbpair_title_done">Steam je připraven</string>
-    <string name="adbpair_done_text">Klepnutím se vrátíte do DroidDecku. Bezdrátové ladění teď můžete vypnout.</string>
+    <string name="adbpair_done_text">Klepnutím se vrátíte do AriseOSu. Bezdrátové ladění teď můžete vypnout.</string>
     <string name="adbpair_title_failed">Nastavení bezdrátového ladění bylo zastaveno</string>
 
     <string name="selfinst_download_failed">Stahování selhalo</string>
     <string name="selfinst_size_mismatch">Velikost stahování neodpovídala zveřejněnému APK a bylo zahozeno - zkuste to znovu</string>
     <string name="selfinst_checksum_mismatch">Stahování neodpovídalo svému kontrolnímu součtu a bylo zahozeno - zkuste to znovu</string>
     <string name="selfinst_wrong_package">Aktualizace je pro balíček Androidu %1$s, ne %2$s</string>
-    <string name="selfinst_metadata_signer">Metadata aktualizace neuvádějí podpisový klíč vydání DroidDecku</string>
+    <string name="selfinst_metadata_signer">Metadata aktualizace neuvádějí podpisový klíč vydání AriseOSu</string>
     <string name="selfinst_unreadable">Android nemohl přečíst stažené APK</string>
     <string name="selfinst_apk_wrong_package">Stažené APK je pro %1$s, ne %2$s</string>
     <string name="selfinst_version_mismatch">Stažené APK uvádí versionCode %1$d, ne zveřejněný %2$d</string>
     <string name="selfinst_downgrade">Android nenainstaluje versionCode %1$d přes nainstalovaný %2$d</string>
     <string name="selfinst_no_signing">Stažené APK nemá žádné informace o podpisu</string>
-    <string name="selfinst_wrong_signer">Stažené APK není podepsáno vydávacím klíčem DroidDecku</string>
+    <string name="selfinst_wrong_signer">Stažené APK není podepsáno vydávacím klíčem AriseOSu</string>
     <string name="appupd_http">Katalog aktualizací odpověděl HTTP %1$d</string>
 
     <string name="loadstate_starting">Spouštění relace…</string>
@@ -2013,7 +2013,7 @@
     <string name="cmgr_original_kept">Původní verze nainstalovaného sestavení je zachována: je to cesta zpět.</string>
     <string name="cmgr_not_stored">Není uloženo</string>
     <string name="cmgr_deleted_original">Odstraněna původní verze %2$s z %1$s.</string>
-    <string name="cmgr_nightlies_only">Stahování pochází jen z vydání Nightlies a DroidDeck</string>
+    <string name="cmgr_nightlies_only">Stahování pochází jen z vydání Nightlies a AriseOS</string>
     <string name="cmgr_nightly_replaced">Stažení selhalo: tento noční build mohl být nahrazen novějším. Obnovte seznam a zkuste to znovu.</string>
     <string name="cmgr_list_predates_checksums">Tento seznam balíčků předchází kontrolním součtům - obnovte ho a zkuste to znovu</string>
     <string name="cmgr_checksum_mismatch">Neshoda kontrolního součtu</string>
@@ -2053,7 +2053,7 @@
     <string name="gpuinfo_experimental">Experimentální: jeho ovladače jsou testovací sestavení</string>
     <string name="gpuinfo_a850_experimental">Experimentální podpora Adreno 850: vyžaduje kompatibilní experimentální ovladače displeje a her; na tomto zařízení neověřeno</string>
     <string name="gpuinfo_below_tested">Pod testovaným hardwarem (Adreno 725 a novější): nemusí fungovat</string>
-    <string name="gpuinfo_unsupported">Není podporováno: DroidDeck potřebuje GPU Adreno (Snapdragon)</string>
+    <string name="gpuinfo_unsupported">Není podporováno: AriseOS potřebuje GPU Adreno (Snapdragon)</string>
 
     <string name="turnip_rate_limited">Byl dosažen limit požadavků GitHubu - zkuste to později</string>
     <string name="turnip_github_http">GitHub odpověděl HTTP %1$d</string>
@@ -2096,10 +2096,10 @@
     <string name="phantom_instructions_not_applicable">Tato verze Androidu tento limit nepoužívá.</string>
     <string name="phantom_fix_toggle">Zapněte „Deaktivace omezení podřízených procesů“ v Možnostech pro vývojáře a pak je nechte zapnuté.</string>
     <string name="phantom_fix_no_toggle">Tato verze Androidu pro to nemá přepínač. Použijte bezdrátové ladění a změňte to z tohoto zařízení.</string>
-    <string name="upd_block_no_apk">Toto sestavení nemá stažení pro tuto kopii DroidDecku.</string>
+    <string name="upd_block_no_apk">Toto sestavení nemá stažení pro tuto kopii AriseOSu.</string>
     <string name="upd_block_version_code">Android to nenainstaluje přes toto sestavení, protože jeho versionCode %1$d je nižší než nainstalovaný %2$d.</string>
     <string name="upd_fail_downgrade">Android nenainstaluje starší verzi přes novější. Zůstaňte na tomto sestavení, dokud kanál nedohoní.</string>
-    <string name="upd_fail_signature">Tato kopie DroidDecku je podepsána jinak (lokální sestavení?), takže ji Android nemůže aktualizovat na místě.</string>
+    <string name="upd_fail_signature">Tato kopie AriseOSu je podepsána jinak (lokální sestavení?), takže ji Android nemůže aktualizovat na místě.</string>
     <string name="upd_fail_storage">Na aktualizaci není dostatek volného místa.</string>
     <string name="upd_fail_aborted">Aktualizace byla zrušena.</string>
     <string name="upd_fail_with_message">Aktualizace se nenainstalovala: %1$s</string>
@@ -2124,7 +2124,7 @@
     <string name="gstore_volume_free">%1$s · %2$s volných</string>
     <string name="mode_storage_auto_short">Automaticky</string>
     <string name="appupd_catalog_rejected">Katalog aktualizací neprošel kontrolou (%1$s)</string>
-    <string name="main_adb_clip_label">Nastavení procesů potomků DroidDecku</string>
+    <string name="main_adb_clip_label">Nastavení procesů potomků AriseOSu</string>
     <string name="setup_signed_in_offline_unnamed">Přihlášeno · offline režim</string>
     <string name="setup_signed_in_unnamed">Přihlášeno</string>
     <string name="driver_tag_bundled">PŘIBALENÝ</string>
@@ -2525,7 +2525,7 @@
     <string name="gpu_display_next">Kreslí obrazovku. Platí od příští relace.</string>
     <string name="gpu_previous_driver">předchozí ovladač</string>
     <string name="gpu_restart_banner">Restartuj, ať se obrazový ovladač změní.</string>
-    <string name="gpu_restart_blocked">Zastav aktuální relaci a restartuj DroidDeck, ať se obrazový ovladač změní.</string>
+    <string name="gpu_restart_blocked">Zastav aktuální relaci a restartuj AriseOS, ať se obrazový ovladač změní.</string>
     <string name="gpu_restart_now">Restartovat</string>
     <string name="gpu_restart_later">Později</string>
     <string name="gpu_auto_title">Automatika vybrala tuto dvojici pro tvůj %1$s</string>
@@ -2602,7 +2602,7 @@
     <string name="touch_speed_normal">Normální</string>
     <string name="touch_speed_fast">Rychlá</string>
     <string name="touch_edit_layout">Upravit rozložení</string>
-    <string name="touch_droiddeck_menu">Nabídka DroidDeck</string>
+    <string name="touch_droiddeck_menu">Nabídka AriseOS</string>
     <string name="touch_drag_hint">Přetáhněte prvky ovládání na obrazovku</string>
     <string name="touch_arrange">Uspořádat</string>
     <string name="touch_discard">Zahodit</string>
@@ -2672,7 +2672,7 @@
     <string name="glasses_driver_missing">Toto sestavení neobsahuje ovladač pro tyto brýle.</string>
     <string name="glasses_connection_failed">K brýlím se nepodařilo připojit. Připojte znovu kabel, nebo to zkuste znovu klepnutím na Povolit.</string>
     <string name="glasses_allow">Povolit</string>
-    <string name="glasses_allow_hint">Umožní aplikaci DroidDeck nastavovat obnovovací frekvenci, režim 3D, jas, hlasitost a zatmavení brýlí a číst data ze sledování hlavy.</string>
+    <string name="glasses_allow_hint">Umožní aplikaci AriseOS nastavovat obnovovací frekvenci, režim 3D, jas, hlasitost a zatmavení brýlí a číst data ze sledování hlavy.</string>
     <string name="glasses_asking">Čeká se na vaše povolení v dialogu Androidu…</string>
     <string name="glasses_denied">Ovládání bylo odmítnuto. Povolte ho, abyste mohli měnit nastavení brýlí.</string>
     <string name="glasses_no_control">Tyto brýle zobrazují hru, ale jejich nastavení zde nelze změnit.</string>
@@ -2850,7 +2850,7 @@
     <string name="storage_internal">Interní úložiště</string>
     <string name="storage_used_of">využito %1$s z %2$s</string>
     <string name="storage_free">volně %1$s</string>
-    <string name="storage_droiddeck_uses">DroidDeck využívá %1$s. Změřeno %2$s.</string>
+    <string name="storage_droiddeck_uses">AriseOS využívá %1$s. Změřeno %2$s.</string>
     <string name="storage_rescanning">měření znovu…</string>
     <string name="storage_other_apps">Ostatní aplikace pro Android</string>
     <string name="storage_safe_now">Lze uvolnit hned</string>
@@ -2884,7 +2884,7 @@
     <string name="storage_desktop_hint">Aplikace Flatpak a prostředí</string>
     <string name="storage_system">Systém Linux a klient Steam</string>
     <string name="storage_system_hint">Potřebné, aby vůbec něco běželo</string>
-    <string name="storage_app_data">Data DroidDeck</string>
+    <string name="storage_app_data">Data AriseOS</string>
     <string name="storage_app_data_hint">Logy starých relací %1$s · mezipaměť · ovladače</string>
     <string name="storage_legend_games">Hry</string>
     <string name="storage_legend_data">Data her</string>
@@ -2892,7 +2892,7 @@
     <string name="storage_legend_stores">Další obchody</string>
     <string name="storage_legend_desktop">Aplikace pro plochu</string>
     <string name="storage_legend_system">Systém Linux</string>
-    <string name="storage_legend_app">DroidDeck</string>
+    <string name="storage_legend_app">AriseOS</string>
     <string name="storage_clean_up_title">Uklidit</string>
     <string name="storage_clean_up_lede">Nic tady se nedotkne nainstalovaných her ani probíhajících stahování.</string>
     <string name="storage_nothing_to_clean">Teď není co uklidit.</string>
@@ -2941,8 +2941,8 @@
     <string name="storage_tool_redist">Instalace VC++ a DirectX, které hry potřebují</string>
     <string name="storage_tool_fex">Spouští hry pro Linux x86</string>
     <string name="storage_tool_steam">Nástroj Steamu</string>
-    <string name="storage_tool_old_runtime">DroidDeck spouští hry bez tohoto prostředí</string>
-    <string name="storage_tool_x86_proton">Proton x86, který DroidDeck nedokáže spustit</string>
+    <string name="storage_tool_old_runtime">AriseOS spouští hry bez tohoto prostředí</string>
+    <string name="storage_tool_x86_proton">Proton x86, který AriseOS nedokáže spustit</string>
     <string name="storage_tool_custom_default">Výchozí pro všechny hry</string>
     <string name="storage_tool_custom_unused">Žádná hra ho nepoužívá</string>
     <string name="storage_tool_custom_unknown">Nastavení Steamu nejde přečíst, takže zůstává</string>
@@ -2988,8 +2988,8 @@
         <item quantity="few">%d hry</item>
         <item quantity="many">%d hry</item>
     </plurals>
-    <string name="storage_tool_default_proton">Výchozí Proton DroidDeck</string>
-    <string name="storage_tool_proton">Volba Proton 11 v DroidDeck</string>
+    <string name="storage_tool_default_proton">Výchozí Proton AriseOS</string>
+    <string name="storage_tool_proton">Volba Proton 11 v AriseOS</string>
     <plurals name="storage_tool_custom_games">
         <item quantity="one">Používá %d hra</item>
         <item quantity="other">Používá %d her</item>
@@ -3052,7 +3052,7 @@
     </plurals>
     <string name="boot_movie">Úvodní video</string>
     <string name="boot_movie_video">Video</string>
-    <string name="boot_movie_droiddeck">DroidDeck · %1$d fps</string>
+    <string name="boot_movie_droiddeck">AriseOS · %1$d fps</string>
     <string name="boot_movie_note">60 fps vypadá plynuleji, ale při spouštění Steamu víc zatěžuje procesor. Video vybrané přímo v nastavení Steamu se zde také zobrazí.</string>
     <string name="boot_movie_sound">Zvuk</string>
     <string name="boot_movie_custom">Vlastní video</string>
@@ -3064,24 +3064,24 @@
     <string name="boot_movie_imported_silent">%1$s je nyní úvodní video, bez zvuku</string>
     <string name="boot_movie_too_long">Videa k převodu mohou mít nejvýše %1$d sekund</string>
     <string name="boot_movie_converting">Převádění %1$d %%</string>
-    <string name="boot_movie_converting_started">Převádí se %1$s pro Steam. Nechte DroidDeck otevřený.</string>
+    <string name="boot_movie_converting_started">Převádí se %1$s pro Steam. Nechte AriseOS otevřený.</string>
     <string name="boot_movie_unsupported">Toto zařízení video nedokáže dekódovat.</string>
     <string name="boot_movie_import_failed">Video se nepodařilo importovat</string>
     <string name="boot_movie_remove_confirm">Odebrat %1$s?</string>
-    <string name="boot_movie_remove_confirm_body">Tím se video smaže z DroidDecku i ze složky videí Steamu.</string>
+    <string name="boot_movie_remove_confirm_body">Tím se video smaže z AriseOSu i ze složky videí Steamu.</string>
     <string name="boot_movie_tab_installed">Nainstalované</string>
     <string name="boot_movie_tab_import">Importovat</string>
     <string name="boot_movie_tab_repo">SteamDeckRepo</string>
     <string name="boot_movie_tab_sound">Zvuk</string>
     <string name="boot_movie_installed">Nainstalovaná videa</string>
     <string name="boot_movie_browse">Procházet</string>
-    <string name="boot_movie_source_droiddeck">DroidDeck</string>
+    <string name="boot_movie_source_droiddeck">AriseOS</string>
     <string name="boot_movie_source_import">Importované</string>
     <string name="boot_movie_source_repo">SteamDeckRepo</string>
     <string name="boot_movie_source_steam">Steam</string>
     <string name="boot_movie_source_pointshop">Obchod s body</string>
     <string name="boot_movie_report">Zpráva o úvodních videích</string>
-    <string name="boot_movie_report_hint">Uloží do textového souboru, co DroidDeck a Steam vědí o úvodních videích, aby šel přiložit k hlášení chyby.</string>
+    <string name="boot_movie_report_hint">Uloží do textového souboru, co AriseOS a Steam vědí o úvodních videích, aby šel přiložit k hlášení chyby.</string>
     <string name="boot_movie_report_save">Uložit</string>
     <string name="boot_movie_report_saved">Uloženo do %1$s</string>
     <string name="boot_movie_report_failed">Zprávu se nepodařilo uložit.</string>
@@ -3117,7 +3117,7 @@
     <string name="glasses_joycons_hint">Použijte kamery chytrých brýlí k umístění spárovaných ovladačů Joy-Con. Otáčení a vstupy tlačítek pocházejí z ovladačů Joy-Con. Poloha se odhaduje, když máte skrytá zápěstí. Nahrazuje ovladače ovládané holýma rukama a pozastavuje sledování fotoaparátem telefonu. Při připojování nebo resetování centra sledování namiřte ovladače Joy-Con dopředu.</string>
     <string name="glasses_joycons_requires_position">Nejprve povolte sledování polohy. Vyžaduje ovladače Joy-Con s funkcí detekce pohybu v systému Android 12 nebo novějším. Ve výchozím nastavení vypnuto.</string>
     <string name="setup_tab_glasses">Chytré brýle</string>
-    <string name="setup_glasses_scope">Nastavení zobrazení a sledování hlavy jsou sdílena mezi nabídkami, hrami a relacemi na počítači DroidDeck.</string>
+    <string name="setup_glasses_scope">Nastavení zobrazení a sledování hlavy jsou sdílena mezi nabídkami, hrami a relacemi na počítači AriseOS.</string>
     <string name="setup_glasses_connect">Připojte chytré brýle a změňte jejich nastavení zobrazení a sledování. Uložená nastavení zůstanou zachována i po odpojení.</string>
     <string name="glasses_vr">VR</string>
     <string name="glasses_display_mode">Režim zobrazení</string>
@@ -3136,7 +3136,7 @@
     <string name="glasses_refresh_30_hint">Povolte Hra na chytrých brýlích pro výběr nativního 30Hz režimu displeje.</string>
     <string name="glasses_3dof">Virtuální obrazovka 3DoF</string>
     <string name="glasses_3dof_hint">Ukotvěte ploché hry před sebe, abyste se mohli rozhlédnout. Povolí Hra na chytrých brýlích bez přepínání do 3D.</string>
-    <string name="glasses_screen_app_wide">Šířka a vzdálenost okamžitě aktualizují sledovanou virtuální obrazovku pro nabídky DroidDeck, hry a relace plochy.</string>
+    <string name="glasses_screen_app_wide">Šířka a vzdálenost okamžitě aktualizují sledovanou virtuální obrazovku pro nabídky AriseOS, hry a relace plochy.</string>
     <string name="glasses_head_tracking_spatial_vr_hint">Sledování polohy zahrnuje rotaci hlavy ve SteamVR. Pro sledování pouze rotace vypněte sledování polohy.</string>
     <string name="glasses_head_tracking_spatial_hint">Řídí pohyb hlavy na virtuální obrazovce. Sledování polohy zahrnuje rotaci hlavy ve SteamVR.</string>
     <string name="glasses_quick_actions">Rychlé akce</string>
@@ -3232,8 +3232,8 @@
     <string name="spatial_timing_values">%1$.1f Hz • stáří snímku %2$.1f ms • zpracování %3$.1f ms</string>
     <string name="spatial_input_values">Limit vstupu %1$.1f Hz • %2$.0f%% snímků z kamery. Sledování hlavy pokračuje na maximální frekvenci.</string>
     <string name="spatial_frame_counts">%1$d zpracováno • %2$d zrušeno • %3$d přeskočeno limitem vstupu</string>
-    <string name="spatial_print_job">DroidDeck ChArUco 30 mm</string>
-    <string name="spatial_print_title">DroidDeck - Luma Ultra kalibrace</string>
+    <string name="spatial_print_job">AriseOS ChArUco 30 mm</string>
+    <string name="spatial_print_title">AriseOS - Luma Ultra kalibrace</string>
     <string name="spatial_print_scale" formatted="false">Tisk při 100% / Skutečná velikost. Každý čtverec: 30 mm (1,181 palce).</string>
     <string name="spatial_print_stationary">Udržujte kalibrační cíl plochý a nehybný; přesouvejte chytré brýle mezi snímky.</string>
     <string name="spatial_print_check">Kontrola měřítka: 100 mm (3,937 palce) mezi dílky</string>
@@ -3321,22 +3321,22 @@
     <string name="session_end_gpu_unsupported">Tuto relaci nelze spustit, protože toto GPU nemá v aktuálním nastavení kompatibilní ovladač Vulkan pro Linux. Ovladače Adreno Turnip nemohou zapnout podporu GPU MediaTek/Mali.</string>
     <string name="setup_group_memory">Paměť</string>
     <string name="setup_clear_cached">Zavřít aplikace v mezipaměti před relací</string>
-    <string name="setup_clear_cached_hint">Při spuštění relace DroidDeck zavře aplikace, které Android drží na pozadí, aby hra měla více paměti. Musí být zapnuté Bezdrátové ladění.</string>
-    <string name="setup_clear_cached_unpaired">Vyžaduje DroidDeck spárovaný přes Bezdrátové ladění (Spárovat, níže).</string>
+    <string name="setup_clear_cached_hint">Při spuštění relace AriseOS zavře aplikace, které Android drží na pozadí, aby hra měla více paměti. Musí být zapnuté Bezdrátové ladění.</string>
+    <string name="setup_clear_cached_unpaired">Vyžaduje AriseOS spárovaný přes Bezdrátové ladění (Spárovat, níže).</string>
     <string name="setup_memory_hud">Ukazatel paměti</string>
-    <string name="setup_memory_hud_hint">Využitá paměť a swap na obrazovce relace. Pokročilé zobrazení ji rozdělí na hru, DroidDeck, Android a GPU.</string>
+    <string name="setup_memory_hud_hint">Využitá paměť a swap na obrazovce relace. Pokročilé zobrazení ji rozdělí na hru, AriseOS, Android a GPU.</string>
     <string name="setup_memory_hud_simple">Jednoduché</string>
     <string name="setup_memory_hud_advanced">Pokročilé</string>
     <string name="memory_hud_simple">RAM %1$s/%2$s GB · swap %3$s/%4$s GB</string>
-    <string name="memory_hud_split">hra %1$s · DroidDeck %2$s · Android %3$s GB</string>
+    <string name="memory_hud_split">hra %1$s · AriseOS %2$s · Android %3$s GB</string>
     <string name="memory_hud_gpu">GPU %1$s GB</string>
     <string name="setup_bg_limit">Aplikace na pozadí během relace</string>
-    <string name="setup_bg_limit_hint">Během relace Android ponechá v mezipaměti nejvýše tolik aplikací a ostatní zavře, aby hra dostala jejich paměť. Po skončení relace DroidDeck vrátí limit na původní hodnotu. Musí být zapnuté Bezdrátové ladění.</string>
+    <string name="setup_bg_limit_hint">Během relace Android ponechá v mezipaměti nejvýše tolik aplikací a ostatní zavře, aby hra dostala jejich paměť. Po skončení relace AriseOS vrátí limit na původní hodnotu. Musí být zapnuté Bezdrátové ladění.</string>
     <string name="setup_bg_limit_4">Nejvýše 4</string>
     <string name="setup_bg_limit_1">Nejvýše 1</string>
     <string name="setup_bg_limit_0">Žádné</string>
     <string name="setup_adb_pair">Bezdrátové ladění</string>
-    <string name="setup_adb_pair_hint">Spáruje DroidDeck s Bezdrátovým laděním Androidu pro výše uvedené možnosti. Omezení pro dětské procesy zůstane vypnuté.</string>
+    <string name="setup_adb_pair_hint">Spáruje AriseOS s Bezdrátovým laděním Androidu pro výše uvedené možnosti. Omezení pro dětské procesy zůstane vypnuté.</string>
     <string name="setup_adb_pair_button">Spárovat</string>
     <string name="epic_client_missing">Není nainstalováno</string>
     <string name="epic_client_open">Otevřít</string>
@@ -3393,7 +3393,7 @@
     <string name="integration_app_info">Informace o aplikaci</string>
     <string name="integration_wifi">Názvy Wi-Fi</string>
     <string name="integration_brightness">Jas</string>
-    <string name="integration_home">DroidDeck jako domovská obrazovka</string>
+    <string name="integration_home">AriseOS jako domovská obrazovka</string>
     <string name="integration_shortcuts">Zkratky tlačítka Domů</string>
     <string name="integration_wifi_hint">Zobrazit sítě ve Steamu · vyžaduje přístup k poloze, nikdy se nesleduje</string>
     <string name="integration_wifi_on">Sítě se zobrazují ve Steamu</string>
@@ -3402,11 +3402,11 @@
     <string name="integration_brightness_hint">Posuvník Steamu nastavuje jas obrazovky</string>
     <string name="integration_home_hint">Tlačítko Domů v relaci otevře nabídku Steam</string>
     <string name="integration_shortcuts_hint">Podržte Domů pro kombinace Steam Guide</string>
-    <string name="integration_shortcuts_needs_home">Vyžaduje DroidDeck jako domovskou obrazovku</string>
+    <string name="integration_shortcuts_needs_home">Vyžaduje AriseOS jako domovskou obrazovku</string>
     <string name="integration_shortcuts_maybe_restricted">V Androidu zašedlé? Informace o aplikaci → ⋮ → Povolit omezená nastavení</string>
     <string name="integration_shortcuts_restricted">Blokováno Androidem · Informace o aplikaci → ⋮ → Povolit omezená nastavení</string>
-    <string name="integration_shortcuts_service">Tlačítko Domů pro DroidDeck</string>
-    <string name="integration_shortcuts_service_description">Předává stisky tlačítka Domů do Steam Guide, když je aktivní relace Steamu a DroidDeck je výchozí aplikací domovské obrazovky. Nečte obsah obrazovky.</string>
+    <string name="integration_shortcuts_service">Tlačítko Domů pro AriseOS</string>
+    <string name="integration_shortcuts_service_description">Předává stisky tlačítka Domů do Steam Guide, když je aktivní relace Steamu a AriseOS je výchozí aplikací domovské obrazovky. Nečte obsah obrazovky.</string>
     <string name="integration_brightness_needed">Zapněte Jas v Příprava → Integrace se Steamem</string>
     <string name="apps_search_hint">Hledat aplikace</string>
     <string name="apps_no_match">Výrazu „%1$s“ neodpovídá žádná aplikace.</string>
@@ -3453,7 +3453,7 @@
         <item quantity="other">%d aplikací</item>
     </plurals>
     <string name="desktop_restore_title">Obnovování vašeho softwaru</string>
-    <string name="desktop_restore_body">Přeinstalace aplikací, které jste přidali, po aktualizaci DroidDecku.</string>
+    <string name="desktop_restore_body">Přeinstalace aplikací, které jste přidali, po aktualizaci AriseOSu.</string>
     <string name="desktop_restore_done_title">Software obnoven</string>
     <string name="desktop_restore_done_body">Aplikace, které jste přidali, jsou znovu nainstalovány.</string>
     <string name="desktop_restore_failed_title">Část softwaru se nepodařilo obnovit</string>

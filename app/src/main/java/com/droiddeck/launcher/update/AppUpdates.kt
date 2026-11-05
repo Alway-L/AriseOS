@@ -16,9 +16,9 @@ import java.security.MessageDigest
 
 object AppUpdates {
     private const val TAG = "AppUpdates"
-    private const val REPO = "Droid-Deck/DroidDeck"
-    private const val CI_REPO = "Droid-Deck/DroidDeck-CI"
-    private const val CATALOG_URL = "https://raw.githubusercontent.com/$CI_REPO/main/catalog.json"
+    private const val REPO = "Alway-L/AriseOS"
+    private const val CI_REPO = "Alway-L/AriseOS"
+    private const val CATALOG_URL = "https://raw.githubusercontent.com/$CI_REPO/catalog/catalog.json"
     private const val PREFS = "app_updates"
     private const val KEY_CATALOG = "catalog"
     private const val KEY_CHANNEL = "channel"
@@ -338,7 +338,7 @@ object AppUpdates {
             throw IOException("The update catalog has an invalid checksum")
         }
         if (!signer.equals(BuildConfig.RELEASE_SIGNER, ignoreCase = true)) {
-            throw IOException("The update catalog is not signed for DroidDeck's release key")
+            throw IOException("The update catalog is not signed for AriseOS's release key")
         }
         val allowed = listOf(
             "https://github.com/$REPO/releases/download/",

@@ -1,0 +1,102 @@
+name: Publicar versão AriseOS
+run-name: publicar AriseOS a partir de main ${{ github.sha }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      notes:
+        description: O que mudou nesta versão (aparece na tela de Atualizações)
+        required: false
+        default: ''
+
+permissions:
+  contents: write
+  actions: read
+
+concurrency:
+  group: publish-ariseos
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+
+      - name: Baixar o APK assinado do build de main
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          id=$(gh run list -R "$GITHUB_REPOSITORY" --workflow build.yml --branch main --commit "$GITHUB_SHA" \
+                 --status success --json databaseId -L 1 -q '.[0].databaseId // empty')
+          [ -n "$id" ] || { echo "::error::main ${GITHUB_SHA::7} ainda não tem um build com sucesso: espere ele terminar"; exit 1; }
+          gh run download "$id" -R "$GITHUB_REPOSITORY" -n droiddeck-signed-standard -D signed
+          ls -la signed
+
+      - name: Criar a release e o catálogo
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NOTES: ${{ inputs.notes }}
+        run: |
+          set -euo pipefail
+          name=$(sed -n 's/^ *versionName "\(.*\)"$/\1/p' app/build.gradle)
+          code=$(sed -n 's/^ *versionCode \([0-9]*\)$/\1/p' app/build.gradle)
+          signer=$(tr -d ' \n' < keystore/release-signer.sha256 | tr 'A-F' 'a-f')
+          tag="v$name"
+          [[ $name =~ ^[0-9A-Za-z._-]+$ && $code =~ ^[0-9]+$ ]] || { echo "::error::versionName/versionCode inválidos em app/build.gradle"; exit 1; }
+          if gh release view "$tag" -R "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "::error::a versão $tag já foi publicada: aumente versionName e versionCode em app/build.gradle"; exit 1
+          fi
+          apks=(signed/*.apk)
+          [ ${#apks[@]} = 1 ] || { echo "::error::esperava um APK no build"; exit 1; }
+          apk="AriseOS-$name.apk"
+          cp "${apks[0]}" "$apk"
+          body=${NOTES:-"AriseOS $name"}
+          gh release create "$tag" "$apk" -R "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "AriseOS $name" --notes "$body"
+
+          export TAG="$tag" NAME="$name" CODE="$code" SIGNER="$signer" APK="$apk" BODY="$body"
+          python3 - <<'PY'
+          import hashlib, json, os, subprocess, time
+          repo = os.environ["GITHUB_REPOSITORY"]
+          apk = os.environ["APK"]
+          data = open(apk, "rb").read()
+          release = {
+              "tag": os.environ["TAG"],
+              "title": f"AriseOS {os.environ['NAME']}",
+              "summary": os.environ["BODY"][:400],
+              "commit": os.environ["GITHUB_SHA"],
+              "pr": 0,
+              "version": os.environ["NAME"],
+              "versionCode": int(os.environ["CODE"]),
+              "publishedAt": int(time.time() * 1000),
+              "url": f"https://github.com/{repo}/releases/tag/{os.environ['TAG']}",
+              "apks": {
+                  "com.droiddeck.launcher": {
+                      "name": apk,
+                      "url": f"https://github.com/{repo}/releases/download/{os.environ['TAG']}/{apk}",
+                      "size": len(data),
+                      "sha256": hashlib.sha256(data).hexdigest(),
+                      "packageName": "com.droiddeck.launcher",
+                      "versionCode": int(os.environ["CODE"]),
+                      "signerSha256": os.environ["SIGNER"],
+                  }
+              },
+          }
+          catalog = {"schema": 1, "sourceRepo": repo, "ciRepo": repo, "stable": release, "preview": release, "tests": [], "recentPreviews": []}
+          json.dump(catalog, open(os.path.join(os.environ["RUNNER_TEMP"], "catalog.json"), "w"), indent=2)
+          PY
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout --orphan ariseos-catalog
+          git rm -rfq .
+          cp "$RUNNER_TEMP/catalog.json" catalog.json
+          git add catalog.json
+          git commit -qm "catalog: $tag"
+          git push -f origin HEAD:refs/heads/catalog
+          echo "Publicado $tag ($code). O app oferece a atualização em Atualizações." >> "$GITHUB_STEP_SUMMARY"

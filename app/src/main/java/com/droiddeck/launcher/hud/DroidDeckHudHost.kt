@@ -170,7 +170,7 @@ class DroidDeckHudHost(context: Context) {
 
     /** A sensor report (DroidDeck HUD's diagnostics) in Downloads/DroidDeck; null when it can't be written. */
     fun exportDiagnostics(): File? = runCatching {
-        val dir = File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "DroidDeck")
+        val dir = File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "AriseOS")
         dir.mkdirs()
         val stamp = java.text.SimpleDateFormat("yyyyMMdd-HHmmss", java.util.Locale.US).format(java.util.Date())
         val file = File(dir, "HUD-diagnostics-$stamp.txt")
