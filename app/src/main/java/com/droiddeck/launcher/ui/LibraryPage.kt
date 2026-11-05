@@ -242,6 +242,13 @@ internal fun LibraryPage(s: FrontEndState, a: FrontEndActions, selected: String,
     }
     val itchSignedIn = owned.containsKey(Store.ITCH)
     val listed = librarySources(all, SessionPrefs.storesTabOrder(ctx))
+    val storeOrder = arrangeStoreTabs(SessionPrefs.storesTabOrder(ctx), emptySet()).map { it.store }
+    val sections = buildList {
+        add(Library.SOURCE_STEAM)
+        for (st in storeOrder) if (st in signedIn || all.any { it.source == st.id }) add(st.id)
+        add(Library.ADDED)
+    }
+    val unconnected = if (stores) storeOrder.filter { it !in signedIn } else emptyList()
     val sources = if (itchSignedIn && Store.ITCH.id !in listed) listed + Store.ITCH.id else listed
     val source = LibraryView.source.takeIf { it == LIBRARY_ALL || it == LIBRARY_BY_STORE || it in sources } ?: LIBRARY_BY_STORE
     val q = LibraryView.query.trim().lowercase()
@@ -340,7 +347,7 @@ internal fun LibraryPage(s: FrontEndState, a: FrontEndActions, selected: String,
         kotlinx.coroutines.delay(Motion.ms(240).toLong())
         focusWithinFrames({ ff.last?.startsWith("card:") == true }) { if (ff.firstTileAttached > 0) ff.firstTile else FocusRequester.Default }
     }
-    if (all.isEmpty() && open == null && !itchSignedIn) {
+    if (all.isEmpty() && open == null && !itchSignedIn && (s.shortcutPicker || !s.gameStoresEnabled)) {
         LibraryEmpty(s, a, modifier)
         return
     }
@@ -364,7 +371,7 @@ internal fun LibraryPage(s: FrontEndState, a: FrontEndActions, selected: String,
         wrap = { key, content -> StoreTheme(GameRef.parse(key).let { r -> r.store ?: r.game(s.steamGames)?.source?.let { Store.byId(it) } }) { content() } },
         grid = {
             LibraryGrid(
-                s, a, grid, visible, split, visible.size, sources, source, sizesPending, syncing,
+                s, a, grid, visible, split, visible.size, sources, source, sizesPending, syncing, sections, unconnected,
                 showUninstalled = listUninstalled.takeIf { !s.shortcutPicker },onShowUninstalled = setShowUninstalled,
                 hiddenUninstalled = hiddenUninstalled,
                 onSource = { LibraryView.source = it },
@@ -405,6 +412,7 @@ private fun LibraryEmpty(s: FrontEndState, a: FrontEndActions, modifier: Modifie
 private fun LibraryGrid(
     s: FrontEndState, a: FrontEndActions, grid: LazyGridState, visible: List<LibraryEntry>, split: Int, total: Int,
     sources: List<String>, source: String, sizesPending: Boolean, syncing: List<Pair<Store, String>>,
+    sections: List<String>, unconnected: List<Store>,
     showUninstalled: Boolean?, onShowUninstalled: (Boolean) -> Unit, hiddenUninstalled: Int,
     onSource: (String) -> Unit, onCycle: (Int) -> Unit, onOpen: (String) -> Unit, onFocus: (Boolean) -> Unit, searchCleared: Boolean,
 ) {
@@ -480,17 +488,20 @@ private fun LibraryGrid(
             }
         }
         val empty = R.string.stores_nothing_matches
-        if (source == LIBRARY_BY_STORE && visible.isNotEmpty()) {
-            val groups = sources.mapNotNull { src -> visible.filter { it.source == src }.takeIf { it.isNotEmpty() }?.let { src to it } }
+        if (source == LIBRARY_BY_STORE) {
+            val searching = LibraryView.query.isNotBlank()
+            val groups = (sections + sources.filter { it !in sections }).mapNotNull { src ->
+                visible.filter { it.source == src }.takeIf { it.isNotEmpty() || !searching }?.let { src to it }
+            }
             groups.forEachIndexed { index, (src, entries) ->
                 item(key = "section-$src", span = { GridItemSpan(maxLineSpan) }) {
-                    LibraryStoreSection(src, entries, tileWidth, capsules, firstSection = index == 0) { e, first ->
+                    LibraryStoreSection(src, entries, tileWidth, capsules, firstSection = index == 0, s, a) { e, first ->
                         val picker = s.shortcutPicker && e.game != null
                         LibraryTile(e, capsules, first, Modifier, if (picker) ({ a.onSteamGame(e.game!!) }) else null, onOpen, showSource = false)
                     }
                 }
             }
-            if (!s.shortcutPicker && s.gameStoresEnabled) item(key = "connect-store", span = { GridItemSpan(maxLineSpan) }) { ConnectStoreButton() }
+            if (!s.shortcutPicker && unconnected.isNotEmpty()) item(key = "connect-store", span = { GridItemSpan(maxLineSpan) }) { ConnectStores(unconnected) }
         }
         else if (visible.isEmpty() && hiddenUninstalled > 0) item(key = "browse-owned", span = { GridItemSpan(maxLineSpan) }) {
             Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth().padding(vertical = 32.dp)) {
@@ -1009,7 +1020,7 @@ private fun ViewButton(s: FrontEndState, a: FrontEndActions) {
 @Composable
 private fun LibraryStoreSection(
     source: String, entries: List<LibraryEntry>, tileWidth: androidx.compose.ui.unit.Dp, capsules: Boolean, firstSection: Boolean,
-    tile: @Composable (LibraryEntry, Boolean) -> Unit,
+    s: FrontEndState, a: FrontEndActions, tile: @Composable (LibraryEntry, Boolean) -> Unit,
 ) {
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
@@ -1045,32 +1056,77 @@ private fun LibraryStoreSection(
                 )
             }
         }
+        val width = if (capsules) tileWidth * 0.8f else tileWidth
         LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth().testTag("library-row-$source")) {
+            if (source == Library.ADDED && !s.shortcutPicker) item(key = "add-exe") {
+                SectionCard(Icons.Filled.Add, stringResource(R.string.library_add_exe), width, "library-add-exe") { GamesDialogState.adding = true }
+            }
+            if (entries.isEmpty() && source == Library.SOURCE_STEAM) item(key = "steam-empty") {
+                SectionCard(Icons.Filled.PlayArrow, stringResource(R.string.library_steam_empty), width, "library-steam-empty", enabled = !s.busy, onClick = a.onPlay)
+            }
+            if (entries.isEmpty() && store != null) item(key = "store-empty") {
+                Box(Modifier.width(width * 2).heightIn(min = 72.dp).clip(RoundedCornerShape(12.dp)).background(colors.surface).padding(14.dp), contentAlignment = Alignment.CenterStart) {
+                    Text(stringResource(R.string.library_store_empty), fontSize = 13.sp, color = colors.onSurfaceVariant)
+                }
+            }
             items(entries, key = { it.key }, contentType = { "game" }) { e ->
-                Box(Modifier.width(if (capsules) tileWidth * 0.8f else tileWidth)) { tile(e, firstSection && e === entries.first()) }
+                Box(Modifier.width(width)) { tile(e, firstSection && e === entries.first()) }
             }
         }
     }
 }
 
 @Composable
-private fun ConnectStoreButton() {
+private fun SectionCard(
+    icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, width: androidx.compose.ui.unit.Dp, tag: String,
+    enabled: Boolean = true, onClick: () -> Unit,
+) {
+    val colors = MaterialTheme.colorScheme
+    val pal = LocalPalette.current
+    val src = remember { MutableInteractionSource() }
+    val hot = rememberHot(src)
+    val shape = RoundedCornerShape(12.dp)
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(10.dp, Alignment.CenterVertically),
+        modifier = Modifier.width(width).aspectRatio(2f / 3f).paneItem("btn:$tag").testTag(tag).clip(shape)
+            .background(if (hot) pal.signal.copy(alpha = 0.14f) else colors.surface)
+            .border(1.dp, if (hot) pal.signal else pal.line2, shape)
+            .hoverable(src).clickable(enabled = enabled, role = Role.Button, interactionSource = src, indication = LocalIndication.current, onClick = onClick)
+            .controllerConfirm(enabled = enabled, onClick = onClick).padding(12.dp),
+    ) {
+        Box(Modifier.size(44.dp).background(pal.signal.copy(alpha = 0.16f), CircleShape), contentAlignment = Alignment.Center) {
+            Icon(icon, null, tint = pal.signal, modifier = Modifier.size(24.dp))
+        }
+        Text(label, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+    }
+}
+
+/** "Conectar outra loja": one chip per store not signed in yet; each opens that store to sign in. */
+@Composable
+private fun ConnectStores(stores: List<Store>) {
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
     val show = LocalShowSection.current
-    val src = remember { MutableInteractionSource() }
-    val hot = rememberHot(src)
-    val shape = RoundedCornerShape(14.dp)
-    val open = { PageReturn.from("games"); show("stores") }
-    Row(
-        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
-        modifier = Modifier.fillMaxWidth().padding(top = 18.dp).paneItem("btn:library-connect-store").testTag("library-connect-store")
-            .heightIn(min = 52.dp).clip(shape)
-            .border(1.dp, if (hot) pal.signal else pal.line2, shape)
-            .hoverable(src).clickable(role = Role.Button, interactionSource = src, indication = LocalIndication.current, onClick = open)
-            .controllerConfirm(onClick = open).padding(horizontal = 16.dp, vertical = 12.dp),
-    ) {
-        Icon(Icons.Filled.Add, null, tint = pal.signal, modifier = Modifier.size(20.dp))
-        Text(stringResource(R.string.library_connect_store), fontSize = 14.sp, fontWeight = FontWeight.Bold, color = colors.onBackground, maxLines = 1, overflow = TextOverflow.Ellipsis)
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth().padding(top = 20.dp)) {
+        Text(stringResource(R.string.library_connect_store), fontSize = 17.sp, fontWeight = FontWeight.ExtraBold, color = colors.onBackground)
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())) {
+            for (store in stores) {
+                val src = remember { MutableInteractionSource() }
+                val hot = rememberHot(src)
+                val shape = RoundedCornerShape(99.dp)
+                val open = { StoresState.openStoreRequest = store.id; PageReturn.from("games"); show("stores") }
+                Row(
+                    verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.paneItem("libconnect:${store.id}").testTag("library-connect-${store.id}").heightIn(min = 44.dp).clip(shape)
+                        .background(colors.surface).border(1.dp, if (hot) pal.signal else pal.line2, shape)
+                        .hoverable(src).clickable(role = Role.Button, interactionSource = src, indication = LocalIndication.current, onClick = open)
+                        .controllerConfirm(onClick = open).padding(horizontal = 14.dp, vertical = 10.dp),
+                ) {
+                    Icon(Icons.Filled.Add, null, tint = pal.signal, modifier = Modifier.size(16.dp))
+                    Box(Modifier.size(9.dp).background(sourceColours(store.id).dot, CircleShape))
+                    Text(store.shortLabel, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = colors.onBackground, maxLines = 1)
+                }
+            }
+        }
     }
 }

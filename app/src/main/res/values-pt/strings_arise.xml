@@ -8,4 +8,7 @@
     <string name="library_by_store">Por loja</string>
     <string name="library_open_store">Abrir loja</string>
     <string name="library_connect_store">Conectar outra loja</string>
+    <string name="library_add_exe">Adicionar jogo (.exe)</string>
+    <string name="library_steam_empty">Abra a Steam para ver seus jogos aqui</string>
+    <string name="library_store_empty">Nenhum jogo ainda</string>
 </resources>

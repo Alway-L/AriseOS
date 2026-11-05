@@ -8,4 +8,7 @@
     <string name="library_by_store">By store</string>
     <string name="library_open_store">Open store</string>
     <string name="library_connect_store">Connect another store</string>
+    <string name="library_add_exe">Add game (.exe)</string>
+    <string name="library_steam_empty">Open Steam to see your games here</string>
+    <string name="library_store_empty">No games yet</string>
 </resources>
