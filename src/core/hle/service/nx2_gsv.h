@@ -3328,6 +3328,7 @@ private:
             } else if (Nx2VideoSyncTraceEnabled()) {
                 ++m_sync.empty_polls;
             }
+            m_ready->output_ready.store(!m_outputs.empty(), std::memory_order_relaxed);
         }
         if (!output) {
             if (Nx2VideoTraceEnabled()) {
@@ -3448,6 +3449,7 @@ private:
                     m_ready->room.store(false, std::memory_order_relaxed);
                 }
                 system.Host1x().GetSyncpointManager().IncrementGuest(m_syncpoint);
+                m_ready->SignalOutput(system.Kernel());
                 m_last_output = m_outputs.back();
                 if (Nx2VideoPtsSyncEnabled()) {
                     NoteWritten(frame);
