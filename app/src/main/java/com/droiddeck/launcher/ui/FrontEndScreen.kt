@@ -527,7 +527,7 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
     }
     LaunchedEffect(s.isHomeApp) { if (!s.isHomeApp && selected == "android-apps") selected = WORKSPACE_TAB }
     BackHandler(enabled = !processSettingsPageVisible && s.pageKey == null && selected in WORKSPACE_PAGES && Hops.origin?.page != selected) {
-        selected = PageReturn.take() ?: WORKSPACE_TAB
+        selected = PageReturn.take() ?: WORKSPACE_PAGES[selected] ?: WORKSPACE_TAB
     }
     LaunchedEffect(s.steamGames.isEmpty()) {
         if (s.steamGames.isEmpty() && selected.startsWith("app:") && GameRef.parse(selected).appId != null) selected = "games"
@@ -541,7 +541,7 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
         selected.startsWith("app:") -> "games"
         selected.startsWith("emu:") || selected.startsWith("rom:") || selected.startsWith("user:") || selected == "store" -> "desktop"
         else -> s.pageKey ?: selected
-    }.let { if (it in WORKSPACE_PAGES) WORKSPACE_TAB else it }
+    }.let { WORKSPACE_PAGES[it] ?: it }
     val railSelectionNow = androidx.compose.runtime.rememberUpdatedState(railSelection)
     var railPicks by remember { mutableStateOf(0) }
     val showRailPage: (String, Boolean) -> Unit = { key, focusContent ->

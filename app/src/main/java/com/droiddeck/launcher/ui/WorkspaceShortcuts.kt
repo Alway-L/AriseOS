@@ -16,8 +16,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Apps
-import androidx.compose.material.icons.outlined.LocalMall
-import androidx.compose.material.icons.outlined.SportsEsports
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -43,8 +41,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.droiddeck.launcher.R
 
-/** Pages reached from the Área de trabalho tab instead of having a tab of their own. */
-internal val WORKSPACE_PAGES = setOf("steam", "stores", "android-apps")
+/** Pages without a tab of their own, and the tab each belongs to: Steam and the stores live in the Library. */
+internal val WORKSPACE_PAGES = mapOf("steam" to "games", "stores" to "games", "android-apps" to "desktop")
 
 internal const val WORKSPACE_TAB = "desktop"
 
@@ -63,8 +61,6 @@ internal fun WorkspaceShortcuts(s: FrontEndState) {
         at?.let { PageOrigin.mark(Origin(it, 14f * density)) }
         show(page)
     }
-    WorkspaceChip(Icons.Outlined.SportsEsports, stringResource(R.string.workspace_steam), "steam") { open(it, "steam") }
-    if (s.gameStoresEnabled) WorkspaceChip(Icons.Outlined.LocalMall, stringResource(R.string.workspace_stores), "stores") { open(it, "stores") }
     if (s.isHomeApp) WorkspaceChip(Icons.Outlined.Apps, stringResource(R.string.workspace_android_apps), "android-apps") { open(it, "android-apps") }
 }
 

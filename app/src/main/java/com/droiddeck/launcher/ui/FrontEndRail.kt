@@ -211,7 +211,7 @@ private fun NavigationItems(
         key(key) {
             RailItem(stringResource(label), icon, key, shown == key, compact, iconOnly, height, width,
                 badge = (key == "setup" && setupNeedsAttention) || (key == "updates" && s.updates.hasUpdate),
-                count = if (key == WORKSPACE_TAB) s.storeDownloadsActive else 0,
+                count = if (key == "games") s.storeDownloadsActive else 0,
                 place = place, onFocus = { onFocusSelect(key) }) { onSelect(key) }
         }
     }
