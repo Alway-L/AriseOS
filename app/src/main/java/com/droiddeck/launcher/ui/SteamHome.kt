@@ -162,7 +162,6 @@ internal fun SteamHome(s: FrontEndState, a: FrontEndActions, modifier: Modifier)
         button = { click ->
             PrimaryButton(stringResource(R.string.games_play_steam), enabled = !s.busy, main = true, large = true, icon = Icons.Filled.PlayArrow, modifier = Modifier.testTag("play-steam"), onClick = click)
         },
-        beside = { WorkspaceShortcuts(s) },
         rows = { tab -> a.modeSheet(mode, tab, extras) },
     )
 }

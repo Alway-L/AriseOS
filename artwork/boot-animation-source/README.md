@@ -1,3 +1,15 @@
+# AriseOS boot animation
+
+The bundled Steam startup movies (`app/src/main/assets/steam-startup/droiddeck-startup.webm` at 30 fps and
+`droiddeck-startup-60.webm` at 60 fps) are the AriseOS animation from `ariseos-boot.html`, with the soundtrack
+from `ariseos_sound.py`. The file names stay the same so existing sessions keep finding them. Render with:
+
+    python3 artwork/boot-animation-source/ariseos_sound.py artwork/boot-animation-source/ariseos-boot-sound.wav
+    python3 artwork/boot-animation-source/render_ariseos.py 1280 720 30 app/src/main/assets/steam-startup/droiddeck-startup.webm dark
+    python3 artwork/boot-animation-source/render_ariseos.py 1280 720 60 app/src/main/assets/steam-startup/droiddeck-startup-60.webm dark
+
+The original DroidDeck animation sources below are kept for reference.
+
 # DroidDeck boot animation
 
 This source accompanies the Steam startup movies bundled by the app:

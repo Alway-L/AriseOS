@@ -13,49 +13,79 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.drawscope.rotate
+import androidx.compose.ui.graphics.drawscope.clipPath
+import androidx.compose.ui.graphics.drawscope.scale
+import androidx.compose.ui.graphics.drawscope.translate
+import kotlin.math.PI
 import kotlin.math.atan2
 import kotlin.math.cos
+import kotlin.math.exp
+import kotlin.math.hypot
 import kotlin.math.sin
-import kotlin.math.sqrt
 
+/** The AriseOS loading mark: the chevron rises into place over the A, the inner triangle pulses as it lands, and a light band sweeps up the A. */
 @Composable
 internal fun LogoThrobber(modifier: Modifier = Modifier, running: Boolean = true) {
     val ink = MaterialTheme.colorScheme.onBackground
-    val ball = LocalPalette.current.signal
+    val pal = LocalPalette.current
+    val low = pal.primary
+    val high = pal.signal
     val loop = rememberInfiniteTransition(label = "throbber")
         .animateFloat(0f, 1f, infiniteRepeatable(tween(LOOP_MS, easing = LinearEasing)), label = "loop")
     val still = !running || Motion.scale == 0f
-    val left = remember { Path() }
-    val right = remember { Path() }
+    val body = remember { Path() }
+    val chevron = remember { Path() }
+    val accent = remember { Path() }
     Canvas(modifier.aspectRatio(LogoShape.WIDTH / LogoShape.HEIGHT)) {
-        val p = if (still) 0f else loop.value
-        val bend = when {
-            p < 0.10f -> 0f
-            p < 0.24f -> Settle.transform((p - 0.10f) / 0.14f)
-            p < 0.76f -> 1f
-            p < 0.90f -> 1f - Settle.transform((p - 0.76f) / 0.14f)
-            else -> 0f
-        }
-        val turn = if (p < 0.16f || p > 0.84f) 0f else Turn.transform((p - 0.16f) / 0.68f) * 360f
-        val ballScale = when {
-            p < 0.12f -> 1f
-            p < 0.30f -> 1f - 0.2f * Settle.transform((p - 0.12f) / 0.18f)
-            p < 0.70f -> 0.8f
-            p < 0.88f -> 0.8f + 0.2f * Settle.transform((p - 0.70f) / 0.18f)
-            else -> 1f
-        }
+        val p = if (still) REST else loop.value
         val s = size.width / LogoShape.WIDTH
         fun px(x: Float, y: Float) = Offset((x - LogoShape.LEFT) * s, y * s)
-        val centre = px(LogoShape.CX, LogoShape.CY)
-        LogoShape.left(left, bend, ::px)
-        LogoShape.right(right, ::px)
-        rotate(turn, centre) {
-            drawPath(left, ink)
-            drawPath(right, ink)
+        LogoShape.left(body, 0f, ::px)
+        LogoShape.right(chevron, ::px)
+        LogoShape.accent(accent, ::px)
+        val top = px(LogoShape.CX, LogoShape.TOP).y
+        val bottom = px(LogoShape.CX, LogoShape.BOTTOM).y
+
+        drawPath(body, Brush.verticalGradient(listOf(high, low), startY = top, endY = bottom))
+        if (!still) {
+            val band = bottom - (bottom - top + BAND * s * 2) * Sweep.transform(p) + BAND * s
+            clipPath(body) {
+                drawRect(
+                    Brush.verticalGradient(
+                        0f to Color.Transparent, 0.5f to Color.White.copy(alpha = 0.32f), 1f to Color.Transparent,
+                        startY = band - BAND * s, endY = band + BAND * s,
+                    ),
+                )
+            }
         }
-        drawCircle(ball, radius = LogoShape.BALL * s * ballScale, center = centre)
+
+        val (rise, alpha) = when {
+            p < ARRIVE -> {
+                val q = Overshoot.transform(p / ARRIVE)
+                (1f - q) * RISE_FROM to (p / ARRIVE).coerceIn(0f, 1f)
+            }
+            p < LEAVE -> 0f to 1f
+            else -> {
+                val q = Leave.transform((p - LEAVE) / (1f - LEAVE))
+                -q * RISE_TO to 1f - q
+            }
+        }
+        translate(0f, rise * s) { drawPath(chevron, ink.copy(alpha = alpha)) }
+        if (p > LEAVE) {
+            val q = (p - LEAVE) / (1f - LEAVE)
+            translate(0f, RISE_FROM * s * (1f - q)) { drawPath(chevron, ink.copy(alpha = 0.25f * q)) }
+        }
+
+        val pulse = if (still) 0f else exp(-((p - ARRIVE) / 0.08f).let { it * it })
+        val centre = px(LogoShape.CX, LogoShape.CY)
+        if (pulse > 0.01f) drawCircle(
+            Brush.radialGradient(listOf(high.copy(alpha = 0.55f * pulse), Color.Transparent), centre, LogoShape.BALL * s * 2.2f),
+            LogoShape.BALL * s * 2.2f, centre,
+        )
+        scale(1f + 0.14f * pulse, 1f + 0.14f * pulse, centre) { drawPath(accent, high) }
     }
 }
 
@@ -65,92 +95,76 @@ internal fun throbberBall(bounds: androidx.compose.ui.geometry.Rect): Pair<Offse
 }
 
 private const val LOOP_MS = 1900
-private val Settle = CubicBezierEasing(0.5f, 0f, 0.3f, 1f)
-private val Turn = CubicBezierEasing(0.65f, 0f, 0.35f, 1f)
+private const val REST = 0.5f
+private const val ARRIVE = 0.34f
+private const val LEAVE = 0.72f
+private const val RISE_FROM = 150f
+private const val RISE_TO = 70f
+private const val BAND = 90f
+private val Overshoot = CubicBezierEasing(0.22f, 1.35f, 0.4f, 1f)
+private val Leave = CubicBezierEasing(0.55f, 0f, 0.9f, 0.6f)
+private val Sweep = CubicBezierEasing(0.45f, 0f, 0.35f, 1f)
 
+/** The AriseOS mark in artwork/ariseos-icon.svg units, shifted so the chevron's tip sits at y = 0. */
 internal object LogoShape {
-    const val LEFT = -55.98f
-    const val WIDTH = 239.92f
-    const val HEIGHT = 223.72f
-    const val CX = 63.98f
-    const val CY = 111.86f
-    const val BALL = 55.98f
-    private const val OUTER = 111.86f
-    private const val INNER = 71.81f
-    private const val SQUARE_X = -31.98f
-    private const val SPLIT_LEFT = 56.055f
-    private const val SPLIT_RIGHT = 71.885f
+    const val LEFT = 254f
+    const val WIDTH = 516f
+    const val HEIGHT = 575f
+    const val CX = 512f
+    const val CY = 489f
+    const val BALL = 48f
+    const val TOP = 0f
+    const val BOTTOM = 565f
+    private const val Y0 = 175f
+    private const val CHEVRON_HALF = 11f
 
     private class Pt(val x: Float, val y: Float)
 
-    private fun at(a: Double, r: Float) = Pt((CX + r * cos(a)).toFloat(), (CY + r * sin(a)).toFloat())
-    private fun angle(x: Float, y: Float) = atan2((y - CY).toDouble(), (x - CX).toDouble())
-    private fun leftward(a: Double) = if (a < 0) a else a - 2 * Math.PI
+    private val bodyPts = listOf(
+        Pt(512f, 250f), Pt(760f, 740f), Pt(650f, 740f), Pt(512f, 462f), Pt(374f, 740f), Pt(264f, 740f),
+    ).map { Pt(it.x, it.y - Y0) }
 
-    private val rays: List<Double> = run {
-        val top = angle(SPLIT_LEFT, 0f)
-        val topCorner = angle(SQUARE_X, 0f)
-        val bottomCorner = leftward(angle(SQUARE_X, HEIGHT))
-        val bottom = leftward(angle(SPLIT_LEFT, HEIGHT))
-        fun span(a: Double, b: Double, n: Int) = List(n) { i -> a + (b - a) * i / (n - 1) }
-        span(top, topCorner, 9).dropLast(1) + span(topCorner, bottomCorner, 25).dropLast(1) + span(bottomCorner, bottom, 9)
-    }
+    private val accentPts = listOf(Pt(512f, 560f), Pt(590f, 716f), Pt(434f, 716f)).map { Pt(it.x, it.y - Y0) }
 
-    private val square: List<Pt> = rays.map { a ->
-        val c = cos(a)
-        val sn = sin(a)
-        val hits = buildList {
-            if (c < -1e-9) add((SQUARE_X - CX) / c)
-            if (sn < -1e-9) add((0f - CY) / sn)
-            if (sn > 1e-9) add((HEIGHT - CY) / sn)
+    private val chevronPts: List<Pt> = run {
+        val a = Pt(392f, 270f - Y0)
+        val b = Pt(512f, 190f - Y0)
+        val c = Pt(632f, 270f - Y0)
+        val len = hypot(b.x - a.x, b.y - a.y)
+        val nx = -(b.y - a.y) / len
+        val ny = (b.x - a.x) / len
+        val miter = CHEVRON_HALF / ((b.x - a.x) / len)
+        fun cap(cx: Float, cy: Float, from: Double, sweep: Double) = List(9) { i ->
+            val t = from + sweep * i / 8
+            Pt(cx + CHEVRON_HALF * cos(t).toFloat(), cy + CHEVRON_HALF * sin(t).toFloat())
         }
-        val t = hits.minOrNull() ?: 0.0
-        Pt((CX + t * c).toFloat(), (CY + t * sn).toFloat())
-    }.toMutableList().also { it[0] = Pt(SPLIT_LEFT, 0f); it[it.lastIndex] = Pt(SPLIT_LEFT, HEIGHT) }
-
-    private val arc: List<Pt> = rays.map { at(it, OUTER) }.toMutableList().also {
-        val dy = sqrt(OUTER * OUTER - (SPLIT_LEFT - CX) * (SPLIT_LEFT - CX))
-        it[0] = Pt(SPLIT_LEFT, CY - dy)
-        it[it.lastIndex] = Pt(SPLIT_LEFT, CY + dy)
+        val upA = Pt(a.x - nx * CHEVRON_HALF, a.y - ny * CHEVRON_HALF)
+        val lowA = Pt(a.x + nx * CHEVRON_HALF, a.y + ny * CHEVRON_HALF)
+        val upC = Pt(c.x + nx * CHEVRON_HALF, c.y - ny * CHEVRON_HALF)
+        val lowC = Pt(c.x - nx * CHEVRON_HALF, c.y + ny * CHEVRON_HALF)
+        val angA = atan2((upA.y - a.y).toDouble(), (upA.x - a.x).toDouble())
+        listOf(upA, Pt(b.x, b.y - miter), upC) +
+            cap(c.x, c.y, atan2((upC.y - c.y).toDouble(), (upC.x - c.x).toDouble()), PI) +
+            listOf(lowC, Pt(b.x, b.y + miter), lowA) +
+            cap(a.x, a.y, angA + PI, PI)
     }
 
-    private val leftInner: List<Pt> = run {
-        val dx = (SPLIT_LEFT - CX).toDouble()
-        val dy = sqrt(INNER * INNER - dx * dx)
-        val from = atan2(dy, dx)
-        val to = atan2(-dy, dx) + 2 * Math.PI
-        List(rays.size) { i -> at(from + (to - from) * i / (rays.size - 1), INNER) }
-    }
-
-    private val rightHalf: List<Pt> = run {
-        val dx = (SPLIT_RIGHT - CX).toDouble()
-        val oy = sqrt(OUTER * OUTER - dx * dx)
-        val iy = sqrt(INNER * INNER - dx * dx)
-        val outerFrom = atan2(-oy, dx)
-        val outerTo = atan2(oy, dx)
-        val innerFrom = atan2(iy, dx)
-        val innerTo = atan2(-iy, dx)
-        List(40) { i -> at(outerFrom + (outerTo - outerFrom) * i / 39, OUTER) } +
-            List(40) { i -> at(innerFrom + (innerTo - innerFrom) * i / 39, INNER) }
-    }
-
-    fun left(path: Path, bend: Float, px: (Float, Float) -> Offset) {
+    private fun fill(path: Path, pts: List<Pt>, px: (Float, Float) -> Offset) {
         path.reset()
-        square.forEachIndexed { i, q ->
-            val r = arc[i]
-            val o = px(q.x + (r.x - q.x) * bend, q.y + (r.y - q.y) * bend)
-            if (i == 0) path.moveTo(o.x, o.y) else path.lineTo(o.x, o.y)
-        }
-        for (q in leftInner) px(q.x, q.y).let { path.lineTo(it.x, it.y) }
-        path.close()
-    }
-
-    fun right(path: Path, px: (Float, Float) -> Offset) {
-        path.reset()
-        rightHalf.forEachIndexed { i, q ->
+        pts.forEachIndexed { i, q ->
             val o = px(q.x, q.y)
             if (i == 0) path.moveTo(o.x, o.y) else path.lineTo(o.x, o.y)
         }
         path.close()
     }
+
+    /** The A itself; [bend] is kept for callers written for the old mark and has no effect. */
+    @Suppress("UNUSED_PARAMETER")
+    fun left(path: Path, bend: Float, px: (Float, Float) -> Offset) = fill(path, bodyPts, px)
+
+    /** The rising chevron above the A. */
+    fun right(path: Path, px: (Float, Float) -> Offset) = fill(path, chevronPts, px)
+
+    /** The inner triangle, drawn in the accent colour. */
+    fun accent(path: Path, px: (Float, Float) -> Offset) = fill(path, accentPts, px)
 }

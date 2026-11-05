@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>AriseOS boot animation</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #000; overflow: hidden; }
+  canvas { display: block; margin: 0 auto; }
+  #ui { position: fixed; left: 12px; bottom: 10px; color: #aaa; font: 12px Inter, sans-serif; }
+  #ui input { width: 60vw; vertical-align: middle; }
+</style>
+</head>
+<body>
+<canvas id="cv"></canvas>
+<div id="ui"><button id="play">⏯</button> <input id="scrub" type="range" min="0" max="1000" value="0"> <span id="tlabel"></span></div>
+<script>
+// Every frame is a pure function of time t (seconds), so the preview and the video render match.
+const ARISE = (() => {
+  const DUR = 5.6;
+  const BG = '#05030f', PURPLE = '#7b2ff7', CYAN = '#22d3ee', INK = '#f4f1fb';
+  // The mark in artwork/ariseos-icon.svg units.
+  const BODY = [[512,250],[760,740],[650,740],[512,462],[374,740],[264,740]];
+  const ACCENT = [[512,560],[590,716],[434,716]];
+  const CHEV = [[392,270],[512,190],[632,270]];
+  const MARK_CX = 512, MARK_CY = 465;
+
+  const clamp = (v, a = 0, b = 1) => Math.min(b, Math.max(a, v));
+  const lin = (t, a, b) => clamp((t - a) / (b - a));
+  const mix = (a, b, k) => a + (b - a) * k;
+  const easeOut = k => 1 - Math.pow(1 - k, 3);
+  const easeIn = k => k * k * k;
+  const easeInOut = k => k < .5 ? 4*k*k*k : 1 - Math.pow(-2*k + 2, 3) / 2;
+  const back = (k, s = 1.9) => 1 + (s + 1) * Math.pow(k - 1, 3) + s * Math.pow(k - 1, 2);
+  function rand(i) { const x = Math.sin(i * 127.1 + 311.7) * 43758.5453; return x - Math.floor(x); }
+
+  const PARTICLES = Array.from({length: 90}, (_, i) => ({
+    x: rand(i), y: rand(i + 400), s: .6 + rand(i + 800) * 1.8, v: .03 + rand(i + 1200) * .07,
+    hue: rand(i + 1600), tw: rand(i + 2000) * 6.28, burst: rand(i + 2400) * 6.28, bs: .25 + rand(i + 2800) * .75,
+  }));
+
+  function polyPath(ctx, pts) { ctx.beginPath(); pts.forEach(([x, y], i) => i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)); ctx.closePath(); }
+  const HALVES = [[[512,462],[650,740],[760,740],[512,250]], [[512,462],[374,740],[264,740],[512,250]]].map(pts => {
+    let len = 0; for (let k = 1; k < pts.length; k++) len += Math.hypot(pts[k][0]-pts[k-1][0], pts[k][1]-pts[k-1][1]);
+    return { pts, len };
+  });
+
+  function makeBG(W, H) {
+    const c = document.createElement('canvas'); c.width = W; c.height = H;
+    const g = c.getContext('2d');
+    g.fillStyle = BG; g.fillRect(0, 0, W, H);
+    const r = g.createRadialGradient(W/2, H*.46, 0, W/2, H*.46, Math.max(W, H)*.62);
+    r.addColorStop(0, 'rgba(60,20,130,0.55)'); r.addColorStop(.55, 'rgba(25,10,60,0.35)'); r.addColorStop(1, 'rgba(0,0,0,0)');
+    g.fillStyle = r; g.fillRect(0, 0, W, H);
+    const img = g.getImageData(0, 0, W, H), d = img.data;
+    for (let i = 0; i < d.length; i += 4) { const n = (rand(i * .25 + 9) - .5) * 5; d[i] += n; d[i+1] += n; d[i+2] += n; }
+    g.putImageData(img, 0, 0);
+    return c;
+  }
+
+  function draw(ctx, W, H, t, bg) {
+    const S = H * .56 / 560;                         // mark ~half the screen height
+    const ox = W/2 - MARK_CX * S, oy = H * .44 - MARK_CY * S;
+    const fadeIn = easeOut(lin(t, 0, .9)), fadeOut = 1 - easeInOut(lin(t, DUR - .75, DUR));
+    const master = fadeIn * fadeOut;
+
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.globalAlpha = 1; ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, H);
+    ctx.globalAlpha = master; ctx.drawImage(bg, 0, 0);
+
+    // The settle of the chevron is the climax: a flash, a shockwave and a burst of particles.
+    const LAND = 2.78;
+    const burst = lin(t, LAND, LAND + 1.4);
+
+    // Rising particles.
+    ctx.globalCompositeOperation = 'lighter';
+    for (const p of PARTICLES) {
+      let x = p.x * W, y = ((p.y - t * p.v) % 1 + 1) % 1 * H * 1.1 - H * .05;
+      if (t > LAND) {
+        const k = easeOut(burst) * p.bs * H * .35;
+        x += Math.cos(p.burst) * k; y += Math.sin(p.burst) * k * .6 - k * .4;
+      }
+      const tw = .55 + .45 * Math.sin(t * 2.2 + p.tw);
+      const boost = t > LAND ? 1 + 2.5 * (1 - burst) : 1;
+      const a = .5 * tw * master * Math.min(1, boost);
+      const col = p.hue < .5 ? `rgba(123,47,247,${a})` : `rgba(34,211,238,${a})`;
+      ctx.fillStyle = col;
+      ctx.beginPath(); ctx.arc(x, y, p.s * H / 720 * Math.sqrt(boost), 0, 6.283); ctx.fill();
+    }
+    ctx.globalCompositeOperation = 'source-over';
+
+    ctx.setTransform(S, 0, 0, S, ox, oy);
+    const grad = ctx.createLinearGradient(0, 740, 0, 250);
+    grad.addColorStop(0, PURPLE); grad.addColorStop(1, CYAN);
+
+    // 1. The outline traces itself from the notch, down round both feet and up to the apex.
+    const trace = easeInOut(lin(t, .35, 1.45));
+    const outlineAlpha = (1 - lin(t, 1.65, 2.05)) * master;
+    if (trace > 0 && outlineAlpha > 0) {
+      ctx.save();
+      ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+      ctx.strokeStyle = grad; ctx.lineWidth = 5; ctx.globalAlpha = outlineAlpha;
+      ctx.shadowColor = CYAN; ctx.shadowBlur = 18;
+      const heads = [];
+      for (const side of HALVES) {
+        const len = side.len * trace;
+        ctx.beginPath(); ctx.moveTo(side.pts[0][0], side.pts[0][1]);
+        let left = len;
+        for (let k = 1; k < side.pts.length && left > 0; k++) {
+          const a = side.pts[k-1], b = side.pts[k], l = Math.hypot(b[0]-a[0], b[1]-a[1]), u = Math.min(1, left / l);
+          ctx.lineTo(a[0] + (b[0]-a[0]) * u, a[1] + (b[1]-a[1]) * u); left -= l;
+          if (left <= 0) heads.push([a[0] + (b[0]-a[0]) * u, a[1] + (b[1]-a[1]) * u]);
+        }
+        ctx.stroke();
+      }
+      ctx.restore();
+      if (trace < 1) for (const head of heads) {
+        const g2 = ctx.createRadialGradient(head[0], head[1], 0, head[0], head[1], 46);
+        g2.addColorStop(0, `rgba(210,250,255,${.95 * master})`); g2.addColorStop(1, 'rgba(34,211,238,0)');
+        ctx.fillStyle = g2; ctx.beginPath(); ctx.arc(head[0], head[1], 46, 0, 6.283); ctx.fill();
+      }
+    }
+
+    // 2. The A fills from the bottom up.
+    const fill = easeInOut(lin(t, 1.2, 1.95));
+    if (fill > 0) {
+      ctx.save();
+      polyPath(ctx, BODY); ctx.clip();
+      const top = mix(760, 230, fill);
+      ctx.globalAlpha = master;
+      ctx.fillStyle = grad; ctx.fillRect(200, top, 640, 800 - top);
+      // a bright edge rides the fill line
+      if (fill < 1) {
+        const e = ctx.createLinearGradient(0, top - 30, 0, top + 6);
+        e.addColorStop(0, 'rgba(255,255,255,0)'); e.addColorStop(1, `rgba(220,250,255,${.85 * master})`);
+        ctx.fillStyle = e; ctx.fillRect(200, top - 30, 640, 36);
+      }
+      ctx.restore();
+    }
+
+    // Soft glow behind the mark once it is solid.
+    const glow = lin(t, 1.7, 2.6) * (1 + .25 * Math.sin((t - 3.5) * 2.4) * lin(t, 3.4, 3.9));
+    if (glow > 0) {
+      ctx.save(); ctx.globalCompositeOperation = 'lighter';
+      const r = ctx.createRadialGradient(512, 520, 0, 512, 520, 420);
+      r.addColorStop(0, `rgba(123,47,247,${.22 * glow * master})`); r.addColorStop(1, 'rgba(123,47,247,0)');
+      ctx.fillStyle = r; ctx.fillRect(0, 0, 1024, 1024); ctx.restore();
+    }
+
+    // 3. The inner triangle pops in.
+    const pop = lin(t, 1.85, 2.35);
+    if (pop > 0) {
+      const k = back(pop, 2.4);
+      ctx.save();
+      ctx.translate(512, 664); ctx.scale(k, k); ctx.translate(-512, -664);
+      ctx.globalAlpha = master * clamp(pop * 3);
+      ctx.shadowColor = CYAN; ctx.shadowBlur = 60 * S * 3 * (1 - pop * .6);
+      ctx.fillStyle = CYAN; polyPath(ctx, ACCENT); ctx.fill();
+      ctx.restore();
+    }
+
+    // 4. The chevron launches out of the apex, overshoots and settles.
+    const launch = lin(t, 2.2, LAND);
+    if (launch > 0) {
+      const y = launch < .62 ? mix(110, -60, easeOut(launch / .62)) : mix(-60, 0, back(lin(launch, .62, 1), 1.2));
+      const sc = mix(.55, 1, easeOut(clamp(launch * 1.6)));
+      for (let g = 3; g >= 0; g--) {
+        const lag = g * .045;
+        const lg = clamp(launch - lag);
+        if (g > 0 && (launch >= 1 || lg <= 0)) continue;
+        const gy = lg < .62 ? mix(110, -60, easeOut(lg / .62)) : mix(-60, 0, back(lin(lg, .62, 1), 1.2));
+        ctx.save();
+        ctx.translate(512, 230 + (g ? gy : y)); ctx.scale(sc, sc); ctx.translate(-512, -230);
+        ctx.globalAlpha = master * (g ? .28 / g : clamp(launch * 4));
+        ctx.strokeStyle = g ? CYAN : INK; ctx.lineWidth = 22; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+        if (!g) { ctx.shadowColor = '#bff6ff'; ctx.shadowBlur = 30 * S * 3; }
+        ctx.beginPath(); CHEV.forEach(([x, yy], i) => i ? ctx.lineTo(x, yy) : ctx.moveTo(x, yy)); ctx.stroke();
+        ctx.restore();
+      }
+    }
+
+    // 5. Flash and shockwave on landing.
+    if (t > LAND && burst < 1) {
+      ctx.save(); ctx.globalCompositeOperation = 'lighter';
+      const r = mix(60, 900, easeOut(burst));
+      ctx.strokeStyle = `rgba(34,211,238,${.75 * (1 - burst) * master})`; ctx.lineWidth = mix(14, 2, burst);
+      ctx.beginPath(); ctx.arc(512, 230, r, 0, 6.283); ctx.stroke();
+      const f = clamp(1 - burst * 3.2);
+      const fl = ctx.createRadialGradient(512, 230, 0, 512, 230, 520);
+      fl.addColorStop(0, `rgba(210,250,255,${.75 * f * master})`); fl.addColorStop(1, 'rgba(34,211,238,0)');
+      ctx.fillStyle = fl; ctx.fillRect(-500, -500, 2100, 2100);
+      ctx.restore();
+    }
+
+    // 6. Light sweep across the mark.
+    const sweep = lin(t, 3.35, 4.25);
+    if (sweep > 0 && sweep < 1) {
+      ctx.save();
+      polyPath(ctx, BODY); ctx.clip();
+      const x = mix(150, 900, easeInOut(sweep));
+      const sw = ctx.createLinearGradient(x - 90, 0, x + 90, 0);
+      sw.addColorStop(0, 'rgba(255,255,255,0)'); sw.addColorStop(.5, `rgba(255,255,255,${.45 * master})`); sw.addColorStop(1, 'rgba(255,255,255,0)');
+      ctx.setTransform(S, 0, -.35 * S, S, ox + .35 * S * 500, oy);
+      ctx.fillStyle = sw; ctx.fillRect(0, 150, 1100, 700);
+      ctx.restore();
+    }
+
+    // 7. The wordmark.
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    const word = lin(t, 2.95, 3.85);
+    if (word > 0) {
+      const k = easeOut(word);
+      const size = H * .1;
+      ctx.save();
+      ctx.font = `900 ${size}px "Inter Display", Inter, "DejaVu Sans", sans-serif`;
+      ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
+      ctx.globalAlpha = k * master;
+      const spacing = mix(size * .55, size * .02, k);
+      const text = 'AriseOS';
+      const widths = [...text].map(ch => ctx.measureText(ch).width);
+      const total = widths.reduce((a, b) => a + b, 0) + spacing * (text.length - 1);
+      let x = W/2 - total/2;
+      const y = H * .9 + (1 - k) * H * .03;
+      const tg = ctx.createLinearGradient(W/2 - total/2, 0, W/2 + total/2, 0);
+      tg.addColorStop(0, INK); tg.addColorStop(.62, INK); tg.addColorStop(1, CYAN);
+      ctx.fillStyle = tg; ctx.textAlign = 'left';
+      ctx.shadowColor = 'rgba(123,47,247,.6)'; ctx.shadowBlur = size * .5;
+      [...text].forEach((ch, i) => { ctx.fillText(ch, x, y); x += widths[i] + spacing; });
+      ctx.restore();
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  function samplesAt(t) {
+    if (t > 2.2 && t < 2.95) return 10;   // the chevron launch moves fast
+    if (t > .35 && t < 1.5) return 3;
+    return 1;
+  }
+
+  let RC = null;
+  function renderFrame(i, fps = 60, shutter = .5) {
+    const cv = document.getElementById('cv'), W = cv.width, H = cv.height;
+    if (!RC || RC.W !== W || RC.H !== H) {
+      const ctx = cv.getContext('2d', { willReadFrequently: true });
+      RC = { W, H, ctx, bg: makeBG(W, H), acc: new Uint32Array(W*H*4) };
+    }
+    const t = i / fps, ex = shutter / fps;
+    const n = samplesAt(t);
+    if (n === 1) draw(RC.ctx, W, H, t, RC.bg);
+    else {
+      const acc = RC.acc; acc.fill(0);
+      for (let k = 0; k < n; k++) {
+        draw(RC.ctx, W, H, Math.min(DUR, Math.max(0, t - ex/2 + (k + .5)/n * ex)), RC.bg);
+        const d = RC.ctx.getImageData(0, 0, W, H).data;
+        for (let j = 0; j < d.length; j++) acc[j] += d[j];
+      }
+      const out = RC.ctx.createImageData(W, H), o = out.data;
+      for (let j = 0; j < o.length; j++) o[j] = (acc[j] + (n >> 1)) / n;
+      RC.ctx.putImageData(out, 0, 0);
+    }
+    return { url: cv.toDataURL('image/png'), samples: n };
+  }
+
+  return { DUR, draw, makeBG, renderFrame, frameCount: fps => Math.round(DUR * fps) + 1,
+           EVENTS: { trace: .35, fill: 1.2, pop: 1.85, launch: 2.2, land: 2.78, word: 2.95, sweep: 3.35, out: DUR - .75 } };
+})();
+const DD = ARISE;
+
+(() => {
+  const q = new URLSearchParams(location.search);
+  const cv = document.getElementById('cv');
+  const W = +q.get('w') || 1280, H = +q.get('h') || 720;
+  cv.width = W; cv.height = H;
+  if (q.get('render')) { document.getElementById('ui').remove(); return; }
+  cv.style.width = '100vw'; cv.style.maxHeight = '100vh'; cv.style.objectFit = 'contain';
+  const ctx = cv.getContext('2d'), bg = ARISE.makeBG(W, H);
+  const scrub = document.getElementById('scrub'), label = document.getElementById('tlabel');
+  let playing = true, start = performance.now(), at = 0;
+  document.getElementById('play').onclick = () => { playing = !playing; start = performance.now() - at * 1000; };
+  scrub.oninput = () => { at = scrub.value / 1000 * ARISE.DUR; start = performance.now() - at * 1000; };
+  addEventListener('keydown', e => {
+    if (e.key === ' ') { playing = !playing; start = performance.now() - at * 1000; }
+    if (e.key === 'ArrowRight') { playing = false; at = Math.min(ARISE.DUR, at + 1/60); }
+    if (e.key === 'ArrowLeft') { playing = false; at = Math.max(0, at - 1/60); }
+  });
+  (function frame() {
+    if (playing) { at = ((performance.now() - start) / 1000) % ARISE.DUR; }
+    ARISE.draw(ctx, W, H, at, bg);
+    scrub.value = at / ARISE.DUR * 1000; label.textContent = at.toFixed(2) + 's';
+    requestAnimationFrame(frame);
+  })();
+})();
+</script>
+</body>
+</html>

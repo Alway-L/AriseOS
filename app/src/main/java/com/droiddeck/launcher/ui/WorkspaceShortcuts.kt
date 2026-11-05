@@ -13,13 +13,11 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Apps
-import androidx.compose.material.icons.outlined.DesktopWindows
 import androidx.compose.material.icons.outlined.LocalMall
+import androidx.compose.material.icons.outlined.SportsEsports
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -46,9 +44,9 @@ import androidx.compose.ui.unit.sp
 import com.droiddeck.launcher.R
 
 /** Pages reached from the Área de trabalho tab instead of having a tab of their own. */
-internal val WORKSPACE_PAGES = setOf("stores", "desktop", "android-apps")
+internal val WORKSPACE_PAGES = setOf("steam", "stores", "android-apps")
 
-internal const val WORKSPACE_TAB = "steam"
+internal const val WORKSPACE_TAB = "desktop"
 
 @Composable
 internal fun WorkspaceShortcuts(s: FrontEndState) {
@@ -58,14 +56,9 @@ internal fun WorkspaceShortcuts(s: FrontEndState) {
         at?.let { PageOrigin.mark(Origin(it, 14f * density)) }
         show(page)
     }
-    Row(
-        horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier.horizontalScroll(rememberScrollState()),
-    ) {
-        if (s.gameStoresEnabled) WorkspaceChip(Icons.Outlined.LocalMall, stringResource(R.string.workspace_stores), "stores") { open(it, "stores") }
-        WorkspaceChip(Icons.Outlined.DesktopWindows, stringResource(R.string.workspace_desktop), "desktop") { open(it, "desktop") }
-        if (s.isHomeApp) WorkspaceChip(Icons.Outlined.Apps, stringResource(R.string.workspace_android_apps), "android-apps") { open(it, "android-apps") }
-    }
+    WorkspaceChip(Icons.Outlined.SportsEsports, stringResource(R.string.workspace_steam), "steam") { open(it, "steam") }
+    if (s.gameStoresEnabled) WorkspaceChip(Icons.Outlined.LocalMall, stringResource(R.string.workspace_stores), "stores") { open(it, "stores") }
+    if (s.isHomeApp) WorkspaceChip(Icons.Outlined.Apps, stringResource(R.string.workspace_android_apps), "android-apps") { open(it, "android-apps") }
 }
 
 @Composable

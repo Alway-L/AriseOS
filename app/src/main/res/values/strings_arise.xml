@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="rail_workspace">Workspace</string>
+    <string name="workspace_steam">Steam</string>
     <string name="workspace_stores">Stores</string>
     <string name="workspace_desktop">Linux desktop</string>
     <string name="workspace_android_apps">Android apps</string>

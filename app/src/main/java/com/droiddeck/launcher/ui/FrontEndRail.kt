@@ -187,10 +187,10 @@ internal fun SideRail(
 }
 
 internal fun railLabelIcon(key: String): Pair<Int, ImageVector> = when (key) {
-    "steam" -> R.string.rail_workspace to Icons.Outlined.SportsEsports
+    "steam" -> R.string.rail_steam to Icons.Outlined.SportsEsports
     "games" -> R.string.rail_games to Icons.Outlined.VideoLibrary
     "stores" -> R.string.rail_stores to Icons.Outlined.LocalMall
-    "desktop" -> R.string.rail_desktop to Icons.Outlined.DesktopWindows
+    "desktop" -> R.string.rail_workspace to Icons.Outlined.DesktopWindows
     "components" -> R.string.rail_components to Icons.Outlined.Layers
     "android-apps" -> R.string.rail_apps to Icons.Outlined.Apps
     "setup" -> R.string.rail_setup to Icons.Outlined.Tune

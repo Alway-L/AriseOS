@@ -376,11 +376,15 @@ private fun DrawScope.coin(c: Offset, r: Float, thick: Float, deg: Float, face: 
     val cs = cos(a).toFloat()
     val half = thick / 2 * sin(a).toFloat()
     val rx = r * abs(cs)
-    if (abs(half) > 0.01f) {
-        drawOval(rim, Offset(c.x - half - rx, c.y - r), Size(2 * rx, 2 * r))
-        drawOval(rim, Offset(c.x + half - rx, c.y - r), Size(2 * rx, 2 * r))
-        drawRect(rim, Offset(min(c.x - half, c.x + half), c.y - r), Size(abs(2 * half), 2 * r))
+    fun triangle(x: Float) = Path().apply {
+        moveTo(x, c.y - r * 1.15f)
+        lineTo(x + rx * 1.1f, c.y + r * 0.85f)
+        lineTo(x - rx * 1.1f, c.y + r * 0.85f)
+        close()
     }
-    val fx = c.x + if (cs >= 0f) half else -half
-    drawOval(face, Offset(fx - rx, c.y - r), Size(2 * rx, 2 * r))
+    if (abs(half) > 0.01f) {
+        drawPath(triangle(c.x - half), rim)
+        drawPath(triangle(c.x + half), rim)
+    }
+    drawPath(triangle(c.x + if (cs >= 0f) half else -half), face)
 }

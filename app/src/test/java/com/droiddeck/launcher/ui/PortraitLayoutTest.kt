@@ -56,7 +56,7 @@ class PortraitLayoutTest {
         compose.mainClock.advanceTimeBy(1_000)
         val root = compose.onNodeWithTag("launcher").getUnclippedBoundsInRoot()
         val pane = compose.onNodeWithTag("pane").getUnclippedBoundsInRoot()
-        val steam = compose.onNodeWithTag("rail-steam").getUnclippedBoundsInRoot()
+        val steam = compose.onNodeWithTag("rail-desktop").getUnclippedBoundsInRoot()
         assertEquals(root.left, pane.left)
         assertEquals(root.right, pane.right)
         assertTrue(steam.top >= pane.bottom)
@@ -66,7 +66,7 @@ class PortraitLayoutTest {
         compose.mainClock.advanceTimeBy(1_000)
         compose.onNodeWithText("Count 1").assertExists()
         val landscapePane = compose.onNodeWithTag("pane").getUnclippedBoundsInRoot()
-        val rail = compose.onNodeWithTag("rail-steam").getUnclippedBoundsInRoot()
+        val rail = compose.onNodeWithTag("rail-desktop").getUnclippedBoundsInRoot()
         assertTrue(landscapePane.left > rail.right)
         assertEquals(0.dp, landscapePane.top)
         compose.runOnIdle { portrait.value = true }
@@ -82,7 +82,7 @@ class PortraitLayoutTest {
             }
         }
         compose.mainClock.advanceTimeBy(1_000)
-        for (key in listOf("games", "components", "setup", "updates", "steam")) {
+        for (key in listOf("games", "components", "setup", "updates", "desktop")) {
             compose.onNodeWithTag("rail-$key").performScrollTo()
             compose.mainClock.advanceTimeBy(1_000)
             compose.onNodeWithTag("rail-$key").assertIsDisplayed().performClick()
