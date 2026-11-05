@@ -100,8 +100,9 @@ class UpdatesActions(
 internal fun UpdatesPage(s: FrontEndState, a: FrontEndActions, modifier: Modifier) {
     val u = s.updates
     val ua = a.updates
+    // AriseOS has two channels, Estável and Teste; a per-PR test build from upstream DroidDeck goes back to Estável.
     LaunchedEffect(u.follow.channel) {
-        if (u.follow.channel != Channel.STABLE) ua.onFollow(Follow(Channel.STABLE))
+        if (u.follow.channel == Channel.TEST) ua.onFollow(Follow(Channel.STABLE))
     }
     val me = remember { AppUpdates.installed() }
     val colors = MaterialTheme.colorScheme
@@ -121,7 +122,13 @@ internal fun UpdatesPage(s: FrontEndState, a: FrontEndActions, modifier: Modifie
         BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
             val stacked = LocalNarrowPane.current || maxWidth < 600.dp
             Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(bottom = 16.dp)) {
-                Box(if (stacked) Modifier.fillMaxWidth() else Modifier.widthIn(max = 640.dp).align(Alignment.CenterHorizontally)) { StatusPanel(s, u, ua, me) }
+                Column(
+                    (if (stacked) Modifier.fillMaxWidth() else Modifier.widthIn(max = 640.dp).align(Alignment.CenterHorizontally)),
+                    verticalArrangement = Arrangement.spacedBy(14.dp),
+                ) {
+                    AriseChannels(u, ua)
+                    StatusPanel(s, u, ua, me)
+                }
             }
         }
     }
@@ -254,7 +261,7 @@ private fun ReleaseNotes(title: String, notes: String, key: String) {
 @Composable
 private fun newBuild(f: Follow, r: Release) = when (f.channel) {
     Channel.STABLE -> stringResource(R.string.upd_new_stable, r.version ?: r.tag)
-    Channel.NIGHTLY -> stringResource(R.string.upd_new_preview)
+    Channel.NIGHTLY -> stringResource(R.string.arise_new_test, r.version ?: r.tag)
     Channel.TEST -> stringResource(R.string.upd_new_test, r.pr)
 }
 
@@ -361,6 +368,31 @@ private fun PreviewHistory(catalog: AppUpdates.Catalog?, me: AppUpdates.Installe
     }
 }
 
+/** Estável (safe, what most installs follow) and Teste (releases published for testing first). */
+@Composable
+private fun AriseChannels(u: UpdatesState, ua: UpdatesActions) {
+    val colors = MaterialTheme.colorScheme
+    val catalog = u.catalog
+    val test = u.follow.channel == Channel.NIGHTLY
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        ChannelLabel()
+        Row(Modifier.fillMaxWidth().height(androidx.compose.foundation.layout.IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            ChannelTile(
+                Icons.Outlined.Verified, stringResource(R.string.arise_channel_stable),
+                catalog?.stable?.let { it.version ?: it.tag }, !test, Modifier.weight(1f),
+            ) { ua.onFollow(Follow(Channel.STABLE)) }
+            ChannelTile(
+                Icons.Outlined.Science, stringResource(R.string.arise_channel_test),
+                catalog?.preview?.let { it.version ?: it.tag }, test, Modifier.weight(1f),
+            ) { ua.onFollow(Follow(Channel.NIGHTLY)) }
+        }
+        Text(
+            stringResource(if (test) R.string.arise_channel_test_hint else R.string.arise_channel_stable_hint),
+            fontSize = 12.5.sp, color = colors.onSurfaceVariant,
+        )
+    }
+}
+
 @Composable
 private fun ChannelTile(
     icon: ImageVector, title: String, latest: String?, selected: Boolean, modifier: Modifier,
@@ -463,7 +495,7 @@ private fun TestRow(t: Release, selected: Boolean, onClick: () -> Unit) {
 @Composable
 private fun channelName(f: Follow) = when (f.channel) {
     Channel.STABLE -> stringResource(R.string.upd_stable)
-    Channel.NIGHTLY -> stringResource(R.string.upd_preview)
+    Channel.NIGHTLY -> stringResource(R.string.arise_channel_test)
     Channel.TEST -> stringResource(R.string.upd_test_name, f.pr)
 }
 

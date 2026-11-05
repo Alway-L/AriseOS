@@ -22,4 +22,9 @@
     <string name="library_not_installed">Not installed</string>
     <string name="hud_size_simple">Simple</string>
     <string name="hud_size_complete">Complete</string>
+    <string name="arise_channel_stable">Stable</string>
+    <string name="arise_channel_test">Test</string>
+    <string name="arise_channel_stable_hint">Tested releases. Safe for everyday use.</string>
+    <string name="arise_channel_test_hint">Releases published for testing first. Newer, but may break something.</string>
+    <string name="arise_new_test">New test version %1$s</string>
 </resources>

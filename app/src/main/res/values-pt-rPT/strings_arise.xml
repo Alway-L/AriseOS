@@ -22,4 +22,9 @@
     <string name="library_not_installed">Não instalado</string>
     <string name="hud_size_simple">Simples</string>
     <string name="hud_size_complete">Completo</string>
+    <string name="arise_channel_stable">Estável</string>
+    <string name="arise_channel_test">Teste</string>
+    <string name="arise_channel_stable_hint">Versões já testadas. Seguras para o dia a dia.</string>
+    <string name="arise_channel_test_hint">Versões lançadas primeiro para teste. Mais recentes, mas podem ter problemas.</string>
+    <string name="arise_new_test">Nova versão de teste %1$s</string>
 </resources>

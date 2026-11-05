@@ -1,9 +1,14 @@
 name: Publicar versão AriseOS
-run-name: publicar AriseOS a partir de main ${{ github.sha }}
+run-name: publicar AriseOS (${{ inputs.channel }}) a partir de main ${{ github.sha }}
 
 on:
   workflow_dispatch:
     inputs:
+      channel:
+        description: "Canal: teste (só quem escolheu Teste recebe), estavel (todo mundo) ou promover (a versão de teste atual vira a estável, sem build novo)"
+        type: choice
+        options: [teste, estavel, promover]
+        default: teste
       notes:
         description: O que mudou nesta versão (aparece na tela de Atualizações)
         required: false
@@ -27,7 +32,31 @@ jobs:
         with:
           ref: main
 
+      - name: Ler o catálogo atual
+        run: |
+          set -euo pipefail
+          if git fetch -q --depth 1 origin catalog 2>/dev/null; then git show FETCH_HEAD:catalog.json > "$RUNNER_TEMP/old-catalog.json"; else echo '{}' > "$RUNNER_TEMP/old-catalog.json"; fi
+
+      - name: Promover a versão de teste para estável
+        if: inputs.channel == 'promover'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          tag=$(python3 -c "import json,sys;print((json.load(open(sys.argv[1])).get('preview') or {}).get('tag',''))" "$RUNNER_TEMP/old-catalog.json")
+          [ -n "$tag" ] || { echo "::error::não há versão de teste publicada para promover"; exit 1; }
+          gh release edit "$tag" -R "$GITHUB_REPOSITORY" --prerelease=false --latest
+          python3 - "$RUNNER_TEMP/old-catalog.json" "$RUNNER_TEMP/catalog.json" <<'PY'
+          import json, sys
+          c = json.load(open(sys.argv[1]))
+          c["stable"] = c["preview"]
+          json.dump(c, open(sys.argv[2], "w"), indent=2)
+          PY
+          echo "TAG=$tag" >> "$GITHUB_ENV"
+          echo "Promovida $tag de Teste para Estável." >> "$GITHUB_STEP_SUMMARY"
+
       - name: Baixar o APK assinado do build mais recente de main
+        if: inputs.channel != 'promover'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -48,9 +77,11 @@ jobs:
           ls -la signed
 
       - name: Criar a release e o catálogo
+        if: inputs.channel != 'promover'
         env:
           GH_TOKEN: ${{ github.token }}
           NOTES: ${{ inputs.notes }}
+          CHANNEL: ${{ inputs.channel }}
         run: |
           set -euo pipefail
           name=$(sed -n 's/^ *versionName "\(.*\)"$/\1/p' app/build.gradle)
@@ -66,7 +97,12 @@ jobs:
           apk="AriseOS-$name.apk"
           cp "${apks[0]}" "$apk"
           body=${NOTES:-"AriseOS $name"}
-          gh release create "$tag" "$apk" -R "$GITHUB_REPOSITORY" --target "$BUILD_SHA" --title "AriseOS $name" --notes "$body"
+          if [ "$CHANNEL" = teste ]; then
+            gh release create "$tag" "$apk" -R "$GITHUB_REPOSITORY" --target "$BUILD_SHA" --title "AriseOS $name (teste)" --notes "$body" --prerelease
+          else
+            gh release create "$tag" "$apk" -R "$GITHUB_REPOSITORY" --target "$BUILD_SHA" --title "AriseOS $name" --notes "$body" --latest
+          fi
+          echo "TAG=$tag" >> "$GITHUB_ENV"
 
           export TAG="$tag" NAME="$name" CODE="$code" SIGNER="$signer" APK="$apk" BODY="$body"
           python3 - <<'PY'
@@ -96,16 +132,32 @@ jobs:
                   }
               },
           }
-          catalog = {"schema": 1, "sourceRepo": repo, "ciRepo": repo, "stable": release, "preview": release, "tests": [], "recentPreviews": []}
+          old = json.load(open(os.path.join(os.environ["RUNNER_TEMP"], "old-catalog.json")))
+          catalog = {"schema": 1, "sourceRepo": repo, "ciRepo": repo, "stable": old.get("stable"), "preview": old.get("preview"),
+                     "tests": [], "recentPreviews": []}
+          if os.environ["CHANNEL"] == "teste":
+              catalog["preview"] = release
+              if catalog["stable"] is None:
+                  catalog["stable"] = release
+          else:
+              catalog["stable"] = release
+              # Whoever follows Teste also gets a Stable that is newer than the last test build.
+              prev = catalog.get("preview") or {}
+              if int(prev.get("versionCode") or 0) <= release["versionCode"]:
+                  catalog["preview"] = release
           json.dump(catalog, open(os.path.join(os.environ["RUNNER_TEMP"], "catalog.json"), "w"), indent=2)
           PY
 
+
+      - name: Gravar o catálogo
+        run: |
+          set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git checkout --orphan ariseos-catalog
           git rm -rfq .
           cp "$RUNNER_TEMP/catalog.json" catalog.json
           git add catalog.json
-          git commit -qm "catalog: $tag"
+          git commit -qm "catalog: $TAG (${{ inputs.channel }})"
           git push -f origin HEAD:refs/heads/catalog
-          echo "Publicado $tag ($code). O app oferece a atualização em Atualizações." >> "$GITHUB_STEP_SUMMARY"
+          echo "Catálogo atualizado: $TAG no canal ${{ inputs.channel }}." >> "$GITHUB_STEP_SUMMARY"

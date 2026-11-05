@@ -142,7 +142,12 @@ object AppUpdates {
                 compareVersions(r.version ?: "", me.version) > 0 -> Offer.UPDATE
                 else -> Offer.AHEAD
             }
-            Channel.NIGHTLY -> if (me.pr != 0) Offer.SWITCH else Offer.UPDATE
+            // AriseOS "Teste": a test build older than the one installed (e.g. after a newer Stable) is not an update.
+            Channel.NIGHTLY -> when {
+                me.pr != 0 -> Offer.SWITCH
+                r.version != null && compareVersions(r.version, me.version) < 0 -> Offer.AHEAD
+                else -> Offer.UPDATE
+            }
             Channel.TEST -> if (me.pr == r.pr) Offer.UPDATE else Offer.SWITCH
         }
     }
