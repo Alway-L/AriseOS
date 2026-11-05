@@ -14,4 +14,6 @@
     <string name="session_proton_auto">Downloading %1$s to start this game</string>
     <string name="session_proton_auto_failed">Could not download %1$s: %2$s. Install a Proton in Components → Proton and try again.</string>
     <string name="user_apps_unpacking">Unpacking %1$s…</string>
+    <string name="arise_comp_subtitle">What runs your games</string>
+    <string name="arise_updates_subtitle">Linked to your GitHub</string>
 </resources>

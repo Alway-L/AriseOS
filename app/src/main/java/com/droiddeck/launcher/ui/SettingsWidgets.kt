@@ -119,7 +119,7 @@ import androidx.compose.ui.window.PopupProperties
 
 
 private val RowShape = RoundedCornerShape(12.dp)
-private val GroupShape = RoundedCornerShape(14.dp)
+private val GroupShape = RoundedCornerShape(18.dp)
 
 internal object HeldKeys {
     @Volatile var confirm = false
@@ -432,11 +432,15 @@ fun SettingsGroup(title: String, compact: Boolean = false, detail: String? = nul
         horizontalArrangement = Arrangement.spacedBy(if (tight) 6.dp else 10.dp),
         modifier = Modifier.fillMaxWidth().padding(top = if (tight) 4.dp else 16.dp, bottom = if (tight) 3.dp else 6.dp),
     ) {
-        Text(title.uppercase(), fontSize = if (tight) 11.sp else 12.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.5.sp, color = colors.onSurfaceVariant)
+        Box(Modifier.size(if (tight) 6.dp else 7.dp).background(androidx.compose.ui.graphics.Brush.linearGradient(listOf(pal.primary, pal.signal)), androidx.compose.foundation.shape.CircleShape))
+        Text(title.uppercase(), fontSize = if (tight) 11.sp else 12.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 1.6.sp, color = colors.onSurfaceVariant)
         Box(modifier = Modifier.weight(1f).height(1.dp).background(pal.line))
         if (detail != null) Text(detail, fontSize = if (tight) 11.sp else 12.sp, fontWeight = FontWeight.SemiBold, color = colors.onSurfaceVariant)
     }
-    Column(modifier = Modifier.fillMaxWidth().clip(GroupShape).background(colors.surface).border(1.dp, pal.line, GroupShape)) { content() }
+    Column(
+        modifier = Modifier.fillMaxWidth().clip(GroupShape).background(colors.surface)
+            .border(1.dp, androidx.compose.ui.graphics.Brush.linearGradient(listOf(pal.primary.copy(alpha = 0.55f), pal.line, pal.signal.copy(alpha = 0.35f))), GroupShape),
+    ) { content() }
     }
 }
 

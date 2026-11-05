@@ -102,13 +102,20 @@ internal fun BottomBar(
     val shown = Hops.railPreview ?: selected
     val keys = navigationKeys(s)
     val bounds = remember { androidx.compose.runtime.mutableStateMapOf<String, androidx.compose.ui.geometry.Rect>() }
-    val tint = androidx.compose.runtime.rememberUpdatedState(LocalPalette.current.signal)
+    val tint = androidx.compose.runtime.rememberUpdatedState(LocalPalette.current.primary)
     val content = remember { arrayOfNulls<LayoutCoordinates>(1) }
-    Row(modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surface), verticalAlignment = Alignment.CenterVertically) {
+    val pill = RoundedCornerShape(24.dp)
+    val line = LocalPalette.current.line
+    Row(
+        modifier.fillMaxWidth().background(MaterialTheme.colorScheme.background).padding(horizontal = 10.dp, vertical = 8.dp)
+            .graphicsLayer { shadowElevation = 16.dp.toPx(); shape = pill; clip = false }
+            .clip(pill).background(MaterialTheme.colorScheme.surface).border(1.dp, line, pill).padding(horizontal = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
         BoxWithConstraints(Modifier.weight(1f)) {
             val itemWidth = (maxWidth / keys.size).coerceIn(56.dp, 88.dp)
             Box(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).onPlaced { content[0] = it }) {
-                if (shown in keys) ChipGlide(keys.indexOf(shown), bounds[shown], tint, GlideAxis.Horizontal, corner = 14.dp, fill = 0.14f, outline = 0f)
+                if (shown in keys) ChipGlide(keys.indexOf(shown), bounds[shown], tint, GlideAxis.Horizontal, corner = 18.dp, fill = 1f, outline = 0f)
                 Row(Modifier.selectableGroup().padding(vertical = 4.dp), horizontalArrangement = Arrangement.Center) {
                     NavigationItems(s, shown, compact = true, iconOnly = false, height = 56.dp, width = itemWidth,
                         place = { key -> Modifier.onGloballyPositioned { item -> content[0]?.let { bounds[key] = it.localBoundingBoxOf(item) }; Hops.railBounds[key] = item.boundsInRoot() } },
@@ -157,10 +164,10 @@ internal fun SideRail(
         val shown = Hops.railPreview ?: selected
         val keys = navigationKeys(s)
         val bounds = remember { androidx.compose.runtime.mutableStateMapOf<String, androidx.compose.ui.geometry.Rect>() }
-        val tint = androidx.compose.runtime.rememberUpdatedState(LocalPalette.current.signal)
+        val tint = androidx.compose.runtime.rememberUpdatedState(LocalPalette.current.primary)
         val content = remember { arrayOfNulls<LayoutCoordinates>(1) }
         Box(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).onPlaced { content[0] = it }) {
-        if (shown in keys) ChipGlide(keys.indexOf(shown), bounds[shown], tint, GlideAxis.Vertical, corner = 14.dp, fill = 0.14f, outline = 0f)
+        if (shown in keys) ChipGlide(keys.indexOf(shown), bounds[shown], tint, GlideAxis.Vertical, corner = 18.dp, fill = 1f, outline = 0f)
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(4.dp),
@@ -241,7 +248,7 @@ private fun RailItem(
         else if (frontFocus.focusedRail == key) frontFocus.focusedRail = null
     }
     val fg by animateColorAsState(
-        if (current) pal.signal else if (focused || hovered) colors.onBackground else colors.onSurfaceVariant,
+        if (current) Color.White else if (focused || hovered) colors.onBackground else colors.onSurfaceVariant,
         Motion.tw(220), label = "railFg",
     )
     val fill by animateColorAsState(

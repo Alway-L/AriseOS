@@ -14,4 +14,6 @@
     <string name="session_proton_auto">A transferir o %1$s para iniciar este jogo</string>
     <string name="session_proton_auto_failed">Não foi possível transferir o %1$s: %2$s. Instale um Proton em Componentes → Proton e tente de novo.</string>
     <string name="user_apps_unpacking">A descompactar %1$s…</string>
+    <string name="arise_comp_subtitle">O que roda seus jogos</string>
+    <string name="arise_updates_subtitle">Ligado ao seu GitHub</string>
 </resources>

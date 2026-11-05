@@ -555,8 +555,7 @@ private fun LibraryHeader(
         clearSearchFocus = searchCleared, inlineWhenStacked = true,
         lead = {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(start = 2.dp, end = 4.dp)) {
-                Text(stringResource(R.string.rail_games), fontSize = if (narrow) 20.sp else 24.sp, fontWeight = FontWeight.Bold, color = colors.onBackground, maxLines = 1)
-                Text(pluralStringResource(R.plurals.mode_added_count, total, total), fontSize = 13.sp, color = colors.onSurfaceVariant, maxLines = 1)
+                AriseTitle(stringResource(R.string.rail_games), pluralStringResource(R.plurals.mode_added_count, total, total))
                 if (s.steamGamesX64 && !narrow) ClientTag()
             }
         },

@@ -185,10 +185,7 @@ internal fun PageHeader(title: String, trailing: @Composable RowScope.() -> Unit
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp),
         modifier = Modifier.fillMaxWidth().padding(bottom = 10.dp),
     ) {
-        Text(
-            title, fontSize = if (LocalNarrowPane.current) 22.sp else 26.sp, fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.onBackground, maxLines = 1,
-        )
+        AriseTitle(title)
         trailing()
     }
 }

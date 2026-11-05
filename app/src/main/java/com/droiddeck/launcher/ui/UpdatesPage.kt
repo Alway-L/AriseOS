@@ -101,11 +101,7 @@ internal fun UpdatesPage(s: FrontEndState, a: FrontEndActions, modifier: Modifie
             verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp),
             modifier = Modifier.fillMaxWidth().padding(bottom = 10.dp),
         ) {
-            Text(
-                stringResource(R.string.upd_build, me.version, s.buildLabel), fontSize = 12.5.sp, color = colors.onSurfaceVariant,
-                maxLines = 1, modifier = Modifier.weight(1f)
-                    .basicMarquee(iterations = Int.MAX_VALUE, initialDelayMillis = 700, velocity = 40.dp),
-            )
+            AriseTitle(stringResource(R.string.rail_updates), stringResource(R.string.arise_updates_subtitle), Modifier.weight(1f))
             val checked = u.catalog?.checkedAt?.takeIf { it > 0 }
             if (!LocalNarrowPane.current) Text(
                 if (u.checking) stringResource(R.string.common_checking) else if (checked != null) stringResource(R.string.upd_checked, ago(checked).replaceFirstChar { it.lowercase() }) else stringResource(R.string.upd_not_checked),

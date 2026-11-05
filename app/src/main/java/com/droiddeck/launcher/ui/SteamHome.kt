@@ -129,17 +129,8 @@ internal fun SteamHome(s: FrontEndState, a: FrontEndActions, modifier: Modifier)
         onOpen = a.onSteamSettings, onPrimary = a.onPlay,
         modifier = modifier.clipToBounds(),
         start = if (narrow) 20.dp else 44.dp, bottom = 44.dp,
-        background = {
-            when {
-                games.isEmpty() -> EmptyLibrary(
-                    avoid = words,
-                    wall = if (owned.isEmpty() && featured.isEmpty()) null else { { CapsuleWall(emptyList(), owned = owned, featured = featured) } },
-                ) { Box(Modifier.fillMaxSize().graphicsLayer { scaleX = 1.06f; scaleY = 1.06f }) { WallFade() } }
-                games.size < WALL_MIN_GAMES -> CapsuleFan(games)
-                else -> CapsuleWall(games, owned = owned, featured = featured)
-            }
-        },
-        scrim = { if (games.size >= WALL_MIN_GAMES) WallFade() },
+        background = { StoreHero(sourceColours(Library.SOURCE_STEAM).dot, "S", centerY = 0.32f) },
+        scrim = {},
         words = {
             val runtimeStatus: @Composable () -> Unit = {
                 if (s.busy || (s.available != null && s.available != s.installed)) RuntimeChip(s)

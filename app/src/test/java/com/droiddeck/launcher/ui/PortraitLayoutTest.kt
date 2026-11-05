@@ -60,7 +60,7 @@ class PortraitLayoutTest {
         assertEquals(root.left, pane.left)
         assertEquals(root.right, pane.right)
         assertTrue(steam.top >= pane.bottom)
-        assertEquals(root.bottom - 4.dp, steam.bottom)
+        assertEquals(root.bottom - 12.dp, steam.bottom)
         compose.onNodeWithText("Count 0").performClick()
         compose.runOnIdle { portrait.value = false }
         compose.mainClock.advanceTimeBy(1_000)

@@ -706,7 +706,7 @@ fun ComponentsPage(
                 ) else Modifier),
         ) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
-                Text(stringResource(R.string.comp_title), fontSize = if (narrow) 22.sp else 26.sp, fontWeight = FontWeight.Bold, color = colors.onBackground, maxLines = 1)
+                AriseTitle(stringResource(R.string.comp_title), stringResource(R.string.arise_comp_subtitle))
                 if (!narrow) DeviceChip(gpu)
                 Spacer(Modifier.weight(1f))
                 HopBackChip(onBack)
