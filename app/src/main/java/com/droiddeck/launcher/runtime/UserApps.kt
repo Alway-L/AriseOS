@@ -59,6 +59,8 @@ object UserApps {
         class GitHub(val repo: String) : Source()
         /** A release archive (tar.gz or zip) holding a program folder, started through [entry] inside it. */
         class GitHubArchive(val repo: String, val asset: Regex, val entry: String) : Source()
+        /** An AppImage picked by name from the newest release whose tag matches, previews included when asked. */
+        class GitHubAppImage(val repo: String, val asset: Regex, val tag: Regex? = null, val previews: Boolean = false) : Source()
         class Flatpak(val id: String) : Source()
         class FlatpakBundle(val file: File) : Source()
     }
@@ -117,6 +119,7 @@ object UserApps {
                 is Source.AppImage -> AppImageManager.import(context, s.file, name, icon, request.meta) { onProgress(it, -1) }
                 is Source.GitHub -> addFromGitHub(context, s.repo, name, icon, onProgress)
                 is Source.GitHubArchive -> addArchiveFromGitHub(context, s, name, icon, onProgress)
+                is Source.GitHubAppImage -> addAppImageAsset(context, s, name, icon, onProgress)
                 is Source.Flatpak -> addFlatpak(context, s.id, name, icon, onProgress)
                 is Source.FlatpakBundle -> addFlatpakBundle(context, s.file, name, icon, onProgress)
             }
@@ -358,12 +361,24 @@ object UserApps {
         }
     }
 
-    private fun latestArchive(context: Context, repo: String, pattern: Regex): Release? {
+    private fun addAppImageAsset(
+        context: Context, s: Source.GitHubAppImage, name: String?, icon: File?, onProgress: (String, Int) -> Unit,
+    ): String? {
+        onProgress(context.getString(R.string.user_apps_github_checking, s.repo), -1)
+        val release = latestArchive(context, s.repo, s.asset, s.previews, s.tag)
+            ?: return context.getString(R.string.user_apps_github_unreachable, s.repo)
+        return withDownload(context, release, onProgress) { file ->
+            AppImageManager.import(context, file, name ?: s.repo.substringAfter('/'), icon, githubMeta(s.repo, release)) { onProgress(it, -1) }
+        }
+    }
+
+    private fun latestArchive(context: Context, repo: String, pattern: Regex, previews: Boolean = false, tag: Regex? = null): Release? {
         val body = Downloader.downloadString("https://api.github.com/repos/$repo/releases?per_page=15") ?: return null
         val releases = runCatching { JSONArray(body) }.getOrNull() ?: return null
         for (i in 0 until releases.length()) {
             val r = releases.getJSONObject(i)
-            if (r.optBoolean("draft") || r.optBoolean("prerelease")) continue
+            if (r.optBoolean("draft") || (!previews && r.optBoolean("prerelease"))) continue
+            if (tag != null && !tag.containsMatchIn(r.optString("tag_name"))) continue
             val assets = r.optJSONArray("assets") ?: continue
             for (j in 0 until assets.length()) {
                 val a = assets.getJSONObject(j)

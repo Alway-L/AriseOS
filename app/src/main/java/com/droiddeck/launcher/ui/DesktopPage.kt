@@ -123,7 +123,7 @@ internal fun DesktopPage(s: FrontEndState, a: FrontEndActions, modifier: Modifie
         onOpen = a.onDesktopSettings, onPrimary = a.onDesktop,
         modifier = modifier.clipToBounds(),
         start = if (narrow) 20.dp else 44.dp, bottom = 44.dp,
-        background = { StoreBackdrop(LocalPalette.current.primary, Modifier.fillMaxSize(), centerY = 0.62f) },
+        background = { AriseWallpaper(Modifier.fillMaxSize(), markX = if (narrow) 0.5f else 0.72f, markY = if (narrow) 0.34f else 0.44f) },
         scrim = { lifted ->
             WallFade()
             Box(Modifier.graphicsLayer { val v = lifted(); alpha = 1f - v; translationY = -12.dp.toPx() * v }) {

@@ -28,7 +28,7 @@ import kotlin.math.sqrt
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 class DroidDeckHudPanelTest {
     @Test fun minimalIsTheSizeTheHudStartsWith() {
-        assertEquals(DroidDeckHudSize.MINIMAL, DroidDeckHudSize.from(DroidDeckHudConfig.DEFAULTS["hudSize"]))
+        assertEquals(DroidDeckHudSize.SIMPLE, DroidDeckHudSize.from(DroidDeckHudConfig.DEFAULTS["hudSize"]))
     }
 
     @Test fun theHudStartsLocked() {
@@ -45,7 +45,7 @@ class DroidDeckHudPanelTest {
         }
         val snapshot = SNAPSHOT
         for (size in DroidDeckHudSize.values()) {
-            if (size == DroidDeckHudSize.STRIP) continue
+            if (size == DroidDeckHudSize.STRIP || size == DroidDeckHudSize.SIMPLE || size == DroidDeckHudSize.COMPLETE) continue
             val view = DroidDeckHudView(RuntimeEnvironment.getApplication())
             view.applyConfig(DroidDeckHudConfig.encode(DroidDeckHudConfig.DEFAULTS + ("hudSize" to size.token)))
             view.setFrameStats(stats)

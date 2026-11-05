@@ -32,10 +32,26 @@ object SessionFiles {
         "etc/xdg/autostart/droiddeck-clipboard.desktop" to "etc/xdg/autostart/droiddeck-clipboard.desktop",
     )
 
+    /** AriseOS: the desktop pack ships the old DroidDeck wallpaper, so put ours over it every session. */
+    private fun ariseWallpaper(context: Context, root: File) {
+        try {
+            val dir = File(root, "usr/share/wallpapers/DroidDeck/contents/images")
+            if (!dir.isDirectory) return
+            val bytes = context.assets.open("arise-wallpaper.svg").use { it.readBytes() }
+            dir.listFiles()?.forEach { f ->
+                if (f.isFile && !f.readBytes().contentEquals(bytes)) {
+                    val target = if (f.name.endsWith(".svg")) f else File(dir, f.nameWithoutExtension + ".svg").also { f.delete() }
+                    target.writeBytes(bytes)
+                }
+            }
+        } catch (e: Exception) { Log.w(TAG, "AriseOS wallpaper not applied", e) }
+    }
+
     /** Puts the session's files in place; [startsSession] is true only for the call that starts the Steam session. */
     fun stage(context: Context, root: File, startsSession: Boolean = false) {
         if (DesktopCatalog.desktopInstalled(root) && !DesktopCatalog.desktopFromPack(root)) try { DesktopCatalog.cleanLegacy(context) }
         catch (e: Exception) { Log.w(TAG, "LXQt cleanup will retry next session", e) }
+        if (DesktopCatalog.desktopInstalled(root)) ariseWallpaper(context, root)
         GameEnvironmentStore.publish(context)
         WinComponents.publish(context)
         val files = arrayOf(

@@ -19,6 +19,8 @@ package com.droiddeck.launcher.hud
  * token stored under the `hudSize` key; the label is the user-facing string.
  */
 enum class DroidDeckHudSize(val token: String, val label: String) {
+    SIMPLE("simple", "Simple"),
+    COMPLETE("complete", "Complete"),
     FULL("full", "Full"),
     TILES("tiles", "Tiles"),
     PILL("pill", "Pill"),
@@ -28,8 +30,10 @@ enum class DroidDeckHudSize(val token: String, val label: String) {
 
     /** Next size in the tap-cycle: Full → Tiles → Pill → Minimal → Mega → Strip → Full. */
     fun next(): DroidDeckHudSize {
-        val all = values()
-        return all[(ordinal + 1) % all.size]
+        if (this == SIMPLE) return COMPLETE
+        if (this == COMPLETE) return SIMPLE
+        val all = values().filter { it != SIMPLE && it != COMPLETE }
+        return all[(all.indexOf(this) + 1) % all.size]
     }
 
     /**
@@ -41,7 +45,7 @@ enum class DroidDeckHudSize(val token: String, val label: String) {
     fun supportedChips(): Set<String> = when (this) {
         MINIMAL -> MINIMAL_CHIPS
         PILL -> PILL_CHIPS
-        FULL, TILES, STRIP -> STANDARD_CHIPS
+        SIMPLE, COMPLETE, FULL, TILES, STRIP -> STANDARD_CHIPS
         MEGA -> MEGA_CHIPS
     }
 

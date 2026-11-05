@@ -84,7 +84,7 @@ object EpicLibrary {
     private fun tidy(games: List<EpicGame>): List<EpicGame> =
         games.distinctBy { it.appName }.sortedBy { it.title.lowercase() }
 
-    fun cached(context: Context): List<EpicGame> = fromCacheJson(EpicPrefs.get(context).getString(KEY_CACHE, null))
+    fun cached(context: Context): List<EpicGame> = fromCacheJson(EpicPrefs.get(context).getString(KEY_CACHE, null)).filterNot(::untitled)
 
     fun forget(context: Context) {
         EpicPrefs.get(context).edit().remove(KEY_CACHE).remove(KEY_SYNCED_AT).apply()
@@ -136,9 +136,15 @@ object EpicLibrary {
         )
     }
 
+    private val HASH_NAME = Regex("^[0-9a-f]{32}$")
+
+    /** Records Epic returns no catalog title or art for, such as Fab and Unreal Engine content named by a hash. */
+    internal fun untitled(g: EpicGame) = g.title == g.appName && HASH_NAME.matches(g.appName) && g.artCover.isEmpty() && g.artSquare.isEmpty()
+
     internal fun visible(games: List<EpicGame>): List<EpicGame> {
-        val base = games.filterNot { it.isDlc }
-        return tidy(if (base.isEmpty()) games else base)
+        val titled = games.filterNot { untitled(it) }
+        val base = titled.filterNot { it.isDlc }
+        return tidy(if (base.isEmpty()) titled else base)
     }
 
     fun sync(context: Context, force: Boolean, status: (String) -> Unit): SyncResult {

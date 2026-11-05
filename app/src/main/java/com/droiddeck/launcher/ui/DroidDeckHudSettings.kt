@@ -19,6 +19,8 @@ internal fun DroidDeckHudSettings(host: MenuHost, a: DrawerActions, track: (Stri
         val size = DroidDeckHudSize.from(cfg["hudSize"])
         ChoiceRow(host, "hud-size", stringResource(R.string.hud_size), stringResource(R.string.hud_size_hint),
             listOf(
+                DroidDeckHudSize.SIMPLE to stringResource(R.string.hud_size_simple),
+                DroidDeckHudSize.COMPLETE to stringResource(R.string.hud_size_complete),
                 DroidDeckHudSize.FULL to stringResource(R.string.hud_size_full),
                 DroidDeckHudSize.TILES to stringResource(R.string.hud_size_tiles),
                 DroidDeckHudSize.PILL to stringResource(R.string.hud_size_pill),
@@ -130,6 +132,8 @@ private val METRICS = listOf(
 private val HIDDEN = mapOf(
     DroidDeckHudSize.PILL to setOf("FPS", "FPS graph"),
     DroidDeckHudSize.MINIMAL to setOf("FPS"),
+    DroidDeckHudSize.SIMPLE to setOf("FPS", "FPS graph", "0.01% low", "FPS .1", "RAM", "VRAM", "GPU model", "Engine"),
+    DroidDeckHudSize.COMPLETE to setOf("FPS", "0.01% low", "GPU model", "Engine"),
     DroidDeckHudSize.TILES to setOf("FPS graph", "0.01% low"),
     DroidDeckHudSize.STRIP to setOf("FPS"),
 )

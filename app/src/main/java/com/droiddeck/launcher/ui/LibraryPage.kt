@@ -25,6 +25,11 @@ import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.border
+import androidx.compose.runtime.produceState
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import androidx.compose.material.icons.filled.Download
+import androidx.compose.ui.draw.alpha
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -249,6 +254,13 @@ internal fun LibraryPage(s: FrontEndState, a: FrontEndActions, selected: String,
         add(Library.ADDED)
     }
     val unconnected = if (stores) storeOrder.filter { it !in signedIn } else emptyList()
+    val steamSignedIn = s.offlineAccount != null
+    val installedSteam = remember(s.steamGames) { s.steamGames.filter { it.source == Library.SOURCE_STEAM }.map { it.appId }.toSet() }
+    val ownedSteam by produceState(emptyList<Pair<Int, java.io.File>>(), steamSignedIn, installedSteam) {
+        value = if (!steamSignedIn) emptyList() else withContext(Dispatchers.IO) {
+            runCatching { Library.steamLibraryArt(ctx).filter { it.first !in installedSteam }.sortedBy { it.first } }.getOrDefault(emptyList())
+        }
+    }
     val sources = if (itchSignedIn && Store.ITCH.id !in listed) listed + Store.ITCH.id else listed
     val source = LibraryView.source.takeIf { it == LIBRARY_ALL || it == LIBRARY_BY_STORE || it in sources } ?: LIBRARY_BY_STORE
     val q = LibraryView.query.trim().lowercase()
@@ -371,7 +383,7 @@ internal fun LibraryPage(s: FrontEndState, a: FrontEndActions, selected: String,
         wrap = { key, content -> StoreTheme(GameRef.parse(key).let { r -> r.store ?: r.game(s.steamGames)?.source?.let { Store.byId(it) } }) { content() } },
         grid = {
             LibraryGrid(
-                s, a, grid, visible, split, visible.size, sources, source, sizesPending, syncing, sections, unconnected,
+                s, a, grid, visible, split, visible.size, sources, source, sizesPending, syncing, sections, unconnected, ownedSteam,
                 showUninstalled = listUninstalled.takeIf { !s.shortcutPicker },onShowUninstalled = setShowUninstalled,
                 hiddenUninstalled = hiddenUninstalled,
                 onSource = { LibraryView.source = it },
@@ -412,7 +424,7 @@ private fun LibraryEmpty(s: FrontEndState, a: FrontEndActions, modifier: Modifie
 private fun LibraryGrid(
     s: FrontEndState, a: FrontEndActions, grid: LazyGridState, visible: List<LibraryEntry>, split: Int, total: Int,
     sources: List<String>, source: String, sizesPending: Boolean, syncing: List<Pair<Store, String>>,
-    sections: List<String>, unconnected: List<Store>,
+    sections: List<String>, unconnected: List<Store>, ownedSteam: List<Pair<Int, java.io.File>>,
     showUninstalled: Boolean?, onShowUninstalled: (Boolean) -> Unit, hiddenUninstalled: Int,
     onSource: (String) -> Unit, onCycle: (Int) -> Unit, onOpen: (String) -> Unit, onFocus: (Boolean) -> Unit, searchCleared: Boolean,
 ) {
@@ -495,7 +507,7 @@ private fun LibraryGrid(
             }
             groups.forEachIndexed { index, (src, entries) ->
                 item(key = "section-$src", span = { GridItemSpan(maxLineSpan) }) {
-                    LibraryStoreSection(src, entries, tileWidth, capsules, firstSection = index == 0, s, a) { e, first ->
+                    LibraryStoreSection(src, entries, tileWidth, capsules, firstSection = index == 0, s, a, if (src == Library.SOURCE_STEAM) ownedSteam else emptyList()) { e, first ->
                         val picker = s.shortcutPicker && e.game != null
                         LibraryTile(e, capsules, first, Modifier, if (picker) ({ a.onSteamGame(e.game!!) }) else null, onOpen, showSource = false)
                     }
@@ -1019,7 +1031,7 @@ private fun ViewButton(s: FrontEndState, a: FrontEndActions) {
 @Composable
 private fun LibraryStoreSection(
     source: String, entries: List<LibraryEntry>, tileWidth: androidx.compose.ui.unit.Dp, capsules: Boolean, firstSection: Boolean,
-    s: FrontEndState, a: FrontEndActions, tile: @Composable (LibraryEntry, Boolean) -> Unit,
+    s: FrontEndState, a: FrontEndActions, owned: List<Pair<Int, java.io.File>>, tile: @Composable (LibraryEntry, Boolean) -> Unit,
 ) {
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
@@ -1039,7 +1051,7 @@ private fun LibraryStoreSection(
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
             Box(Modifier.size(10.dp).background(sourceColours(source).dot, CircleShape))
             Text(label, fontSize = 17.sp, fontWeight = FontWeight.ExtraBold, color = colors.onBackground, maxLines = 1)
-            Text(pluralStringResource(R.plurals.mode_added_count, entries.size, entries.size), fontSize = 13.sp, color = colors.onSurfaceVariant, maxLines = 1)
+            Text(pluralStringResource(R.plurals.mode_added_count, entries.size + owned.size, entries.size + owned.size), fontSize = 13.sp, color = colors.onSurfaceVariant, maxLines = 1)
             Spacer(Modifier.weight(1f))
             if (openStore != null) {
                 val src = remember { MutableInteractionSource() }
@@ -1060,7 +1072,7 @@ private fun LibraryStoreSection(
             if (source == Library.ADDED && !s.shortcutPicker) item(key = "add-exe") {
                 SectionCard(Icons.Filled.Add, stringResource(R.string.library_add_exe), width, "library-add-exe") { GamesDialogState.adding = true }
             }
-            if (entries.isEmpty() && source == Library.SOURCE_STEAM) item(key = "steam-empty") {
+            if (entries.isEmpty() && owned.isEmpty() && source == Library.SOURCE_STEAM) item(key = "steam-empty") {
                 SectionCard(Icons.Filled.PlayArrow, stringResource(R.string.library_steam_empty), width, "library-steam-empty", enabled = !s.busy, onClick = a.onPlay)
             }
             if (entries.isEmpty() && store != null) item(key = "store-empty") {
@@ -1070,6 +1082,9 @@ private fun LibraryStoreSection(
             }
             items(entries, key = { it.key }, contentType = { "game" }) { e ->
                 Box(Modifier.width(width)) { tile(e, firstSection && e === entries.first()) }
+            }
+            items(owned, key = { "owned-${it.first}" }, contentType = { "owned" }) { (appId, art) ->
+                OwnedSteamTile(appId, art, width, enabled = !s.busy, onClick = a.onPlay)
             }
         }
     }
@@ -1126,6 +1141,31 @@ private fun ConnectStores(stores: List<Store>) {
                     Text(store.shortLabel, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = colors.onBackground, maxLines = 1)
                 }
             }
+        }
+    }
+}
+
+/** A Steam game the account owns but has not installed: its capsule from Steam's cache; opening it starts Steam to install. */
+@Composable
+private fun OwnedSteamTile(appId: Int, art: java.io.File, width: androidx.compose.ui.unit.Dp, enabled: Boolean, onClick: () -> Unit) {
+    val colors = MaterialTheme.colorScheme
+    val pal = LocalPalette.current
+    val src = remember { MutableInteractionSource() }
+    val hot = rememberHot(src)
+    val shape = RoundedCornerShape(12.dp)
+    Box(
+        modifier = Modifier.width(width).aspectRatio(2f / 3f).paneItem("owned:$appId").testTag("library-owned-$appId").clip(shape)
+            .background(colors.surface).border(1.dp, if (hot) pal.signal else pal.line, shape)
+            .hoverable(src).clickable(enabled = enabled, role = Role.Button, interactionSource = src, indication = LocalIndication.current, onClick = onClick)
+            .controllerConfirm(enabled = enabled, onClick = onClick),
+    ) {
+        coil.compose.AsyncImage(model = art, contentDescription = null, contentScale = androidx.compose.ui.layout.ContentScale.Crop, modifier = Modifier.fillMaxSize().alpha(0.72f))
+        Row(
+            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp),
+            modifier = Modifier.align(Alignment.BottomStart).padding(6.dp).clip(RoundedCornerShape(8.dp)).background(Color.Black.copy(alpha = 0.6f)).padding(horizontal = 6.dp, vertical = 3.dp),
+        ) {
+            Icon(Icons.Filled.Download, null, tint = Color.White, modifier = Modifier.size(12.dp))
+            Text(stringResource(R.string.library_not_installed), fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color.White, maxLines = 1)
         }
     }
 }

@@ -20,6 +20,14 @@ object ExtraEmulators {
             "kytyps5", "KytyPS5", "PS5 · experimental, x86-64 via FEX", "KytyPS5/KytyPS5", R.drawable.emu_kytyps5,
             UserApps.Source.GitHubArchive("KytyPS5/KytyPS5", Regex("Linux-x86_64\\.tar\\.gz$"), "kyty_launcher"),
         ),
+        Extra(
+            "eglantine", "Eglantine", "Switch 2 · ARM64", "Djihads80/Eglantine", R.drawable.emu_eglantine,
+            UserApps.Source.GitHubAppImage("Djihads80/Eglantine", Regex("^eglantine-linux-aarch64-pgo\\.AppImage$"), Regex("^(v|daily-)"), previews = true),
+        ),
+        Extra(
+            "lichii", "Lichii", "Switch / Switch 2 · ARM64", "zortos293/Lichii", R.drawable.emu_lichii,
+            UserApps.Source.GitHubAppImage("zortos293/Lichii", Regex("^lichii-linux-aarch64-pgo\\.AppImage$"), Regex("^build-"), previews = true),
+        ),
     )
 
     fun installed(apps: List<UserApps.App>, extra: Extra): UserApps.App? =

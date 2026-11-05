@@ -160,6 +160,7 @@ class DroidDeckHudView(context: Context) : View(context) {
     private var tabRect: RectF? = null
     // The Strip is a bar across the whole screen, kept against the top or bottom edge.
     private var stripRect: RectF? = null
+    private var plateRect: RectF? = null
     private val tabPath = Path()
 
     // Every size sits in the DroidDeck mark's D: a straight left side, round on the
@@ -201,6 +202,7 @@ class DroidDeckHudView(context: Context) : View(context) {
         color = colGraph
     }
     private val headerPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.FILL }
+    private val platePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE }
     private val wordmarkPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         typeface = Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD)
     }
@@ -581,7 +583,7 @@ class DroidDeckHudView(context: Context) : View(context) {
     // ---- Layout builders --------------------------------------------------
     private fun rebuild() {
         glyphs.clear(); tileRects.clear(); graphRect = null
-        headerMark = null; chipRect = null; dPanel = null; dDividerTop = -1f; tabRect = null; stripRect = null
+        headerMark = null; chipRect = null; dPanel = null; dDividerTop = -1f; tabRect = null; stripRect = null; plateRect = null
         val s = snap
         if (s == null) { contentW = 0f; contentH = 0f; return }
         if (dock != DroidDeckHudDock.NONE) { buildDockTab(); return }
@@ -592,6 +594,100 @@ class DroidDeckHudView(context: Context) : View(context) {
             DroidDeckHudSize.MINIMAL -> buildMinimal(s)
             DroidDeckHudSize.MEGA -> { buildMega(s); intoPanel(sp(10f), header = true) }
             DroidDeckHudSize.STRIP -> buildStrip(s)
+            DroidDeckHudSize.SIMPLE -> buildSimple(s)
+            DroidDeckHudSize.COMPLETE -> buildComplete(s)
+        }
+    }
+
+    /** Simple: one quiet line on a small rounded plate, like a handheld's compact overlay. */
+    private fun buildSimple(s: HudMetrics.Snapshot) {
+        val px = sp(11f); val unit = px * 0.82f; val padX = sp(9f); val h = sp(22f)
+        val baseline = h / 2f + capHeight(px) / 2f
+        val parts = ArrayList<List<Span>>()
+        parts += listOf(Span("FPS ", colDim, unit), Span(fpsText(fpsNow), colValue, px))
+        if (showCPU || showCpuTemp) {
+            val l = arrayListOf(Span("CPU ", colDim, unit))
+            if (showCPU) l += Span("${s.cpuPercent ?: "—"}%", colCpu, px)
+            if (showCpuTemp && s.cpuTempC != null) { l += Span(" ", colDim, unit); l += tempSpans(s.cpuTempC, HudMetrics.TempSensor.CPU, px, unit) }
+            parts += l
+        }
+        if (showGPU || showGpuTemp) {
+            val l = arrayListOf(Span("GPU ", colDim, unit))
+            if (showGPU) l += Span("${s.gpuPercent ?: "—"}%", colGpu, px)
+            if (showGpuTemp && s.gpuTempC != null) { l += Span(" ", colDim, unit); l += tempSpans(s.gpuTempC, HudMetrics.TempSensor.GPU, px, unit) }
+            parts += l
+        }
+        if (showPower && s.battery.watts > 0f) parts += listOf(Span("${fmt1(s.battery.watts)}", colValue, px), Span("W", colDim, unit))
+        if (showBattery && s.battery.percent != null) parts += listOf(Span("BAT ", colDim, unit), Span("${s.battery.percent}%", colBat, px))
+        var x = padX
+        parts.forEachIndexed { i, p ->
+            if (i > 0) x = placeRun(x, baseline, listOf(Span("  │  ", withAlpha(colDim, 110), unit)))
+            x = placeRun(x, baseline, p)
+        }
+        if (showClockTime) {
+            x = placeRun(x, baseline, listOf(Span("  │  ", withAlpha(colDim, 110), unit), Span(clockTimeString(), colDim, unit)))
+        }
+        contentW = x + padX; contentH = h
+        plateRect = RectF(0f, 0f, contentW, contentH)
+    }
+
+    /** Complete: a narrow panel of labelled rows under the FPS and frame time, with the frametime graph. */
+    private fun buildComplete(s: HudMetrics.Snapshot) {
+        val px = sp(11.5f); val label = sp(10f); val unit = px * 0.82f; val pad = sp(10f); val rowH = sp(17f)
+        val w = sp(178f)
+        val big = sp(22f)
+        var y = pad
+        val head = y + capHeight(big)
+        placeRun(pad, head, listOf(Span(fpsText(fpsNow), colValue, big), Span(" FPS", colDim, label)))
+        val ms = if (fpsNow > 0f) "${fmt1(1000f / fpsNow)} ms" else "— ms"
+        glyphs.add(Glyph(w - pad - measure(ms, label), head, ms, colDim, label))
+        y = head + sp(8f)
+        if (showGraph) { graphRect = RectF(pad, y, w - pad, y + sp(24f)); y += sp(30f) }
+        fun row(name: String, nameColor: Int, value: List<Span>) {
+            val baseline = y + capHeight(px)
+            glyphs.add(Glyph(pad, baseline, name, nameColor, label))
+            placeRun(w - pad - runWidth(value), baseline, value)
+            y += rowH
+        }
+        row("1% LOW", colDim, listOf(Span(lowText(lows.low1Fps) ?: "—", colFps, px)))
+        if (showLow001) row("0.1% LOW", colDim, listOf(Span(lowText(lows.low01Fps) ?: "—", colFps, px)))
+        if (showCPU || showCpuTemp) {
+            val v = ArrayList<Span>()
+            if (showCPU) v += Span("${s.cpuPercent ?: "—"}%", colValue, px)
+            if (showCpuTemp && s.cpuTempC != null) { v += Span("  ", colDim, unit); v += tempSpans(s.cpuTempC, HudMetrics.TempSensor.CPU, px, unit) }
+            row("CPU", colCpu, v)
+        }
+        if (showGPU || showGpuTemp) {
+            val v = ArrayList<Span>()
+            if (showGPU) v += Span("${s.gpuPercent ?: "—"}%", colValue, px)
+            if (showGpuTemp && s.gpuTempC != null) { v += Span("  ", colDim, unit); v += tempSpans(s.gpuTempC, HudMetrics.TempSensor.GPU, px, unit) }
+            row("GPU", colGpu, v)
+        }
+        if (showRAM) row("RAM", colRam, listOf(Span("${s.ramPercent.roundToInt()}%", colValue, px)))
+        if (showVram) s.vramText()?.let { row("VRAM", colVram, listOf(Span(it, colValue, px))) }
+        if (showPower && s.battery.watts > 0f) row("POWER", colDim, listOf(Span(fmt1(s.battery.watts), colValue, px), Span(" W", colDim, unit)))
+        if (showBattery || showBatteryTemp) {
+            val v = ArrayList<Span>()
+            if (showBattery && s.battery.percent != null) v += Span("${s.battery.percent}%", colValue, px)
+            if (showBatteryTemp && s.battery.tempC != null) { if (v.isNotEmpty()) v += Span("  ", colDim, unit); v += tempSpans(s.battery.tempC, HudMetrics.TempSensor.BATTERY, px, unit) }
+            if (v.isNotEmpty()) row("BAT", colBat, v)
+        }
+        if (showClockTime) row("", colDim, listOf(Span(clockTimeString(), colDim, unit)))
+        contentW = w; contentH = y + pad - (rowH - capHeight(px)) * 0.5f
+        plateRect = RectF(0f, 0f, contentW, contentH)
+    }
+
+    private fun drawPlate(canvas: Canvas, rect: RectF) {
+        val r = if (size == DroidDeckHudSize.SIMPLE) rect.height() / 2f else sp(12f)
+        headerPaint.shader = null
+        headerPaint.color = panelColor()
+        canvas.drawRoundRect(rect, r, r, headerPaint)
+        if (outlineIntensity > 0f) {
+            val line = max(density, sp(1f))
+            platePaint.strokeWidth = line
+            platePaint.color = withAlpha(outlineColor(), (50 + 90 * outlineIntensity).roundToInt().coerceAtMost(255))
+            val inset = line / 2f
+            canvas.drawRoundRect(rect.left + inset, rect.top + inset, rect.right - inset, rect.bottom - inset, r, r, platePaint)
         }
     }
 
@@ -1419,6 +1515,7 @@ class DroidDeckHudView(context: Context) : View(context) {
             for (rect in tileRects) canvas.drawRoundRect(rect, tr, tr, tilePaint)
         }
 
+        plateRect?.let { drawPlate(canvas, it) }
         chipRect?.let { drawChip(canvas, it) }
         tabRect?.let { drawTab(canvas, it) }
         stripRect?.let { drawStrip(canvas, it) }

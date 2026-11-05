@@ -19,4 +19,7 @@
     <string name="arise_version">AriseOS %1$s</string>
     <string name="arise_desktop_ready">Ready to open</string>
     <string name="arise_desktop_missing">Not installed yet</string>
+    <string name="library_not_installed">Not installed</string>
+    <string name="hud_size_simple">Simple</string>
+    <string name="hud_size_complete">Complete</string>
 </resources>
