@@ -57,6 +57,8 @@ object UserApps {
         class Script(val file: File) : Source()
         class AppImage(val file: File) : Source()
         class GitHub(val repo: String) : Source()
+        /** A release archive (tar.gz or zip) holding a program folder, started through [entry] inside it. */
+        class GitHubArchive(val repo: String, val asset: Regex, val entry: String) : Source()
         class Flatpak(val id: String) : Source()
         class FlatpakBundle(val file: File) : Source()
     }
@@ -114,6 +116,7 @@ object UserApps {
                 is Source.Script -> addScript(context, s.file, name, icon, request.meta, onProgress)
                 is Source.AppImage -> AppImageManager.import(context, s.file, name, icon, request.meta) { onProgress(it, -1) }
                 is Source.GitHub -> addFromGitHub(context, s.repo, name, icon, onProgress)
+                is Source.GitHubArchive -> addArchiveFromGitHub(context, s, name, icon, onProgress)
                 is Source.Flatpak -> addFlatpak(context, s.id, name, icon, onProgress)
                 is Source.FlatpakBundle -> addFlatpakBundle(context, s.file, name, icon, onProgress)
             }
@@ -353,6 +356,80 @@ object UserApps {
         return withDownload(context, release, onProgress) { file ->
             AppImageManager.import(context, file, name ?: repo.substringAfter('/'), icon, githubMeta(repo, release)) { onProgress(it, -1) }
         }
+    }
+
+    private fun latestArchive(context: Context, repo: String, pattern: Regex): Release? {
+        val body = Downloader.downloadString("https://api.github.com/repos/$repo/releases?per_page=15") ?: return null
+        val releases = runCatching { JSONArray(body) }.getOrNull() ?: return null
+        for (i in 0 until releases.length()) {
+            val r = releases.getJSONObject(i)
+            if (r.optBoolean("draft") || r.optBoolean("prerelease")) continue
+            val assets = r.optJSONArray("assets") ?: continue
+            for (j in 0 until assets.length()) {
+                val a = assets.getJSONObject(j)
+                val name = a.getString("name")
+                if (pattern.containsMatchIn(name)) return Release(
+                    r.optString("tag_name", name), r.optString("published_at"), name, a.getString("browser_download_url"),
+                    Hashes.githubSha256(a.optString("digest")),
+                )
+            }
+        }
+        return null
+    }
+
+    private fun addArchiveFromGitHub(
+        context: Context, s: Source.GitHubArchive, name: String?, icon: File?, onProgress: (String, Int) -> Unit,
+    ): String? {
+        onProgress(context.getString(R.string.user_apps_github_checking, s.repo), -1)
+        val release = latestArchive(context, s.repo, s.asset)
+            ?: return context.getString(R.string.user_apps_github_unreachable, s.repo)
+        return withDownload(context, release, onProgress) { file ->
+            val unpacked = File(context.cacheDir, "archive-${System.nanoTime()}").apply { mkdirs() }
+            try {
+                onProgress(context.getString(R.string.user_apps_unpacking, release.asset), -1)
+                if (!unpackArchive(file, unpacked)) return@withDownload context.getString(R.string.user_apps_failed)
+                val entry = unpacked.walkTopDown().maxDepth(3).firstOrNull { it.isFile && it.name == s.entry }
+                    ?: return@withDownload context.getString(R.string.user_apps_file_gone)
+                addScript(context, entry, name ?: s.repo.substringAfter('/'), icon, githubMeta(s.repo, release), onProgress)
+            } finally {
+                FileUtils.delete(unpacked)
+            }
+        }
+    }
+
+    private fun unpackArchive(archive: File, into: File): Boolean = try {
+        val target = into.canonicalPath + File.separator
+        fun place(path: String): File? = File(into, path).takeIf { it.canonicalPath.startsWith(target) }
+        if (archive.name.endsWith(".zip", ignoreCase = true)) {
+            java.util.zip.ZipInputStream(archive.inputStream().buffered()).use { zip ->
+                generateSequence { zip.nextEntry }.forEach { e ->
+                    val out = place(e.name) ?: return@forEach
+                    if (e.isDirectory) out.mkdirs()
+                    else { out.parentFile?.mkdirs(); out.outputStream().use { zip.copyTo(it) } }
+                }
+            }
+        } else {
+            org.apache.commons.compress.archivers.tar.TarArchiveInputStream(
+                java.util.zip.GZIPInputStream(archive.inputStream().buffered()),
+            ).use { tar ->
+                generateSequence { tar.nextEntry }.forEach { e ->
+                    val out = place(e.name) ?: return@forEach
+                    when {
+                        e.isDirectory -> out.mkdirs()
+                        e.isSymbolicLink -> { out.parentFile?.mkdirs(); runCatching { Os.symlink(e.linkName, out.path) } }
+                        else -> {
+                            out.parentFile?.mkdirs()
+                            out.outputStream().use { tar.copyTo(it) }
+                            if (e.mode and 0b001_001_001 != 0) out.setExecutable(true, false)
+                        }
+                    }
+                }
+            }
+        }
+        true
+    } catch (e: Exception) {
+        Log.e(TAG, "unpack ${archive.name}", e)
+        false
     }
 
     fun githubIcons(repo: String): List<String> {

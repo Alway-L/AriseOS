@@ -183,7 +183,9 @@ private fun DesktopDock(
     val mounted = remember { booleanArrayOf(false) }
     LaunchedEffect(Unit) { mounted[0] = true }
     val scroll = rememberScrollState()
-    if (keys.isEmpty() && available.isEmpty() && UserAppsState.working == null && UserAppsState.lastError == null) return
+    val dockContext = LocalContext.current
+    val extras = com.droiddeck.launcher.runtime.ExtraEmulators.all.filter { com.droiddeck.launcher.runtime.ExtraEmulators.installed(apps, it) == null }
+    if (keys.isEmpty() && available.isEmpty() && extras.isEmpty() && UserAppsState.working == null && UserAppsState.lastError == null) return
     Column(Modifier.fillMaxWidth().padding(top = if (compactDesktop()) 14.dp else 22.dp)) {
         Text(
             stringResource(R.string.user_apps_section).uppercase(), fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.6.sp,
@@ -244,6 +246,20 @@ private fun DesktopDock(
                                 Offset((end?.right ?: r.left) + 70.dp.toPx(), r.center.y)
                             }))
                         } else openFrom(at, e.iconRes, "emu:${e.id}")
+                    }
+                }
+            }
+            extras.forEach { x ->
+                key("extra:${x.id}") {
+                    val busyHere = UserAppsState.working == x.name
+                    DesktopCard(
+                        "extra:${x.id}", x.name, if (busyHere) (UserAppsState.stage ?: stringResource(R.string.store_installing)) else x.system,
+                        art = x.iconRes, badge = if (busyHere) null else stringResource(R.string.comp_get),
+                        progress = if (busyHere) UserAppsState.percent else null,
+                    ) { _ ->
+                        if (UserAppsState.working == null && s.ready && !s.busy) {
+                            UserAppsState.add(dockContext, com.droiddeck.launcher.runtime.ExtraEmulators.request(dockContext, x), x.name)
+                        }
                     }
                 }
             }

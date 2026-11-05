@@ -13,4 +13,5 @@
     <string name="library_store_empty">No games yet</string>
     <string name="session_proton_auto">Downloading %1$s to start this game</string>
     <string name="session_proton_auto_failed">Could not download %1$s: %2$s. Install a Proton in Components → Proton and try again.</string>
+    <string name="user_apps_unpacking">Unpacking %1$s…</string>
 </resources>
