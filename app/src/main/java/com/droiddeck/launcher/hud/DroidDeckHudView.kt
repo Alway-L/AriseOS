@@ -1582,19 +1582,12 @@ class DroidDeckHudView(context: Context) : View(context) {
     private fun withAlpha(color: Int, alpha: Int): Int =
         Color.argb(alpha, Color.red(color), Color.green(color), Color.blue(color))
 
-    /** The D: straight left side with small corners, round on the right with radius [rad] (a half circle
-     *  when it is half the height). */
+    /** AriseOS: the panel is a plain rounded card (it used to be DroidDeck's "D"). The layout still keeps
+     *  clear of the old round side, so everything stays inside. */
+    @Suppress("UNUSED_PARAMETER")
     private fun dShape(l: Float, t: Float, r: Float, b: Float, rad: Float, corner: Float): Path {
-        return Path().apply {
-            moveTo(l, t + corner)
-            lineTo(l, b - corner); quadTo(l, b, l + corner, b)
-            lineTo(r - rad, b)
-            arcTo(r - 2f * rad, b - 2f * rad, r, b, 90f, -90f, false)
-            lineTo(r, t + rad)
-            arcTo(r - 2f * rad, t, r, t + 2f * rad, 0f, -90f, false)
-            lineTo(l + corner, t); quadTo(l, t, l, t + corner)
-            close()
-        }
+        val k = minOf(sp(14f), (b - t) / 2f, (r - l) / 2f).coerceAtLeast(0f)
+        return Path().apply { addRoundRect(l, t, r, b, k, k, Path.Direction.CW) }
     }
 
     /** Where the inside of the outline's round side is at height [y]. */

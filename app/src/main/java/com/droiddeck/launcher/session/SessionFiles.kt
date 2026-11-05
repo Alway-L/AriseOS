@@ -36,15 +36,27 @@ object SessionFiles {
     private fun ariseWallpaper(context: Context, root: File) {
         try {
             val dir = File(root, "usr/share/wallpapers/DroidDeck/contents/images")
-            if (!dir.isDirectory) return
             val bytes = context.assets.open("arise-wallpaper.svg").use { it.readBytes() }
-            dir.listFiles()?.forEach { f ->
+            if (dir.isDirectory) dir.listFiles()?.forEach { f ->
                 if (f.isFile && !f.readBytes().contentEquals(bytes)) {
                     val target = if (f.name.endsWith(".svg")) f else File(dir, f.nameWithoutExtension + ".svg").also { f.delete() }
                     target.writeBytes(bytes)
                 }
             }
         } catch (e: Exception) { Log.w(TAG, "AriseOS wallpaper not applied", e) }
+        // The panel's start button and the "Return to Gaming Mode" launcher still carry the DroidDeck "D".
+        var changed = false
+        for ((asset, path) in listOf(
+            "arise-start.svg" to "usr/share/icons/hicolor/scalable/places/distributor-logo-steamdeck.svg",
+            "arise-return.svg" to "usr/share/icons/hicolor/scalable/actions/steamdeck-gaming-return.svg",
+        )) try {
+            val target = File(root, path)
+            if (!target.parentFile!!.isDirectory) continue
+            val bytes = context.assets.open(asset).use { it.readBytes() }
+            if (!target.isFile || !target.readBytes().contentEquals(bytes)) { target.writeBytes(bytes); changed = true }
+        } catch (e: Exception) { Log.w(TAG, "AriseOS icon $asset not applied", e) }
+        // KDE keeps drawn icons in a pixmap cache; drop it so the new ones show on the next start.
+        if (changed) File(root, "root/.cache").listFiles { f -> f.name.startsWith("icon-cache") }?.forEach { it.delete() }
     }
 
     /** Puts the session's files in place; [startsSession] is true only for the call that starts the Steam session. */

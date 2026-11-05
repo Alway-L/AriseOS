@@ -31,8 +31,8 @@ class DroidDeckHudPanelTest {
         assertEquals(DroidDeckHudSize.SIMPLE, DroidDeckHudSize.from(DroidDeckHudConfig.DEFAULTS["hudSize"]))
     }
 
-    @Test fun theHudStartsLocked() {
-        assertEquals("1", DroidDeckHudConfig.DEFAULTS["hudLocked"])
+    @Test fun theHudStartsUnlockedSoItCanBeDragged() {
+        assertEquals("0", DroidDeckHudConfig.DEFAULTS["hudLocked"])
     }
 
     @Test fun everySizeDrawsTheDPanelWithEverythingInsideIt() {

@@ -10,7 +10,7 @@ internal object DroidDeckHudConfig {
      * locked, so like the old HUD it lets touches through until it is unlocked to move it.
      */
     val DEFAULTS: Map<String, String> = linkedMapOf(
-        "hudSize" to "simple", "hudLocked" to "1", "hudScale" to "100", "hudDock" to "none", "hudOpacity" to "80", "hudColor" to "mid",
+        "hudSize" to "simple", "hudLocked" to "0", "ariseHud" to "2", "hudScale" to "100", "hudDock" to "none", "hudOpacity" to "80", "hudColor" to "mid",
         "hudOutline" to "40", "hudOutlineAccent" to "1",
         "showFPS" to "1", "showFPSGraph" to "1", "showCPUUsage" to "1", "showCPULoad" to "1", "showGPULoad" to "1",
         "showVram" to "1", "showRAM" to "1", "showPower" to "1", "showTemp" to "1", "showBatteryTemp" to "1",
@@ -32,6 +32,11 @@ internal object DroidDeckHudConfig {
             values["hudOpacity"] = SessionPrefs.hudOpacity(context).toString()
         } else {
             for (entry in KeyValueSet(stored)) if (entry.size == 2 && entry[0] in DEFAULTS) values[entry[0]] = entry[1]
+            // AriseOS 1.3.1: a saved setup from before moves to the Simple overlay, unlocked so it can be dragged anywhere.
+            if (values["ariseHud"] != "2" || "ariseHud=2" !in stored) {
+                values["hudLocked"] = "0"; values["hudSize"] = "simple"; values["ariseHud"] = "2"
+                SessionPrefs.setDroidDeckHudConfig(context, encode(values))
+            }
         }
         return values
     }
