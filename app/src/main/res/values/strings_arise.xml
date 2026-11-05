@@ -11,4 +11,6 @@
     <string name="library_add_exe">Add game (.exe)</string>
     <string name="library_steam_empty">Open Steam to see your games here</string>
     <string name="library_store_empty">No games yet</string>
+    <string name="session_proton_auto">Downloading %1$s to start this game</string>
+    <string name="session_proton_auto_failed">Could not download %1$s: %2$s. Install a Proton in Components → Proton and try again.</string>
 </resources>

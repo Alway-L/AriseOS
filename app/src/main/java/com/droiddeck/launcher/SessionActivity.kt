@@ -748,7 +748,10 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             val protonUser = (intent.getStringExtra(SessionService.EXTRA_MODE) ?: SessionService.MODE_STEAM) == SessionService.MODE_STEAM ||
                 program == com.droiddeck.launcher.runtime.BattleNet.PROGRAM || program == com.droiddeck.launcher.session.NoSteamLaunch.PROTON_RUN
             val needProton = protonUser && com.droiddeck.launcher.runtime.DesktopCatalog.protonSeedNeeded(this)
-            if (needRuntime || needResume || needDesktop || needProton) installThenStart(needRuntime, needDesktop, needProton, needResume)
+            val needOwnProton = program == com.droiddeck.launcher.session.NoSteamLaunch.PROTON_RUN &&
+                com.droiddeck.launcher.session.ProtonExtras.noSteamToolMissing(this)
+            if (needRuntime || needResume || needDesktop || needProton || needOwnProton)
+                installThenStart(needRuntime, needDesktop, needProton, needResume, needOwnProton)
         }
         hud = DroidDeckHudHost(this)
         hud.onConfigChanged = { hudConfig = DroidDeckHudConfig.load(this) }
@@ -1888,7 +1891,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private val installingRuntime get() = localInstalling || SessionState.installing != null
     private var repairOffered by mutableStateOf(false)
 
-    private fun installThenStart(runtime: Boolean, desktop: Boolean, proton: Boolean = false, resume: Boolean = false) {
+    private fun installThenStart(runtime: Boolean, desktop: Boolean, proton: Boolean = false, resume: Boolean = false, ownProton: Boolean = false) {
         if (SessionState.stopRequested) return
         val worker = Any()
         activeInstallWorker = worker
@@ -1935,6 +1938,24 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                 if (protonProblem == null) SessionEvents.record("proton.ready")
                 else SessionEvents.record("proton.skipped", mapOf("reason" to protonProblem))
             }
+            if (problem == null && ownProton && !SessionState.stopRequested &&
+                com.droiddeck.launcher.session.ProtonExtras.noSteamToolMissing(this)) {
+                if (activeInstallWorker === worker) SessionState.installing = "proton"
+                SessionEvents.transition(SessionPhase.INSTALLING_RUNTIME, "proton.installing", mapOf("component" to "no-steam-proton"))
+                val tool = com.droiddeck.launcher.session.ProtonExtras.noSteamDefault
+                uiHandler.post { loading.percent = -1; loading.say(getString(R.string.session_proton_auto, tool.name), PROTON_LINES.topic, readable = true) }
+                val ownProblem = com.droiddeck.launcher.session.ProtonExtras.install(this, tool) { line, percent ->
+                    uiHandler.post {
+                        loading.percent = percent
+                        loading.say(getString(R.string.session_proton_auto, tool.name) + if (line.isNotBlank()) " · $line" else "", PROTON_LINES.topic, readable = true)
+                    }
+                }
+                if (ownProblem == null) SessionEvents.record("proton.ready", mapOf("component" to "no-steam-proton"))
+                else {
+                    problem = getString(R.string.session_proton_auto_failed, tool.name, ownProblem)
+                    failedComponent = "proton"
+                }
+            }
             uiHandler.post {
                 localInstalling = false
                 if (activeInstallWorker === worker) {
@@ -1952,6 +1973,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                     val code = when (failedComponent) {
                         "runtime" -> "RUNTIME_INSTALL_FAILED"
                         "package" -> "PACKAGE_RESUME_FAILED"
+                        "proton" -> "PROTON_INSTALL_FAILED"
                         else -> "DESKTOP_INSTALL_FAILED"
                     }
                     SessionEvents.fail(code, problem)

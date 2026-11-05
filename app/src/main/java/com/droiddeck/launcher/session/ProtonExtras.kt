@@ -44,6 +44,22 @@ object ProtonExtras {
 
     fun installed(context: Context, tool: Tool): String? = installedIn(toolsDir(context), tool).lastOrNull()
 
+    /** The tool installed for games started without Steam when droiddeck-proton-run would find none. */
+    val noSteamDefault: Tool get() = tools.first { it.id == OWN }
+
+    /**
+     * True when droiddeck-proton-run has no tool to start a game with: it only uses compatibility tools whose
+     * compatibilitytool.vdf lists Windows, so Valve's Proton that only the Steam client registers does not count.
+     */
+    fun noSteamToolMissing(context: Context): Boolean {
+        val root = LinuxRuntime.rootDir(context)
+        val dirs = listOf(toolsDir(context), File(root, "usr/share/steam/compatibilitytools.d"), File(root, "usr/local/share/steam/compatibilitytools.d"))
+        val windows = Regex("\"from_oslist\"\\s+\"[^\"]*windows", RegexOption.IGNORE_CASE)
+        return dirs.none { dir ->
+            dir.listFiles()?.any { folder -> runCatching { File(folder, "compatibilitytool.vdf").readText() }.getOrNull()?.let(windows::containsMatchIn) == true } == true
+        }
+    }
+
     fun installedAll(context: Context, tool: Tool): List<String> = installedIn(toolsDir(context), tool)
 
     internal fun installedIn(dir: File, tool: Tool): List<String> =

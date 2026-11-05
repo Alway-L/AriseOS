@@ -11,4 +11,6 @@
     <string name="library_add_exe">Adicionar jogo (.exe)</string>
     <string name="library_steam_empty">Abra a Steam para ver seus jogos aqui</string>
     <string name="library_store_empty">Nenhum jogo ainda</string>
+    <string name="session_proton_auto">A transferir o %1$s para iniciar este jogo</string>
+    <string name="session_proton_auto_failed">Não foi possível transferir o %1$s: %2$s. Instale um Proton em Componentes → Proton e tente de novo.</string>
 </resources>
