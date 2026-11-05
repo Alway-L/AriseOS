@@ -23,6 +23,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.ui.platform.testTag
@@ -98,6 +100,9 @@ class UpdatesActions(
 internal fun UpdatesPage(s: FrontEndState, a: FrontEndActions, modifier: Modifier) {
     val u = s.updates
     val ua = a.updates
+    LaunchedEffect(u.follow.channel) {
+        if (u.follow.channel != Channel.STABLE) ua.onFollow(Follow(Channel.STABLE))
+    }
     val me = remember { AppUpdates.installed() }
     val colors = MaterialTheme.colorScheme
     Column(modifier = modifier) {
@@ -116,18 +121,7 @@ internal fun UpdatesPage(s: FrontEndState, a: FrontEndActions, modifier: Modifie
         BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
             val stacked = LocalNarrowPane.current || maxWidth < 600.dp
             Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(bottom = 16.dp)) {
-                if (stacked) {
-                    StatusPanel(s, u, ua, me)
-                    Box(Modifier.height(18.dp))
-                    ChannelLabel()
-                    ChannelPicker(u, ua)
-                } else {
-                    ChannelLabel()
-                    Row(horizontalArrangement = Arrangement.spacedBy(18.dp)) {
-                        Box(Modifier.weight(1f)) { ChannelPicker(u, ua) }
-                        Box(Modifier.weight(1.15f)) { StatusPanel(s, u, ua, me) }
-                    }
-                }
+                Box(if (stacked) Modifier.fillMaxWidth() else Modifier.widthIn(max = 640.dp).align(Alignment.CenterHorizontally)) { StatusPanel(s, u, ua, me) }
             }
         }
     }
