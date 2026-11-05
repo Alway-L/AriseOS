@@ -5,4 +5,7 @@
     <string name="workspace_stores">Stores</string>
     <string name="workspace_desktop">Linux desktop</string>
     <string name="workspace_android_apps">Android apps</string>
+    <string name="library_by_store">By store</string>
+    <string name="library_open_store">Open store</string>
+    <string name="library_connect_store">Connect another store</string>
 </resources>

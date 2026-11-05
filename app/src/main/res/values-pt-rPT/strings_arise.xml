@@ -5,4 +5,7 @@
     <string name="workspace_stores">Lojas</string>
     <string name="workspace_desktop">Ambiente Linux</string>
     <string name="workspace_android_apps">Apps Android</string>
+    <string name="library_by_store">Por loja</string>
+    <string name="library_open_store">Abrir loja</string>
+    <string name="library_connect_store">Conectar outra loja</string>
 </resources>

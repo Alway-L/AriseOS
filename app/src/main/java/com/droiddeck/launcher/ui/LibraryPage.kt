@@ -21,6 +21,10 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.wrapContentHeight
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -155,6 +159,7 @@ internal fun collectionEntries(all: List<LibraryEntry>, items: List<CatalogItem>
 internal fun installedFirst(entries: List<LibraryEntry>): List<LibraryEntry> = entries.partition { it.installed }.let { (on, off) -> on + off }
 
 internal const val LIBRARY_ALL = "all"
+internal const val LIBRARY_BY_STORE = "by-store"
 internal fun librarySources(entries: List<LibraryEntry>, order: List<String>): List<String> =
     (listOf(Library.SOURCE_STEAM) + arrangeStoreTabs(order, emptySet()).map { it.store.id } + Library.ADDED)
         .filter { source -> entries.any { it.source == source } }
@@ -192,7 +197,7 @@ internal object LibraryDisplay {
 }
 
 internal object LibraryView {
-    var source by mutableStateOf(LIBRARY_ALL)
+    var source by mutableStateOf(LIBRARY_BY_STORE)
     var query by mutableStateOf("")
     var focusFirst = false
     var ownedRequest by mutableIntStateOf(0)
@@ -238,7 +243,7 @@ internal fun LibraryPage(s: FrontEndState, a: FrontEndActions, selected: String,
     val itchSignedIn = owned.containsKey(Store.ITCH)
     val listed = librarySources(all, SessionPrefs.storesTabOrder(ctx))
     val sources = if (itchSignedIn && Store.ITCH.id !in listed) listed + Store.ITCH.id else listed
-    val source = LibraryView.source.takeIf { it == LIBRARY_ALL || it in sources } ?: LIBRARY_ALL
+    val source = LibraryView.source.takeIf { it == LIBRARY_ALL || it == LIBRARY_BY_STORE || it in sources } ?: LIBRARY_BY_STORE
     val q = LibraryView.query.trim().lowercase()
     val xboxFilter = if (source == Store.XBOX.id) XboxLibraryFilter.current else XboxLibraryFilter.ALL
     LaunchedEffect(source, itchSignedIn) { if (source == Store.ITCH.id && itchSignedIn) {
@@ -248,7 +253,7 @@ internal fun LibraryPage(s: FrontEndState, a: FrontEndActions, selected: String,
     val collection = if (source == Store.ITCH.id) ItchCollections.chosen() else null
     val pool = if (collection == null) all else collectionEntries(all, ItchCollections.gamesOf(collection.id).orEmpty())
     val matching = pool.filter {
-        (source == LIBRARY_ALL || it.source == source) && (q.isEmpty() || it.title.lowercase().contains(q)) && keepsXbox(xboxFilter, it)
+        (source == LIBRARY_ALL || source == LIBRARY_BY_STORE || it.source == source) && (q.isEmpty() || it.title.lowercase().contains(q)) && keepsXbox(xboxFilter, it)
     }
     val listUninstalled = if (collection == null) showUninstalled else collectionShows?.takeIf { it.first == collection.id }?.second ?: true
     val candidates = if (listUninstalled) matching else matching.filter { it.installed }
@@ -364,7 +369,7 @@ internal fun LibraryPage(s: FrontEndState, a: FrontEndActions, selected: String,
                 hiddenUninstalled = hiddenUninstalled,
                 onSource = { LibraryView.source = it },
                 onCycle = { step ->
-                    val ids = listOf(LIBRARY_ALL) + sources
+                    val ids = listOf(LIBRARY_BY_STORE, LIBRARY_ALL) + sources
                     LibraryView.source = ids[(ids.indexOf(source).coerceAtLeast(0) + step + ids.size) % ids.size]
                     cycled++
                 },
@@ -475,7 +480,19 @@ private fun LibraryGrid(
             }
         }
         val empty = R.string.stores_nothing_matches
-        if (visible.isEmpty() && hiddenUninstalled > 0) item(key = "browse-owned", span = { GridItemSpan(maxLineSpan) }) {
+        if (source == LIBRARY_BY_STORE && visible.isNotEmpty()) {
+            val groups = sources.mapNotNull { src -> visible.filter { it.source == src }.takeIf { it.isNotEmpty() }?.let { src to it } }
+            groups.forEachIndexed { index, (src, entries) ->
+                item(key = "section-$src", span = { GridItemSpan(maxLineSpan) }) {
+                    LibraryStoreSection(src, entries, tileWidth, capsules, firstSection = index == 0) { e, first ->
+                        val picker = s.shortcutPicker && e.game != null
+                        LibraryTile(e, capsules, first, Modifier, if (picker) ({ a.onSteamGame(e.game!!) }) else null, onOpen, showSource = false)
+                    }
+                }
+            }
+            if (!s.shortcutPicker && s.gameStoresEnabled) item(key = "connect-store", span = { GridItemSpan(maxLineSpan) }) { ConnectStoreButton() }
+        }
+        else if (visible.isEmpty() && hiddenUninstalled > 0) item(key = "browse-owned", span = { GridItemSpan(maxLineSpan) }) {
             Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth().padding(vertical = 32.dp)) {
                 Text(stringResource(R.string.library_no_installed_matches), fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 SecondaryButton(stringResource(R.string.library_browse_owned), modifier = Modifier.testTag("library-browse-owned")) { onShowUninstalled(true) }
@@ -546,11 +563,12 @@ private fun LibraryHeader(
 
 @Composable
 private fun LibraryFilters(sources: List<String>, source: String, onSource: (String) -> Unit) {
-    if (sources.size < 2) return
+    if (sources.isEmpty()) return
     Row(
         horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier.fillMaxWidth().padding(top = 4.dp, bottom = 2.dp).horizontalScroll(rememberScrollState()),
     ) {
+        SourceFilterChip(LIBRARY_BY_STORE, stringResource(R.string.library_by_store), source == LIBRARY_BY_STORE, dot = null) { onSource(LIBRARY_BY_STORE) }
         SourceFilterChip(LIBRARY_ALL, stringResource(R.string.stores_tab_all), source == LIBRARY_ALL, dot = null) { onSource(LIBRARY_ALL) }
         for (src in sources) {
             val store = Store.byId(src)
@@ -985,4 +1003,74 @@ private fun ViewButton(s: FrontEndState, a: FrontEndActions) {
         when (next) { "capsules" -> Icons.Filled.ViewModule; "list" -> Icons.Filled.ViewList; else -> Icons.Filled.GridView },
         "view",
     ) { a.onStoresView(next) }
+}
+
+/** Layout "Por loja": one row of covers per store with a link to that store, the Library's default view. */
+@Composable
+private fun LibraryStoreSection(
+    source: String, entries: List<LibraryEntry>, tileWidth: androidx.compose.ui.unit.Dp, capsules: Boolean, firstSection: Boolean,
+    tile: @Composable (LibraryEntry, Boolean) -> Unit,
+) {
+    val colors = MaterialTheme.colorScheme
+    val pal = LocalPalette.current
+    val show = LocalShowSection.current
+    val store = Store.byId(source)
+    val label = when {
+        source == Library.ADDED -> stringResource(R.string.library_filter_added)
+        store != null -> store.label
+        else -> sourceLabel(source)
+    }
+    val openStore: (() -> Unit)? = when {
+        source == Library.SOURCE_STEAM -> ({ PageReturn.from("games"); show("steam") })
+        store != null -> ({ StoresState.openStoreRequest = store.id; PageReturn.from("games"); show("stores") })
+        else -> null
+    }
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth().padding(top = 10.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+            Box(Modifier.size(10.dp).background(sourceColours(source).dot, CircleShape))
+            Text(label, fontSize = 17.sp, fontWeight = FontWeight.ExtraBold, color = colors.onBackground, maxLines = 1)
+            Text(pluralStringResource(R.plurals.mode_added_count, entries.size, entries.size), fontSize = 13.sp, color = colors.onSurfaceVariant, maxLines = 1)
+            Spacer(Modifier.weight(1f))
+            if (openStore != null) {
+                val src = remember { MutableInteractionSource() }
+                val hot = rememberHot(src)
+                Text(
+                    stringResource(R.string.library_open_store) + " ›", fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
+                    color = if (hot) colors.onBackground else pal.signal, maxLines = 1,
+                    modifier = Modifier.paneItem("libopen:$source").testTag("library-open-$source").heightIn(min = 44.dp)
+                        .clip(RoundedCornerShape(10.dp)).glideBorder(hot, RoundedCornerShape(10.dp), pal.signal, Color.Transparent)
+                        .hoverable(src).clickable(role = Role.Button, interactionSource = src, indication = LocalIndication.current, onClick = openStore)
+                        .controllerConfirm(onClick = openStore)
+                        .wrapContentHeight(Alignment.CenterVertically).padding(horizontal = 8.dp),
+                )
+            }
+        }
+        LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth().testTag("library-row-$source")) {
+            items(entries, key = { it.key }, contentType = { "game" }) { e ->
+                Box(Modifier.width(if (capsules) tileWidth * 0.8f else tileWidth)) { tile(e, firstSection && e === entries.first()) }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ConnectStoreButton() {
+    val colors = MaterialTheme.colorScheme
+    val pal = LocalPalette.current
+    val show = LocalShowSection.current
+    val src = remember { MutableInteractionSource() }
+    val hot = rememberHot(src)
+    val shape = RoundedCornerShape(14.dp)
+    val open = { PageReturn.from("games"); show("stores") }
+    Row(
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
+        modifier = Modifier.fillMaxWidth().padding(top = 18.dp).paneItem("btn:library-connect-store").testTag("library-connect-store")
+            .heightIn(min = 52.dp).clip(shape)
+            .border(1.dp, if (hot) pal.signal else pal.line2, shape)
+            .hoverable(src).clickable(role = Role.Button, interactionSource = src, indication = LocalIndication.current, onClick = open)
+            .controllerConfirm(onClick = open).padding(horizontal = 16.dp, vertical = 12.dp),
+    ) {
+        Icon(Icons.Filled.Add, null, tint = pal.signal, modifier = Modifier.size(20.dp))
+        Text(stringResource(R.string.library_connect_store), fontSize = 14.sp, fontWeight = FontWeight.Bold, color = colors.onBackground, maxLines = 1, overflow = TextOverflow.Ellipsis)
+    }
 }

@@ -158,6 +158,9 @@ internal fun StoresPage(s: FrontEndState, a: FrontEndActions, modifier: Modifier
         }
     }
     var chip by rememberSaveable { mutableStateOf(tabs.firstOrNull { it.shown }?.store?.id ?: Store.GOG.id) }
+    LaunchedEffect(StoresState.openStoreRequest) {
+        StoresState.openStoreRequest?.let { chip = it; StoresState.openStoreRequest = null }
+    }
     var arranging by remember { mutableStateOf(false) }
     val shownStores = tabs.filter { it.shown }.map { it.store }
     fun commitTabs() {

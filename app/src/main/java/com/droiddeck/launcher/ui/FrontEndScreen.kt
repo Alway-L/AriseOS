@@ -527,7 +527,7 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
     }
     LaunchedEffect(s.isHomeApp) { if (!s.isHomeApp && selected == "android-apps") selected = WORKSPACE_TAB }
     BackHandler(enabled = !processSettingsPageVisible && s.pageKey == null && selected in WORKSPACE_PAGES && Hops.origin?.page != selected) {
-        selected = WORKSPACE_TAB
+        selected = PageReturn.take() ?: WORKSPACE_TAB
     }
     LaunchedEffect(s.steamGames.isEmpty()) {
         if (s.steamGames.isEmpty() && selected.startsWith("app:") && GameRef.parse(selected).appId != null) selected = "games"

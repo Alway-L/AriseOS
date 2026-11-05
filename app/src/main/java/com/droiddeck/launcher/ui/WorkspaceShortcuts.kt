@@ -48,6 +48,13 @@ internal val WORKSPACE_PAGES = setOf("steam", "stores", "android-apps")
 
 internal const val WORKSPACE_TAB = "desktop"
 
+/** Where Back returns from a page opened outside its own tab, such as a store opened from the Library. */
+internal object PageReturn {
+    private var to: String? = null
+    fun from(page: String) { to = page }
+    fun take(): String? = to.also { to = null }
+}
+
 @Composable
 internal fun WorkspaceShortcuts(s: FrontEndState) {
     val show = LocalShowSection.current
