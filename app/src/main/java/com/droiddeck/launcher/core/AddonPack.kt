@@ -39,6 +39,8 @@ internal class AddonPack(
     private val tag get() = "pack-$name-${sha256.take(16)}"
     private val urls get() = listOfNotNull(
         "https://github.com/$REPO/releases/download/$tag/$name.tar.zst",
+        // AriseOS publishes the packs its own builds changed (e.g. proot) under the same content-addressed tag.
+        "https://github.com/$ARISE_REPO/releases/download/$tag/$name.tar.zst",
         BuildConfig.PR_NUMBER.takeIf { it > 0 }?.let { "https://github.com/$PR_REPO/releases/download/pr-$it/$tag.tar.zst" },
     )
 
@@ -142,6 +144,7 @@ internal class AddonPack(
         private const val TAG = "AddonPack"
         private const val REPO = "Droid-Deck/DroidDeck-Components"
         private const val PR_REPO = "Droid-Deck/DroidDeck-CI"
+        private const val ARISE_REPO = "Alway-L/AriseOS"
         const val COMPLETE = ".complete"
         private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 

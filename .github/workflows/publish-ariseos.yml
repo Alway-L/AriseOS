@@ -71,10 +71,35 @@ jobs:
           [ -n "$id" ] || { echo "::error::nenhum build assinado de main encontrado: rode o Build APK primeiro"; exit 1; }
           echo "Usando o build $id (main ${sha::7})" >> "$GITHUB_STEP_SUMMARY"
           echo "BUILD_SHA=$sha" >> "$GITHUB_ENV"
+          echo "BUILD_RUN=$id" >> "$GITHUB_ENV"
           git fetch -q --depth 1 origin "$sha"
           git checkout -q "$sha"
           gh run download "$id" -R "$GITHUB_REPOSITORY" -n droiddeck-signed-standard -D signed
           ls -la signed
+
+      - name: Publicar os pacotes (packs) que este build mudou
+        if: inputs.channel != 'promover'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          # The APK pins each add-on pack by its SHA-256 and downloads it from pack-<name>-<sha16>, first on
+          # DroidDeck-Components, then here. A pack AriseOS changed (e.g. proot) exists only here.
+          gh run download "$BUILD_RUN" -R "$GITHUB_REPOSITORY" -n droiddeck-packs -D packs
+          for pack in packs/*.tar.zst; do
+            name=$(basename "$pack" .tar.zst)
+            sha=$(sha256sum "$pack" | cut -c1-16)
+            tag="pack-$name-$sha"
+            if curl -fsIL -o /dev/null "https://github.com/Droid-Deck/DroidDeck-Components/releases/download/$tag/$name.tar.zst"; then
+              echo "$tag: already on DroidDeck-Components"
+            elif gh release view "$tag" -R "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+              echo "$tag: already here"
+            else
+              gh release create "$tag" "$pack" -R "$GITHUB_REPOSITORY" --target "$BUILD_SHA" --prerelease --latest=false \
+                --title "$tag" --notes "Add-on pack $name, used by AriseOS builds (content-addressed)."
+              echo "$tag: published here" >> "$GITHUB_STEP_SUMMARY"
+            fi
+          done
 
       - name: Criar a release e o catálogo
         if: inputs.channel != 'promover'
