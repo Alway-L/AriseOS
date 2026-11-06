@@ -20,7 +20,9 @@ object SwitchPresets {
     // v3: once more, for configs the false "broken Vulkan" fallback had switched to OpenGL before the fix.
     // v4: Dynarmic instead of NCE. In the Linux runtime the 12 GiB host memory a Switch 2 game needs cannot be
     // mapped (mmap ENOMEM), and NCE then still runs without fastmem and the game hangs right after it starts.
-    private const val MARKER = ".ariseos-preset-4"
+    // v5: NCE again. AriseOS's own builds now get the 256 GiB fastmem block (arise_patches.py), which NCE needs;
+    // without it NCE hung, so v4 had moved to Dynarmic (much slower: the game code is recompiled).
+    private const val MARKER = ".ariseos-preset-5"
 
     /** (key, value) in the [Renderer] section. */
     internal val RENDERER = listOf(
@@ -36,8 +38,8 @@ object SwitchPresets {
         "anti_aliasing" to "1",              // FXAA
     )
 
-    /** (key, value) in the [Cpu] section: Dynarmic (0), which works without the fastmem arena. */
-    internal val CPU = listOf("cpu_backend" to "0")
+    /** (key, value) in the [Cpu] section: NCE (1), the game's ARM code straight on the phone's CPU. */
+    internal val CPU = listOf("cpu_backend" to "1")
 
     /** (key, value) in the [Debugging] section. */
     internal val DEBUGGING = listOf("perform_vulkan_check" to "false")
