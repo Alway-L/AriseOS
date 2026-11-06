@@ -28,10 +28,14 @@ object ExtraEmulators {
             "lichii", "Lichii", "Switch / Switch 2 · ARM64", "zortos293/Lichii", R.drawable.emu_lichii,
             UserApps.Source.GitHubAppImage("zortos293/Lichii", Regex("^lichii-linux-aarch64-pgo\\.AppImage$"), Regex("^build-"), previews = true),
         ),
-        // Orchid (Eglantine fork, very experimental) only ships x86-64 Linux builds, so it runs through FEX.
+        // Orchid (Eglantine fork, very experimental): its CI also builds linux-aarch64, which runs natively (no FEX,
+        // no double translation); the x86-64 build through FEX is only the fallback when a release lacks it.
         Extra(
-            "orchid", "Orchid", "Switch 2 · experimental, x86-64 via FEX", "MythosOfs/Orchid", R.drawable.emu_orchid,
-            UserApps.Source.GitHubAppImage("MythosOfs/Orchid", Regex("^orchid-.*-linux-x86_64-pgo\\.AppImage$"), Regex("^v")),
+            "orchid", "Orchid", "Switch 2 · experimental", "MythosOfs/Orchid", R.drawable.emu_orchid,
+            UserApps.Source.GitHubAppImage(
+                "MythosOfs/Orchid", Regex("^orchid-.*-linux-x86_64-pgo\\.AppImage$"), Regex("^v"),
+                preferred = Regex("^orchid-.*-linux-aarch64(-pgo)?\\.AppImage$"),
+            ),
         ),
     )
 

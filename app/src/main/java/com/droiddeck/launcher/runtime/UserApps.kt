@@ -60,7 +60,8 @@ object UserApps {
         /** A release archive (tar.gz or zip) holding a program folder, started through [entry] inside it. */
         class GitHubArchive(val repo: String, val asset: Regex, val entry: String) : Source()
         /** An AppImage picked by name from the newest release whose tag matches, previews included when asked. */
-        class GitHubAppImage(val repo: String, val asset: Regex, val tag: Regex? = null, val previews: Boolean = false) : Source()
+        /** [preferred] is tried first (an ARM64 build that runs natively), then [asset] (e.g. x86-64 through FEX). */
+        class GitHubAppImage(val repo: String, val asset: Regex, val tag: Regex? = null, val previews: Boolean = false, val preferred: Regex? = null) : Source()
         class Flatpak(val id: String) : Source()
         class FlatpakBundle(val file: File) : Source()
     }
@@ -365,7 +366,8 @@ object UserApps {
         context: Context, s: Source.GitHubAppImage, name: String?, icon: File?, onProgress: (String, Int) -> Unit,
     ): String? {
         onProgress(context.getString(R.string.user_apps_github_checking, s.repo), -1)
-        val release = latestArchive(context, s.repo, s.asset, s.previews, s.tag)
+        val release = s.preferred?.let { latestArchive(context, s.repo, it, s.previews, s.tag) }
+            ?: latestArchive(context, s.repo, s.asset, s.previews, s.tag)
             ?: return context.getString(R.string.user_apps_github_unreachable, s.repo)
         return withDownload(context, release, onProgress) { file ->
             AppImageManager.import(context, file, name ?: s.repo.substringAfter('/'), icon, githubMeta(s.repo, release)) { onProgress(it, -1) }
