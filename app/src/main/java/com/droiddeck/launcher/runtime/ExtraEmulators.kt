@@ -22,11 +22,17 @@ object ExtraEmulators {
         ),
         Extra(
             "eglantine", "Eglantine", "Switch 2 · ARM64", "Djihads80/Eglantine", R.drawable.emu_eglantine,
-            UserApps.Source.GitHubAppImage("Djihads80/Eglantine", Regex("^eglantine-linux-aarch64-pgo\\.AppImage$"), Regex("^(v|daily-)"), previews = true),
+            UserApps.Source.GitHubAppImage(
+                "Djihads80/Eglantine", Regex("^eglantine-linux-aarch64-pgo\\.AppImage$"), Regex("^(v|daily-)"), previews = true,
+                preferred = listOf(Regex("^eglantine-linux-aarch64\\.AppImage$")),
+            ),
         ),
         Extra(
             "lichii", "Lichii", "Switch / Switch 2 · ARM64", "zortos293/Lichii", R.drawable.emu_lichii,
-            UserApps.Source.GitHubAppImage("zortos293/Lichii", Regex("^lichii-linux-aarch64-pgo\\.AppImage$"), Regex("^build-"), previews = true),
+            UserApps.Source.GitHubAppImage(
+                "zortos293/Lichii", Regex("^lichii-linux-aarch64-pgo\\.AppImage$"), Regex("^build-"), previews = true,
+                preferred = listOf(Regex("^lichii-linux-aarch64\\.AppImage$")),
+            ),
         ),
         // Orchid (Eglantine fork, very experimental): its CI also builds linux-aarch64, which runs natively (no FEX,
         // no double translation); the x86-64 build through FEX is only the fallback when a release lacks it.
@@ -34,7 +40,9 @@ object ExtraEmulators {
             "orchid", "Orchid", "Switch 2 · experimental", "MythosOfs/Orchid", R.drawable.emu_orchid,
             UserApps.Source.GitHubAppImage(
                 "MythosOfs/Orchid", Regex("^orchid-.*-linux-x86_64-pgo\\.AppImage$"), Regex("^v"),
-                preferred = Regex("^orchid-.*-linux-aarch64(-pgo)?\\.AppImage$"),
+                // The plain build first: the -pgo one is tuned with a profile recorded on x86-64, and its ARM64 build
+                // failed to unpack the game's code (NSO decompression) where the x86-64 build loaded it.
+                preferred = listOf(Regex("^orchid-.*-linux-aarch64\\.AppImage$"), Regex("^orchid-.*-linux-aarch64-pgo\\.AppImage$")),
             ),
         ),
     )
