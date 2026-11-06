@@ -86,6 +86,7 @@ uint64_t arise_hint(int i) {
 }
 
 static void *reserved;
+static void *handed; /* the block the emulator holds now */
 static void *(*real_mmap)(void *, size_t, int, int, int, off_t);
 
 /* Prints what holds the 64 GiB - 512 GiB range, so a failure can be read from the session log. */
@@ -152,9 +153,30 @@ void *mmap(void *addr, size_t len, int prot, int flags, int fd, off_t off) {
     if (!real_mmap) real_mmap = (void *(*)(void *, size_t, int, int, int, off_t))dlsym(RTLD_NEXT, "mmap");
     if (reserved && addr == reserved && len == VA_SIZE && !(flags & MAP_FIXED)) {
         void *got = real_mmap(addr, len, prot, flags | MAP_FIXED, fd, off);
-        if (got == addr) reserved = NULL;
+        if (got == addr) {
+            reserved = NULL;
+            handed = got;
+            fprintf(stderr, "arise-eden: handed the 256 GiB range at %p to the emulator\n", got);
+        }
         return got;
     }
     return real_mmap(addr, len, prot, flags, fd, off);
 }
 void *mmap64(void *addr, size_t len, int prot, int flags, int fd, off_t off) __attribute__((alias("mmap")));
+
+/* The emulator rebuilds its memory when a Switch 2 game needs 12 GiB instead of 8 and releases the block first;
+ * given back to the kernel, the range was partly taken before it asked again. Hold it again instead. */
+int munmap(void *addr, size_t len) {
+    static int (*real_munmap)(void *, size_t);
+    if (!real_munmap) real_munmap = (int (*)(void *, size_t))dlsym(RTLD_NEXT, "munmap");
+    if (handed && addr == handed && len == VA_SIZE && real_mmap) {
+        void *got = real_mmap(addr, len, PROT_NONE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_NORESERVE | MAP_FIXED, -1, 0);
+        if (got == addr) {
+            handed = NULL;
+            reserved = got;
+            fprintf(stderr, "arise-eden: the emulator released its 256 GiB range; holding it at %p again\n", got);
+            return 0;
+        }
+    }
+    return real_munmap(addr, len);
+}
