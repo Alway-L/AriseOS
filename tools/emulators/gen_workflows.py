@@ -43,7 +43,7 @@ src=$(ls -1 *.AppImage | head -1)
 test -s "$src"
 asset="{key}-linux-aarch64.AppImage"
 cp "$src" "$asset"
-tag="{key}-${{{{ inputs.ref }}}}"
+tag="{key}-${{{{ inputs.ref }}}}-b${{{{ github.run_number }}}}"
 if gh release view "$tag" -R "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
   gh release upload "$tag" "$asset" -R "$GITHUB_REPOSITORY" --clobber
 else
