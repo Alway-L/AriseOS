@@ -71,7 +71,8 @@ patch(
 #include <cstring>
 // AriseOS: early 256 GiB reservation (see tools/emulators/arise_patches.py). Zero-initialised globals, so the
 // constructor below cannot be undone by later dynamic initialisation.
-static constexpr size_t AriseReserveSize = 1ULL << 38;
+// 256 GiB plus room: the emulator asks for its block plus a 2 MiB alignment page (0x4000200000).
+static constexpr size_t AriseReserveSize = (1ULL << 38) + (64ULL << 20);
 static uintptr_t g_arise_reserved = 0;
 static bool g_arise_reserved_in_use = false;
 #ifdef ARCHITECTURE_arm64
