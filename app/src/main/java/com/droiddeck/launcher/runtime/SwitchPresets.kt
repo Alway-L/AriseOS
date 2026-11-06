@@ -43,7 +43,7 @@ object SwitchPresets {
     internal val DEBUGGING = listOf("perform_vulkan_check" to "false")
 
     /** AppImage id under /opt/appimages/user → config folder name. */
-    private val EMULATORS = mapOf("eglantine" to "eglantine", "lichii" to "eden", "orchid" to "eden")
+    private val EMULATORS = mapOf("eglantine" to "eglantine", "lichii" to "eden", "orchid" to "eden", "lichii-frizti" to "eden")
 
     fun apply(root: File) {
         for ((id, dir) in EMULATORS) {

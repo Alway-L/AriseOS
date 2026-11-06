@@ -34,6 +34,14 @@ object ExtraEmulators {
                 preferred = listOf(Regex("^lichii-linux-aarch64\\.AppImage$")),
             ),
         ),
+        // Frizti's Lichii fork carries Ocarina of Time fixes but publishes Windows builds only; AriseOS builds its
+        // Linux ARM64 AppImage (.github/workflows/build-lichii-frizti.yml) and attaches it to a release here.
+        Extra(
+            "lichii-frizti", "Lichii Frizti", "Switch 2 · fixes de Zelda OoT · ARM64", "Alway-L/AriseOS", R.drawable.emu_lichii,
+            UserApps.Source.GitHubAppImage(
+                "Alway-L/AriseOS", Regex("^lichii-frizti-linux-aarch64\\.AppImage$"), Regex("^lichii-frizti-"), previews = true,
+            ),
+        ),
         // Orchid (Eglantine fork, very experimental): its CI also builds linux-aarch64, which runs natively (no FEX,
         // no double translation); the x86-64 build through FEX is only the fallback when a release lacks it.
         Extra(
