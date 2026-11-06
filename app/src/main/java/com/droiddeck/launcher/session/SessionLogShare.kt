@@ -50,7 +50,7 @@ object SessionLogShare {
         val logs = LinuxRuntime.logDir(context)
         val stores = recent(File(logs, STORES_DIR))
         val tools = recent(File(logs, SessionPaths.TOOLS_DIR))
-        val battleNet = battleNetLogs(context)
+        val battleNet = battleNetLogs(context) + emulatorLogs(context)
         val total = (files + live + stores + tools + battleNet.map { it.second }).sumOf { it.length() }.coerceAtLeast(1L)
         var done = 0L
         var shown = -1
@@ -64,7 +64,7 @@ object SessionLogShare {
             live.forEach { f -> addEntry(z, folder.name + "/steam/" + f.name, f); advance(f) }
             stores.forEach { f -> addEntry(z, "$STORES_DIR/" + f.name, f); advance(f) }
             tools.forEach { f -> addEntry(z, SessionPaths.TOOLS_DIR + "/" + f.name, f); advance(f) }
-            battleNet.forEach { (name, f) -> addEntry(z, "$BATTLENET_DIR/$name", f); advance(f) }
+            battleNet.forEach { (name, f) -> addEntry(z, if (name.startsWith("emulators/")) name else "$BATTLENET_DIR/$name", f); advance(f) }
         }
         return zip
     }
@@ -101,6 +101,18 @@ object SessionLogShare {
             newest("client", listOf(File(drive, "users/steamuser/AppData/Local/Battle.net/Logs")), 6) +
             newest("agent", listOf(File(data, "Agent/Logs")) + logsUnder(File(data, "Agent"), "Agent."), 10, byDir = true) +
             newest("setup", logsUnder(File(data, "Setup"), ""), 3, byDir = true)
+    }
+
+    /** AriseOS: the Eden-family Switch emulators' own logs and settings (Eglantine, Lichii, Orchid). */
+    private fun emulatorLogs(context: Context): List<Pair<String, File>> {
+        val home = File(LinuxRuntime.rootDir(context), "root")
+        val since = System.currentTimeMillis() - RECENT_DAYS * 86_400_000L
+        return listOf("eden", "eglantine").flatMap { dir ->
+            val logs = File(home, ".local/share/$dir/log").listFiles { f -> f.isFile && f.lastModified() >= since && f.length() <= STEAM_LOG_MAX_BYTES }
+                .orEmpty().sortedByDescending { it.lastModified() }.take(3).map { "emulators/$dir/${it.name}" to it }
+            val config = File(home, ".config/$dir/qt-config.ini").takeIf { it.isFile }?.let { listOf("emulators/$dir/qt-config.ini" to it) }.orEmpty()
+            logs + config
+        }
     }
 
     private fun newest(folder: String, dirs: List<File>, count: Int, names: Set<String>? = null, byDir: Boolean = false): List<Pair<String, File>> {
