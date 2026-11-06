@@ -49,6 +49,25 @@ jobs:
           sed -i '/^#undef CreateEvent/r /tmp/x11-undefs.h' "$f"
         fi
         grep -n -A3 'AriseOS: X11 error codes' "$f"
+        # Address space: let the kernel pick a free place for the 256 GiB block when the 64 fixed hints are taken
+        # (the phone's Linux runtime), instead of failing and hanging the game.
+        python3 - <<'PY'
+        p = "src/common/host_memory.cpp"
+        s = open(p).read()
+        old = "    return MAP_FAILED;\n}\n"
+        if "AriseOS: none of the 64" not in s and old in s:
+            s = s.replace(old, """    // AriseOS: none of the 64 places was free (the phone's Linux runtime); let the kernel choose one.
+            void* any = mmap(nullptr, virtual_size, PROT_READ | PROT_WRITE,
+                             MAP_PRIVATE | MAP_ANONYMOUS | MAP_NORESERVE | MAP_NOCORE, -1, 0);
+            if (any != MAP_FAILED) {
+                LOG_WARNING(HW_Memory, "AriseOS: no free place among the 64 hints; using {} chosen by the kernel", any);
+            }
+            return any;
+        }
+        """, 1)
+            open(p, "w").write(s)
+            print("patched host_memory.cpp")
+        PY
     - name: Install Linux dependencies
       if: startsWith(matrix.platform, 'linux')
       shell: bash

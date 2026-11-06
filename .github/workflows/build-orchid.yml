@@ -1,0 +1,484 @@
+# AriseOS: builds Orchid for Linux ARM64 from its own source, with AriseOS patches, and attaches the AppImage
+# to a release here (the upstream ARM64 binaries of some versions cannot decompress Switch 2 game code).
+name: Build Orchid (AriseOS) for Linux ARM64
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Tag of MythosOfs/Orchid
+        required: true
+        default: v0.8.1
+permissions:
+  contents: write
+jobs:
+  build:
+    name: Orchid linux-aarch64
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 150
+    env:
+      BUILD_TAG: ${{ inputs.ref }}
+      ASSET_NAME: orchid-${{ inputs.ref }}-${{ matrix.platform }}
+      CCACHE_DIR: ${{ github.workspace }}/.ccache
+      CCACHE_MAXSIZE: 3000M
+      SCCACHE_DIR: ${{ github.workspace }}/.sccache
+      SCCACHE_CACHE_SIZE: 3G
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+        - platform: linux-aarch64
+          runner: ubuntu-24.04-arm
+    steps:
+    - name: Check out source
+      uses: actions/checkout@v5
+      with:
+        repository: MythosOfs/Orchid
+        ref: ${{ inputs.ref }}
+    - name: AriseOS patches
+      shell: bash
+      run: |
+        set -euo pipefail
+        python3 - <<'PY'
+        import re
+        # 1. Address space: the 256 GiB block is tried at 64 fixed "random" places between 64 and 256 GiB; in the
+        #    phone's Linux runtime they can all be taken, and the game then hung. Let the kernel pick a free place.
+        p = "src/common/host_memory.cpp"
+        s = open(p).read()
+        old = "    return MAP_FAILED;\n}\n"
+        assert old in s, "ChooseVirtualBase end not found"
+        s = s.replace(old, """    // AriseOS: none of the 64 places was free (the phone's Linux runtime); let the kernel choose one.
+            void* any = mmap(nullptr, virtual_size, PROT_READ | PROT_WRITE,
+                             MAP_PRIVATE | MAP_ANONYMOUS | MAP_NORESERVE | MAP_NOCORE, -1, 0);
+            if (any != MAP_FAILED) {
+                LOG_WARNING(HW_Memory, "AriseOS: no free place among the 64 hints; using {} chosen by the kernel", any);
+            }
+            return any;
+        }
+        """, 1)
+        open(p, "w").write(s)
+        # 2. Say why a ZBIC (zstd) decompression failed instead of only "got -1".
+        p = "src/common/zbic_compression.cpp"
+        s = open(p).read()
+        old = "    if (ZSTD_isError(res)) {\n        return -1;"
+        assert old in s, "ZBIC error path not found"
+        s = s.replace(old, "    if (ZSTD_isError(res)) {\n        std::fprintf(stderr, \"AriseOS: ZBIC decompression failed: %s (src %zu bytes, dst %zu bytes)\\n\", ZSTD_getErrorName(res), src.size(), dst.size());\n        return -1;", 1)
+        if "#include <cstdio>" not in s:
+            s = s.replace("#include <cstring>", "#include <cstdio>\n#include <cstring>", 1)
+        open(p, "w").write(s)
+        PY
+        git diff --stat
+    - name: Cache apt packages
+      if: startsWith(matrix.platform, 'linux')
+      uses: actions/cache@v5
+      with:
+        path: ${{ runner.temp }}/apt-debs
+        key: apt-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('.github/workflows/release-binaries.yml') }}
+        restore-keys: |
+          apt-${{ runner.os }}-${{ runner.arch }}-
+    - name: Install Linux dependencies
+      if: startsWith(matrix.platform, 'linux')
+      shell: bash
+      timeout-minutes: 25
+      run: |
+        set -euo pipefail
+        debs="$RUNNER_TEMP/apt-debs"
+        mkdir -p "$debs"
+        if compgen -G "$debs/*.deb" > /dev/null; then
+          sudo cp "$debs"/*.deb /var/cache/apt/archives/
+        fi
+        apt_opts=(-o Acquire::Retries=3 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30)
+        packages=(
+          autoconf cmake g++ gcc git glslang-tools libglu1-mesa-dev
+          libpulse-dev libtool libudev-dev libxkbcommon-x11-0
+          mesa-common-dev nasm ninja-build libavfilter-dev libavcodec-dev
+          libswscale-dev pkg-config zlib1g-dev libva-dev libvdpau-dev
+          spirv-tools spirv-headers libusb-1.0-0-dev
+          libboost-dev libboost-fiber-dev libboost-context-dev
+          libopus-dev libasound2-dev ccache
+          libxcb-cursor0 libxcb-icccm4 libxcb-image0
+          libxcb-keysyms1 libxcb-randr0 libxcb-render-util0 libxcb-shape0 libxcb-xinerama0 libxcb-xkb1
+        )
+        for attempt in 1 2 3; do
+          if [ "$attempt" -gt 1 ]; then
+            sudo sed -i 's|http://azure\.archive\.ubuntu\.com|http://archive.ubuntu.com|g' \
+              /etc/apt/sources.list.d/*.sources /etc/apt/sources.list 2> /dev/null || true
+          fi
+          if sudo timeout 180 apt-get "${apt_opts[@]}" update &&
+             sudo timeout 420 apt-get "${apt_opts[@]}" install -y --no-install-recommends "${packages[@]}"; then
+            # Keep exactly the packages of this install for the cache.
+            rm -f "$debs"/*.deb
+            cp /var/cache/apt/archives/*.deb "$debs"/
+            exit 0
+          fi
+          echo "::warning::apt attempt $attempt failed or timed out"
+          sleep 15
+        done
+        exit 1
+    - name: Install Qt on Linux x86_64
+      if: startsWith(matrix.platform, 'linux') && runner.arch != 'ARM64'
+      uses: jurplel/install-qt-action@v4
+      with:
+        version: 6.8.3
+        host: linux
+        target: desktop
+        arch: linux_gcc_64
+        modules: qtcharts
+        cache: true
+    - name: Install Qt on Linux ARM64
+      if: startsWith(matrix.platform, 'linux') && runner.arch == 'ARM64'
+      uses: jurplel/install-qt-action@v4
+      with:
+        version: 6.8.3
+        host: linux_arm64
+        target: desktop
+        arch: linux_gcc_arm64
+        modules: qtcharts
+        cache: true
+    - name: Install macOS dependencies
+      if: runner.os == 'macOS'
+      shell: bash
+      run: |
+        test "$(uname -m)" = arm64
+        brew install autoconf automake boost ccache cmake ffmpeg fmt glslang \
+          libtool libusb lz4 ninja nlohmann-json openssl@3 pkgconf sdl3 \
+          speexdsp zlib zstd
+    - name: Install Qt on macOS
+      if: runner.os == 'macOS'
+      uses: jurplel/install-qt-action@v4
+      with:
+        version: 6.8.3
+        host: mac
+        target: desktop
+        arch: clang_64
+        modules: qtcharts
+        cache: true
+    - name: Cache clang for PGO
+      if: startsWith(matrix.platform, 'linux') && matrix.pgo
+      uses: actions/cache@v5
+      with:
+        path: ${{ runner.temp }}/llvm
+        key: pgo-llvm-${{ env.PGO_LLVM_VERSION }}-${{ runner.os }}-${{ runner.arch }}
+    - name: Install clang for PGO
+      if: startsWith(matrix.platform, 'linux') && matrix.pgo
+      shell: bash
+      run: |
+        set -euo pipefail
+        llvm="$RUNNER_TEMP/llvm"
+        if [ ! -x "$llvm/bin/clang" ] || [ ! -x "$llvm/bin/ld.lld" ]; then
+          case "$RUNNER_ARCH" in
+            X64) arch=X64 ;;
+            ARM64) arch=ARM64 ;;
+            *) echo "::error::no LLVM release build for runner arch $RUNNER_ARCH"; exit 1 ;;
+          esac
+          name="LLVM-$PGO_LLVM_VERSION-Linux-$arch"
+          url="https://github.com/llvm/llvm-project/releases/download/llvmorg-$PGO_LLVM_VERSION/$name.tar.xz"
+          # Into a file first: a retried download piped straight into tar would hand it a broken
+          # stream.
+          curl -fL --retry 5 --retry-all-errors --retry-delay 10 -o "$RUNNER_TEMP/llvm.tar.xz" "$url"
+          rm -rf "$llvm" && mkdir -p "$llvm"
+          tar -xJf "$RUNNER_TEMP/llvm.tar.xz" -C "$llvm" --strip-components=1 --wildcards \
+            "$name/bin/clang" "$name/bin/clang++" "$name/bin/clang-[0-9]*" \
+            "$name/bin/lld" "$name/bin/ld.lld" "$name/lib/clang/*/include/*"
+          rm "$RUNNER_TEMP/llvm.tar.xz"
+        fi
+        echo "PGO_LLVM_ROOT=$llvm" >> "$GITHUB_ENV"
+        "$llvm/bin/clang" --version
+        "$llvm/bin/ld.lld" --version
+    - name: Check PGO profile
+      if: matrix.pgo
+      shell: bash
+      run: |
+        set -euo pipefail
+        test -s orchid.profdata
+    - name: Set up MSVC
+      if: matrix.platform == 'windows-x86_64'
+      uses: ilammy/msvc-dev-cmd@v1
+    - name: Install Qt on Windows
+      if: matrix.platform == 'windows-x86_64'
+      uses: jurplel/install-qt-action@v4
+      with:
+        version: 6.8.3
+        host: windows
+        target: desktop
+        arch: win64_msvc2022_64
+        modules: qtcharts
+        cache: true
+    - name: Install sccache on Windows
+      if: matrix.platform == 'windows-x86_64'
+      shell: pwsh
+      run: |
+        $zip = Join-Path $env:RUNNER_TEMP 'sccache.zip'
+        Invoke-WebRequest -MaximumRetryCount 5 -RetryIntervalSec 10 -OutFile $zip https://github.com/mozilla/sccache/releases/download/v0.19.0/sccache-v0.19.0-x86_64-pc-windows-msvc.zip
+        Expand-Archive $zip -DestinationPath (Join-Path $env:RUNNER_TEMP 'sccache')
+        $bin = (Get-ChildItem -Recurse -Filter sccache.exe (Join-Path $env:RUNNER_TEMP 'sccache')).DirectoryName
+        $bin | Out-File -Append -Encoding utf8 $env:GITHUB_PATH
+    - name: Install Vulkan SDK on Windows
+      if: matrix.platform == 'windows-x86_64'
+      shell: pwsh
+      run: ./tools/windows/install-vulkan-sdk.ps1
+    - name: Verify Vulkan tools on Windows
+      if: matrix.platform == 'windows-x86_64'
+      shell: pwsh
+      run: glslangValidator --version
+    - name: Set up MSYS2
+      id: msys2
+      if: matrix.mingw
+      continue-on-error: true
+      uses: msys2/setup-msys2@v2
+      with:
+        msystem: UCRT64
+        update: true
+        cache: true
+        install: git make autoconf libtool automake-wrapper patch jq pactoys ninja
+        pacboy: toolchain:p clang:p lld:p cmake:p python-pip:p qt6-base:p qt6-charts:p qt6-tools:p qt6-translations:p qt6-svg:p openssl:p boost:p fmt:p lz4:p nlohmann-json:p zlib:p zstd:p libiconv:p ffmpeg:p
+          pkgconf:p vulkan-memory-allocator:p vulkan-devel:p glslang:p enet:p opus:p libusb:p unordered_dense:p jbigkit:p xz:p libdeflate:p bzip2:p lerc:p graphite2:p libwebp:p libtiff:p brotli:p ccache:p
+    - name: Set up MSYS2 (retry)
+      if: matrix.mingw && steps.msys2.outcome == 'failure'
+      uses: msys2/setup-msys2@v2
+      with:
+        msystem: UCRT64
+        update: true
+        cache: true
+        install: git make autoconf libtool automake-wrapper patch jq pactoys ninja
+        pacboy: toolchain:p clang:p lld:p cmake:p python-pip:p qt6-base:p qt6-charts:p qt6-tools:p qt6-translations:p qt6-svg:p openssl:p boost:p fmt:p lz4:p nlohmann-json:p zlib:p zstd:p libiconv:p ffmpeg:p
+          pkgconf:p vulkan-memory-allocator:p vulkan-devel:p glslang:p enet:p opus:p libusb:p unordered_dense:p jbigkit:p xz:p libdeflate:p bzip2:p lerc:p graphite2:p libwebp:p libtiff:p brotli:p ccache:p
+    - name: Cache CPM downloads
+      uses: actions/cache@v5
+      with:
+        path: .cache/cpm
+        key: cpm-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('cpmfile.json', 'CMakeLists.txt', 'src/**/CMakeLists.txt') }}
+        restore-keys: |
+          cpm-${{ runner.os }}-${{ runner.arch }}-
+    - name: Cache compiler objects
+      uses: actions/cache@v5
+      with:
+        path: |
+          .ccache
+          .sccache
+        key: objects-${{ matrix.platform }}-sha-${{ github.sha }}
+        restore-keys: |
+          objects-${{ matrix.platform }}-sha-
+    - name: Configure Linux
+      if: startsWith(matrix.platform, 'linux')
+      shell: bash
+      run: |
+        set -euo pipefail
+        flags=(
+          -DCMAKE_BUILD_TYPE=Release
+          -DBUILD_TESTING=OFF
+          -DYUZU_TESTS=OFF
+          -DYUZU_CMD=ON
+          -DYUZU_ROOM=OFF
+          -DYUZU_ROOM_STANDALONE=OFF
+          -DYUZU_USE_BUNDLED_QT=OFF
+          "-DCMAKE_PREFIX_PATH=$QT_ROOT_DIR"
+          -DYUZU_USE_BUNDLED_SDL3=ON
+          -DVulkanHeaders_FORCE_BUNDLED=ON
+          -DVulkanUtilityLibraries_FORCE_BUNDLED=ON
+          -DENABLE_UPDATE_CHECKER=OFF
+          "-DORCHID_UPDATE_REPO=$GITHUB_REPOSITORY"
+          "-DORCHID_BUILD_TAG=$BUILD_TAG"
+          "-DORCHID_BUILD_PLATFORM=${{ matrix.platform }}"
+          -DUSE_DISCORD_PRESENCE=OFF
+          -DUSE_CCACHE=ON
+        )
+        if [ '${{ matrix.pgo }}' = 'true' ]; then
+          # Same flags Eden's CI passes for its clang PGO build.
+          profile="-fprofile-use=$PWD/orchid.profdata -Wno-backend-plugin \
+            -Wno-profile-instr-unprofiled -Wno-profile-instr-out-of-date"
+          flags+=(
+            "-DCMAKE_C_COMPILER=$PGO_LLVM_ROOT/bin/clang"
+            "-DCMAKE_CXX_COMPILER=$PGO_LLVM_ROOT/bin/clang++"
+            "-DCMAKE_EXE_LINKER_FLAGS=-B$PGO_LLVM_ROOT/bin -fuse-ld=lld"
+            "-DCMAKE_C_FLAGS=$profile"
+            "-DCMAKE_CXX_FLAGS=$profile"
+          )
+        fi
+        cmake -S . -B build/release -G Ninja "${flags[@]}"
+    - name: Configure macOS ARM
+      if: runner.os == 'macOS'
+      shell: bash
+      run: cmake -S . -B build/release -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_OSX_ARCHITECTURES=arm64 -DCMAKE_OSX_DEPLOYMENT_TARGET=15.0 -DBUILD_TESTING=OFF -DYUZU_TESTS=OFF -DYUZU_CMD=ON -DYUZU_ROOM=OFF
+        -DYUZU_ROOM_STANDALONE=OFF -DYUZU_USE_BUNDLED_QT=OFF "-DCMAKE_PREFIX_PATH=$QT_ROOT_DIR;$(brew --prefix)" "-DOPENSSL_ROOT_DIR=$(brew --prefix openssl@3)" -DYUZU_USE_BUNDLED_SDL3=OFF -DYUZU_USE_BUNDLED_MOLTENVK=ON
+        -DVulkanHeaders_FORCE_BUNDLED=ON -DVulkanUtilityLibraries_FORCE_BUNDLED=ON -DENABLE_UPDATE_CHECKER=ON "-DORCHID_UPDATE_REPO=$GITHUB_REPOSITORY" "-DORCHID_BUILD_TAG=$BUILD_TAG" "-DORCHID_BUILD_PLATFORM=${{
+        matrix.platform }}" -DUSE_DISCORD_PRESENCE=OFF -DUSE_CCACHE=ON
+    - name: Configure Windows
+      if: matrix.platform == 'windows-x86_64'
+      shell: bash
+      run: cmake -S . -B build/release -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF -DYUZU_TESTS=OFF -DYUZU_CMD=ON -DYUZU_ROOM=OFF -DYUZU_ROOM_STANDALONE=OFF -DYUZU_USE_BUNDLED_QT=OFF -DYUZU_USE_BUNDLED_SDL3=ON
+        -DENABLE_UPDATE_CHECKER=ON "-DORCHID_UPDATE_REPO=$GITHUB_REPOSITORY" "-DORCHID_BUILD_TAG=$BUILD_TAG" "-DORCHID_BUILD_PLATFORM=${{ matrix.platform }}" -DUSE_DISCORD_PRESENCE=OFF -DCMAKE_C_COMPILER_LAUNCHER=sccache
+        -DCMAKE_CXX_COMPILER_LAUNCHER=sccache
+    - name: Configure MinGW PGO
+      if: matrix.mingw
+      shell: msys2 {0}
+      run: |
+        set -euo pipefail
+        profile="-fprofile-use=$(cygpath -m "$PWD/orchid.profdata") -Wno-backend-plugin \
+          -Wno-profile-instr-unprofiled -Wno-profile-instr-out-of-date"
+        cmake -S . -B build/release -G Ninja \
+          -DCMAKE_BUILD_TYPE=Release \
+          -DBUILD_TESTING=OFF \
+          -DYUZU_TESTS=OFF \
+          -DYUZU_CMD=ON \
+          -DYUZU_ROOM=OFF \
+          -DYUZU_ROOM_STANDALONE=OFF \
+          -DYUZU_USE_BUNDLED_QT=OFF \
+          -DYUZU_USE_BUNDLED_SDL3=ON \
+          -DYUZU_USE_BUNDLED_FFMPEG=OFF \
+          -DVulkanHeaders_FORCE_BUNDLED=ON \
+          -DVulkanUtilityLibraries_FORCE_BUNDLED=ON \
+          -DENABLE_UPDATE_CHECKER=ON \
+          "-DORCHID_UPDATE_REPO=$GITHUB_REPOSITORY" \
+          "-DORCHID_BUILD_TAG=$BUILD_TAG" \
+          "-DORCHID_BUILD_PLATFORM=${{ matrix.platform }}" \
+          -DUSE_DISCORD_PRESENCE=OFF \
+          -DUSE_CCACHE=ON \
+          -DCMAKE_C_COMPILER=clang \
+          -DCMAKE_CXX_COMPILER=clang++ \
+          -DCMAKE_EXE_LINKER_FLAGS=-fuse-ld=lld \
+          "-DCMAKE_C_FLAGS=$profile" \
+          "-DCMAKE_CXX_FLAGS=$profile"
+    - name: Verify MinGW AV1 decoder
+      if: matrix.mingw
+      shell: msys2 {0}
+      run: |
+        set -euo pipefail
+        probe_dir="$(cygpath -u "$RUNNER_TEMP")/orchid-ffmpeg-probe"
+        mkdir -p "$probe_dir"
+        clang tools/ci/ffmpeg_av1_probe.c -o "$probe_dir/ffmpeg-av1-probe.exe" \
+          $(pkg-config --cflags --libs libavcodec libavutil)
+        "$probe_dir/ffmpeg-av1-probe.exe"
+    - name: Build
+      if: ${{ ! matrix.mingw && runner.os != 'macOS' }}
+      shell: bash
+      run: |
+        cmake --build build/release --target yuzu yuzu-cmd --parallel
+        if command -v ccache > /dev/null; then ccache --show-stats; else sccache --show-stats; fi
+    - name: Build macOS ARM
+      if: runner.os == 'macOS'
+      shell: bash
+      run: |
+        cmake --build build/release --target yuzu yuzu-cmd --parallel 2 -- -k 0
+        ccache --show-stats
+    - name: Package and verify macOS app
+      if: runner.os == 'macOS'
+      shell: bash
+      run: sh tools/macos/package.sh build/release "$ASSET_NAME.zip"
+    - name: Build MinGW PGO
+      if: matrix.mingw
+      shell: msys2 {0}
+      run: |
+        cmake --build build/release --target yuzu yuzu-cmd --parallel
+        ccache --show-stats
+    - name: Stage third-party license notices
+      if: runner.os != 'macOS'
+      shell: bash
+      run: |
+        mkdir -p build/release/bin/licenses
+        cp -R dist/licenses/. build/release/bin/licenses/
+        cp LICENSE.txt build/release/bin/licenses/ffmpeg/COPYING.GPLv3
+    - name: Package Linux tar.gz
+      if: startsWith(matrix.platform, 'linux')
+      shell: bash
+      run: |
+        set -euo pipefail
+        test -x build/release/bin/orchid
+        test -x build/release/bin/eden-cli
+        strip build/release/bin/orchid build/release/bin/eden-cli
+        tar -czf "$ASSET_NAME.tar.gz" -C build/release/bin orchid eden-cli licenses
+        test -s "$ASSET_NAME.tar.gz"
+    - name: Package Linux AppImage
+      if: startsWith(matrix.platform, 'linux')
+      shell: bash
+      run: |
+        set -euo pipefail
+        test -x build/release/bin/orchid
+        test -x build/release/bin/eden-cli
+        tools="$RUNNER_TEMP/linuxdeploy"
+        mkdir -p "$tools"
+        arch=$(uname -m)
+        curl -fsSL -o "$tools/linuxdeploy-$arch.AppImage" \
+          "https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-$arch.AppImage"
+        curl -fsSL -o "$tools/linuxdeploy-plugin-qt-$arch.AppImage" \
+          "https://github.com/linuxdeploy/linuxdeploy-plugin-qt/releases/download/continuous/linuxdeploy-plugin-qt-$arch.AppImage"
+        chmod +x "$tools"/*.AppImage
+        # The desktop file names its icon dev.orchid.orchid.
+        icon="$RUNNER_TEMP/dev.orchid.orchid.png"
+        cp dist/Orchid.png "$icon"
+        export APPIMAGE_EXTRACT_AND_RUN=1
+        export QMAKE="$QT_ROOT_DIR/bin/qmake"
+        export LDAI_OUTPUT="$ASSET_NAME.AppImage"
+        export OUTPUT="$LDAI_OUTPUT"
+        export ARCH="$arch"
+        mkdir -p AppDir/usr/share/licenses/orchid
+        cp -R dist/licenses/. AppDir/usr/share/licenses/orchid/
+        "$tools/linuxdeploy-$arch.AppImage" --appdir AppDir \
+          --executable build/release/bin/orchid \
+          --executable build/release/bin/eden-cli \
+          --desktop-file dist/dev.eden_emu.eden.desktop \
+          --icon-file "$icon" \
+          --plugin qt \
+          --output appimage
+        test -s "$LDAI_OUTPUT"
+        ls -la "$LDAI_OUTPUT"
+    - name: Package Windows binary
+      if: matrix.platform == 'windows-x86_64'
+      shell: pwsh
+      run: |
+        foreach ($exe in 'orchid.exe', 'eden-cli.exe') {
+          if (-not (Test-Path "build/release/bin/$exe")) {
+            throw "build/release/bin/$exe was not produced"
+          }
+        }
+        windeployqt --release --no-translations build/release/bin/orchid.exe
+    - name: Package MinGW binary
+      if: matrix.mingw
+      shell: msys2 {0}
+      run: |
+        set -euo pipefail
+        export PATH="/ucrt64/bin:$PATH"
+        cd build/release/bin
+        test -f orchid.exe
+        test -f eden-cli.exe
+        windeployqt6 --no-translations --no-compiler-runtime --no-opengl-sw \
+          --no-system-dxc-compiler --no-system-d3d-compiler orchid.exe
+        deps() {
+          objdump -p "$1" | awk '/DLL Name:/ {print $3}' | while read -r dll; do
+            [ -z "$dll" ] && continue
+            source=$(command -v "$dll" 2>/dev/null || true)
+            [ -z "$source" ] && continue
+            # The system DLLs ship with Windows, so they never need bundling.
+            case "$source" in
+              *System32* | *SysWOW64*) continue ;;
+            esac
+            if [ ! -f "$dll" ]; then
+              cp "$source" "$dll"
+              deps "$source"
+            fi
+          done
+        }
+        for exe in orchid.exe eden-cli.exe; do
+          deps "$exe"
+        done
+        find . -name '*.dll' | while read -r dll; do
+          deps "$dll"
+        done
+    - name: Publish the AppImage on AriseOS
+      shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        set -euo pipefail
+        src="$ASSET_NAME.AppImage"
+        test -s "$src"
+        asset="orchid-arise-linux-aarch64.AppImage"
+        cp "$src" "$asset"
+        tag="orchid-arise-${{ inputs.ref }}"
+        if gh release view "$tag" -R "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+          gh release upload "$tag" "$asset" -R "$GITHUB_REPOSITORY" --clobber
+        else
+          gh release create "$tag" "$asset" -R "$GITHUB_REPOSITORY" --prerelease --latest=false \
+            --title "Orchid ${{ inputs.ref }} (AriseOS build) Linux ARM64" \
+            --notes "Orchid ${{ inputs.ref }} built by AriseOS for Linux ARM64 with AriseOS patches (address-space fallback, ZBIC error logging, no in-app updater)."
+        fi
+        echo "Published $asset on $tag" >> "$GITHUB_STEP_SUMMARY"

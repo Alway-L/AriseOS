@@ -42,24 +42,22 @@ object ExtraEmulators {
                 "Alway-L/AriseOS", Regex("^lichii-frizti-linux-aarch64\\.AppImage$"), Regex("^lichii-frizti-"), previews = true,
             ),
         ),
-        // Orchid (Eglantine fork, very experimental): its CI also builds linux-aarch64, which runs natively (no FEX,
-        // no double translation); the x86-64 build through FEX is only the fallback when a release lacks it.
+        // Orchid, built by AriseOS from its source (.github/workflows/build-orchid.yml) with AriseOS patches: the
+        // upstream ARM64 binary of v0.8.1 cannot decompress Switch 2 game code, and the 256 GiB address block falls
+        // back to a kernel-chosen place when the fixed hints are taken.
         Extra(
-            "orchid", "Orchid", "Switch 2 · experimental", "MythosOfs/Orchid", R.drawable.emu_orchid,
+            "orchid", "Orchid", "Switch 2 · build AriseOS · ARM64", "Alway-L/AriseOS", R.drawable.emu_orchid,
             UserApps.Source.GitHubAppImage(
-                // Pinned to v0.7.5: its plain ARM64 build loads Switch 2 game code; the v0.8.1 ARM64 build (like 0.7.5's
-                // -pgo one) fails to decompress it ("NSO main segment 0 decompression failed"). Move on once a newer
-                // release is checked on the phone.
-                "MythosOfs/Orchid", Regex("^orchid-.*-linux-x86_64-pgo\\.AppImage$"), Regex("^v0\\.7\\.5$"),
-                // The plain build first: the -pgo one is tuned with a profile recorded on x86-64, and its ARM64 build
-                // failed to unpack the game's code (NSO decompression) where the x86-64 build loaded it.
-                preferred = listOf(Regex("^orchid-.*-linux-aarch64\\.AppImage$"), Regex("^orchid-.*-linux-aarch64-pgo\\.AppImage$")),
+                "Alway-L/AriseOS", Regex("^orchid-arise-linux-aarch64\\.AppImage$"), Regex("^orchid-arise-"), previews = true,
             ),
         ),
     )
 
-    fun installed(apps: List<UserApps.App>, extra: Extra): UserApps.App? =
-        apps.firstOrNull { it.repo.equals(extra.repo, ignoreCase = true) }
+    /** Several emulators AriseOS builds come from its own repo; those are told apart by name too. */
+    fun installed(apps: List<UserApps.App>, extra: Extra): UserApps.App? {
+        val shared = all.count { it.repo.equals(extra.repo, ignoreCase = true) } > 1
+        return apps.firstOrNull { it.repo.equals(extra.repo, ignoreCase = true) && (!shared || it.name.equals(extra.name, ignoreCase = true)) }
+    }
 
     fun request(context: Context, extra: Extra): UserApps.Request {
         val icon = File(context.cacheDir, "extra-${extra.id}.png")
