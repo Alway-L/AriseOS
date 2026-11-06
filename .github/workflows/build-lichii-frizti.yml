@@ -36,11 +36,19 @@ jobs:
       shell: bash
       run: |
         set -euo pipefail
-        # The fork is built for Windows only. On Linux, vulkan.h pulls in Xlib.h, whose "Success" macro breaks
-        # NvResult::Success in nvdata.h when a file includes Vulkan first (vk_flash_watch.cpp).
-        f=src/core/hle/service/nvdrv/nvdata.h
-        grep -q 'AriseOS: X11' "$f" || sed -i '0,/^#pragma once/s//#pragma once\n\/\/ AriseOS: X11 defines Success as a macro.\n#ifdef Success\n#undef Success\n#endif/' "$f"
-        head -12 "$f"
+        # The fork is built for Windows only. On Linux, vulkan.h pulls in Xlib.h, whose error-code macros (Success,
+        # BadValue, ...) break NvResult in nvdata.h when a file includes Vulkan first (vk_flash_watch.cpp). Eden's
+        # vulkan.h already undefines some X11 macros; add the error codes to that list.
+        f=src/video_core/vulkan_common/vulkan.h
+        if ! grep -q 'AriseOS: X11 error codes' "$f"; then
+          codes="Success BadRequest BadValue BadWindow BadPixmap BadAtom BadCursor BadFont BadMatch BadDrawable BadAccess BadAlloc BadColor BadGC BadIDChoice BadName BadLength BadImplementation"
+          {
+            echo '// AriseOS: X11 error codes clash with enum members (NvResult::Success, NvResult::BadValue).'
+            for c in $codes; do echo "#undef $c"; done
+          } > /tmp/x11-undefs.h
+          sed -i '/^#undef CreateEvent/r /tmp/x11-undefs.h' "$f"
+        fi
+        grep -n -A3 'AriseOS: X11 error codes' "$f"
     - name: Install Linux dependencies
       if: startsWith(matrix.platform, 'linux')
       shell: bash
