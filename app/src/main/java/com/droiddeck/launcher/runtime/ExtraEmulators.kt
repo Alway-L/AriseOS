@@ -47,7 +47,10 @@ object ExtraEmulators {
         Extra(
             "orchid", "Orchid", "Switch 2 · experimental", "MythosOfs/Orchid", R.drawable.emu_orchid,
             UserApps.Source.GitHubAppImage(
-                "MythosOfs/Orchid", Regex("^orchid-.*-linux-x86_64-pgo\\.AppImage$"), Regex("^v"),
+                // Pinned to v0.7.5: its plain ARM64 build loads Switch 2 game code; the v0.8.1 ARM64 build (like 0.7.5's
+                // -pgo one) fails to decompress it ("NSO main segment 0 decompression failed"). Move on once a newer
+                // release is checked on the phone.
+                "MythosOfs/Orchid", Regex("^orchid-.*-linux-x86_64-pgo\\.AppImage$"), Regex("^v0\\.7\\.5$"),
                 // The plain build first: the -pgo one is tuned with a profile recorded on x86-64, and its ARM64 build
                 // failed to unpack the game's code (NSO decompression) where the x86-64 build loaded it.
                 preferred = listOf(Regex("^orchid-.*-linux-aarch64\\.AppImage$"), Regex("^orchid-.*-linux-aarch64-pgo\\.AppImage$")),

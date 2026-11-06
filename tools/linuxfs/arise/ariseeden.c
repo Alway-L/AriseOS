@@ -160,7 +160,10 @@ void *mmap(void *addr, size_t len, int prot, int flags, int fd, off_t off) {
         }
         return got;
     }
-    return real_mmap(addr, len, prot, flags, fd, off);
+    void *got = real_mmap(addr, len, prot, flags, fd, off);
+    if (len >= (1ULL << 36) && getenv("ARISE_RESERVE_VA"))
+        fprintf(stderr, "arise-eden: mmap(%p, %zu GiB, flags %#x) = %p (holding %p)\n", addr, len >> 30, flags, got, reserved);
+    return got;
 }
 void *mmap64(void *addr, size_t len, int prot, int flags, int fd, off_t off) __attribute__((alias("mmap")));
 
