@@ -62,6 +62,11 @@ fi
 # it keep the system's libraries (an ARM64 AppImage's own libdbus broke dbus-run-session).
 if [ -e "$APPDIR/usr/bin/eden-cli" ] && [ -d "$APPDIR/usr/lib" ]; then
   eden_env=("LD_LIBRARY_PATH=$APPDIR/usr/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}")
+  # Orchid, Lichii and Lichii Frizti all keep their shader/pipeline cache in ~/.cache/eden, so one emulator
+  # loaded pipelines another build (or an NCE try) had written, and games hung at "Launching..." or at
+  # shaders 12/14. Each emulator gets its own cache folder; keys, firmware, saves and settings stay shared.
+  eden_cache=${HOME:-/root}/.cache/arise/$(basename "$dir")
+  mkdir -p "$eden_cache" 2>/dev/null && eden_env+=("XDG_CACHE_HOME=$eden_cache")
   # Native ARM64 builds get a small preload (source: tools/linuxfs/arise/ariseeden.c): their log (eden_log.txt),
   # otherwise flushed only on errors, is written line by line; and the 256 GiB address range they reserve at
   # boot is held for them from the start (ARISE_RESERVE_VA), since by the time a game started every place they
