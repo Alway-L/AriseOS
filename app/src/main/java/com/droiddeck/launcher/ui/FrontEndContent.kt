@@ -278,7 +278,12 @@ private fun Content(
         when {
             selected.startsWith("user:") -> {
                 val app = UserAppsState.items.firstOrNull { "user:${it.key}" == selected }
-                if (app == null) Note(stringResource(R.string.user_apps_gone)) else UserAppPage(app, s, a, onSelect)
+                // Right after Android restarts the app (e.g. after a game was ended for memory) the list is still
+                // loading; show the desktop instead of saying the app is gone.
+                if (app == null) {
+                    if (UserAppsState.items.isEmpty()) LaunchedEffect(Unit) { onSelect(WORKSPACE_TAB) }
+                    else Note(stringResource(R.string.user_apps_gone))
+                } else UserAppPage(app, s, a, onSelect)
             }
             selected.startsWith("emu:") -> {
                 val e = s.emulators.firstOrNull { "emu:${it.id}" == selected }

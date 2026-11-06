@@ -65,6 +65,11 @@ object SessionLogShare {
             stores.forEach { f -> addEntry(z, "$STORES_DIR/" + f.name, f); advance(f) }
             tools.forEach { f -> addEntry(z, SessionPaths.TOOLS_DIR + "/" + f.name, f); advance(f) }
             battleNet.forEach { (name, f) -> addEntry(z, if (name.startsWith("emulators/")) name else "$BATTLENET_DIR/$name", f); advance(f) }
+            exitReasons(context)?.let { text ->
+                z.putNextEntry(ZipEntry("exit-reasons.txt"))
+                z.write(text.toByteArray())
+                z.closeEntry()
+            }
         }
         return zip
     }
@@ -101,6 +106,35 @@ object SessionLogShare {
             newest("client", listOf(File(drive, "users/steamuser/AppData/Local/Battle.net/Logs")), 6) +
             newest("agent", listOf(File(data, "Agent/Logs")) + logsUnder(File(data, "Agent"), "Agent."), 10, byDir = true) +
             newest("setup", logsUnder(File(data, "Setup"), ""), 3, byDir = true)
+    }
+
+    /** AriseOS: why Android ended this app's last processes (memory, crash, the user...), newest first. */
+    private fun exitReasons(context: Context): String? {
+        if (android.os.Build.VERSION.SDK_INT < 30) return null
+        val am = context.getSystemService(android.app.ActivityManager::class.java) ?: return null
+        val list = runCatching { am.getHistoricalProcessExitReasons(context.packageName, 0, 8) }.getOrNull() ?: return null
+        if (list.isEmpty()) return null
+        val fmt = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.US)
+        return buildString {
+            appendLine("Why Android ended AriseOS's last processes (newest first). LOW_MEMORY = killed for memory.")
+            for (e in list) {
+                val reason = when (e.reason) {
+                    android.app.ApplicationExitInfo.REASON_LOW_MEMORY -> "LOW_MEMORY"
+                    android.app.ApplicationExitInfo.REASON_CRASH -> "CRASH"
+                    android.app.ApplicationExitInfo.REASON_CRASH_NATIVE -> "CRASH_NATIVE"
+                    android.app.ApplicationExitInfo.REASON_ANR -> "ANR"
+                    android.app.ApplicationExitInfo.REASON_SIGNALED -> "SIGNALED"
+                    android.app.ApplicationExitInfo.REASON_EXIT_SELF -> "EXIT_SELF"
+                    android.app.ApplicationExitInfo.REASON_USER_REQUESTED -> "USER_REQUESTED"
+                    android.app.ApplicationExitInfo.REASON_USER_STOPPED -> "USER_STOPPED"
+                    android.app.ApplicationExitInfo.REASON_EXCESSIVE_RESOURCE_USAGE -> "EXCESSIVE_RESOURCE_USAGE"
+                    android.app.ApplicationExitInfo.REASON_OTHER -> "OTHER"
+                    else -> "reason ${e.reason}"
+                }
+                appendLine("${fmt.format(java.util.Date(e.timestamp))}  ${e.processName}  $reason  status=${e.status}  " +
+                    "importance=${e.importance}  pss=${e.pss / 1024} MiB  rss=${e.rss / 1024} MiB  ${e.description ?: ""}")
+            }
+        }
     }
 
     /** AriseOS: the Eden-family Switch emulators' own logs and settings (Eglantine, Lichii, Orchid). */
