@@ -430,6 +430,33 @@ def link_steam_sdk():
                 break
 
 
+
+# AriseOS: glvnd's split OpenGL libraries. Some programs (Orchid, recent Qt builds) link libOpenGL.so.0 and
+# libGLX.so.0, which Steam Linux Runtime leaves to the host. In FEX the GL thunk is libGL.so.1, so each of these
+# is a tiny x86-64 library with no code that only needs libGL.so.1: every gl*/glX* call resolves to the thunk.
+GL_BRIDGES = {
+    "libOpenGL.so.0": "eNrtmstO21AQhscmpoFe1EUXSFziRSu1ixwlgKoKJIQUIKiNml6UbVFMDI6E7dSXRTbAmidgj8SaR+AReAkegEUrVgTbmVGc07pJq7ar+aTj33OOZ84lk9Wco83alqooQEzAGgwsgHXUUz3d9wby0XMappJvc/ALnv5cY7/JqJUKfVvWKxhW8lN/0y+PmqN1qjAIlFLanp7hp9N3kj6HYaWz+HwdtP5kvo+R3ySMDx3rJ5xv3HNRUuuNY2hRq75vxMu7zCV5MBh/hnY8/nbeO/tQuNk40Yz5na/nj19c1G8pnpKKOzYHbaNaE74ryvFrvWM6fbMEDMMwDMMwDMMwDMMwDMMwDMMwDMMw/xRF0ieoj1C/3fXcWLexzqth/zHaVNu10J5Gexb1IerMf9pPtVJZ0V82jNAJQr28JJZEqfg6TMzFw8VlUVoW5Vc4ACB8yw+8oGmAcNzAFPtOKDqe2zG9oJvqMsL2QavYbkFiWU3fAtHqOn7X7mvggTCtnT2vaZtJT9Nu74LYdW3bdIK/sq/4HB/AoOyeVX8Hqf5OLEj+WXV/kOr+RDlq33s9l/wpH0jnJD95/lXcgyrlCynlh4a5mJfypgL9mr0q5R/pbEZeE++wT826xzHi/BqY63SPIOs+gib5U/gvOP8P1wDwhyuO+F8qqbnTFNF/f8T+7wG152Xt",
+    "libGLX.so.0": "eNrtms9LG1EQx2e3iY1RxIOHHqTdg4hC95GoiCiUQmgjGAoqoYWCJWtWN+Duyv4Qcmn9B3rvP+DNP6L00LP/Q+lV8KAHD427mxmyec02qehtPvDy3XlvZ96PnZzmfXlTe6sqChBP4BX0LIDXqN+0dN8aFKLfIown7+bgH0wP1thvLGqlF11b1gvoV/JT/9OvgJqjdarQC5RS2p6W4afRe5LOQb/SWez+Dpr3mW878huD0aFj3cH5Rj0XJbXeOEY+atV39Xh533NJHvTGZ9COx8/Wrn7M6x9/HlgnXyvvjV/nly9vKZ6SijsyRy2jWhO+K8rdxw/xcwkYhmEYhmEYhmEYhmEYhmEYhmEYhmEeG0XSKdRJ1Os/HTfWTazz5rH/FG2q7VpoF9F+hjoh2Y9NtVJZ1xbqRugEoVZeFsuipK+Gibn0eWlFlFZEeREHAIRv+YEXNAwQjhuY4tAJxbHnHpte0E51GWHrqKm3mpBYVsO3QDTbjt+2uxp4IEzr04HXsM2kp2G39kHsu7ZtOsGD7Cs+x6fQK7tn1d9Bqr8TzyX/rLo/SHV/ohy1m07HJX/KB9JZyU+efwP3oEr5Qkr5kcdcLEh5U4FuzV6V8u9UHZxfct1+C/vUrHscQ86vjrlO9wiy7iPkJX8Kv4fz/3UTAD+cPuR/qaTmTqOj/+GQ/d8B+NFnVA==",
+}
+
+
+def install_gl_bridges(root):
+    import base64
+    import zlib
+    for name, blob in GL_BRIDGES.items():
+        dirs = [os.path.join(root, d) for d in ("usr/lib/x86_64-linux-gnu", "lib/x86_64-linux-gnu")]
+        if any(os.path.lexists(os.path.join(d, name)) for d in dirs):
+            continue
+        target = os.path.join(dirs[0], name)
+        with contextlib.suppress(OSError):
+            os.makedirs(dirs[0], exist_ok=True)
+            with open(target + ".tmp", "wb") as f:
+                f.write(zlib.decompress(base64.b64decode(blob)))
+            os.chmod(target + ".tmp", 0o755)
+            os.replace(target + ".tmp", target)
+            say("added %s to the x86 runtime (bridges to the GL thunk)" % name)
+
+
 def link_guest_sdk(root):
     # Proton's lsteamclient only looks in $HOME/.steam/sdk64; on ARM Steam that is the arm64 client, so
     # the x86 runtime gets its own link, which FEX resolves before the host path.
@@ -536,6 +563,7 @@ def prepare(app=SNIPER_APPID):
                 root = os.path.join(STATE, "rootfs")
         with contextlib.suppress(OSError):
             link_guest_sdk(root)
+        install_gl_bridges(root)
         write_config(fex, root)
         fex["rootfs"] = root
         try:
