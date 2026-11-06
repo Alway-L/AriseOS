@@ -4,12 +4,15 @@
 // SPDX-FileCopyrightText: Copyright 2023 yuzu Emulator Project
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+#include <algorithm>
+#include <array>
 #include <chrono>
 #include <cstddef>
 #include <limits>
 #include <map>
 #include <memory>
 #include <span>
+#include <thread>
 #include <type_traits>
 #include "common/container/unordered_map.h"
 #include <utility>
@@ -89,19 +92,55 @@ public:
         return BankBase::IsDead() && scheduler.IsFree(last_used_tick);
     }
 
+    // Polled rather than read with VK_QUERY_RESULT_WAIT_BIT: a slot that never becomes available
+    // made the wait spin forever inside RADV with all GPU work finished (Ocarina of Time froze
+    // right after its intro on Xclipse; their begin and end were recorded into a submission the GPU
+    // had finished, and no reset came after). Such slots read as 0 after a while and are logged.
     void Sync(size_t start, size_t size) {
         const auto& dev = device.GetLogical();
-        const VkResult query_result = dev.GetQueryResults(
-            *query_pool, static_cast<u32>(start), static_cast<u32>(size), sizeof(u64) * size,
-            &host_results[start], sizeof(u64), VK_QUERY_RESULT_64_BIT | VK_QUERY_RESULT_WAIT_BIT);
-        switch (query_result) {
-        case VK_SUCCESS:
-            return;
-        case VK_ERROR_DEVICE_LOST:
-            device.ReportLoss();
-            [[fallthrough]];
-        default:
-            throw vk::Exception(query_result);
+        std::vector<std::array<u64, 2>> results(size);
+        const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds{2};
+        for (u32 spins = 0;; ++spins) {
+            const VkResult query_result = dev.GetQueryResults(
+                *query_pool, static_cast<u32>(start), static_cast<u32>(size),
+                results.size() * sizeof(results[0]), results.data(), sizeof(results[0]),
+                VK_QUERY_RESULT_64_BIT | VK_QUERY_RESULT_WITH_AVAILABILITY_BIT);
+            if (query_result == VK_ERROR_DEVICE_LOST) {
+                device.ReportLoss();
+                throw vk::Exception(query_result);
+            }
+            if (query_result != VK_SUCCESS && query_result != VK_NOT_READY) {
+                throw vk::Exception(query_result);
+            }
+            if (query_result == VK_SUCCESS || std::chrono::steady_clock::now() >= deadline) {
+                break;
+            }
+            if (spins < 64) {
+                std::this_thread::yield();
+            } else {
+                std::this_thread::sleep_for(std::chrono::microseconds{50});
+            }
+        }
+        size_t unavailable = 0;
+        size_t first_unavailable = size;
+        for (size_t i = 0; i < size; ++i) {
+            if (results[i][1] != 0) {
+                host_results[start + i] = results[i][0];
+            } else {
+                host_results[start + i] = 0;
+                first_unavailable = (std::min)(first_unavailable, i);
+                ++unavailable;
+            }
+        }
+        if (unavailable != 0) {
+            static u32 logged{};
+            if (logged++ < 32) {
+                LOG_WARNING(Render_Vulkan,
+                            "Occlusion query bank {}: {} of slots {}..{} never became available "
+                            "(first {}); read as 0. GPU tick {}, last used tick {}",
+                            index, unavailable, start, start + size - 1, start + first_unavailable,
+                            scheduler.GetMasterSemaphore().KnownGpuTick(), last_used_tick);
+            }
         }
     }
 
