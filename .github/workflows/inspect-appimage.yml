@@ -1,0 +1,29 @@
+name: Inspect an AppImage (AriseOS diagnostics)
+on:
+  workflow_dispatch:
+    inputs:
+      url:
+        description: AppImage URL
+        required: true
+jobs:
+  inspect:
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - name: Inspect
+        shell: bash
+        run: |
+          set -x
+          curl -fsSL -o app.AppImage "${{ inputs.url }}"
+          chmod +x app.AppImage
+          ./app.AppImage --appimage-extract >/dev/null 2>&1 || true
+          bin=$(ls squashfs-root/usr/bin/ | head -5); echo "$bin"
+          for b in squashfs-root/usr/bin/orchid squashfs-root/usr/bin/lichii squashfs-root/usr/bin/eglantine; do
+            [ -f "$b" ] || continue
+            echo "== $b"; file "$b"
+            readelf -d "$b" | grep -E "NEEDED|RPATH|RUNPATH|FLAGS" | head -40
+            echo "-- dynamic symbols named *mmap*:"; readelf --dyn-syms -W "$b" | grep -i mmap
+            echo "-- undefined mmap refs:"; nm -D "$b" | grep -i " mmap\| munmap\|mmap64" 
+            echo "-- relocations for mmap:"; readelf -r -W "$b" | grep -i mmap | head
+            echo "-- direct svc 222 (mmap syscall) count:"; objdump -d "$b" 2>/dev/null | grep -c "mov.*#0xde" || true
+          done
+          ls squashfs-root/usr/lib | grep -iE "malloc|jemalloc|mimalloc|tcmalloc" || true
