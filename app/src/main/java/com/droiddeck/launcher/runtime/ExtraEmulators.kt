@@ -27,12 +27,14 @@ object ExtraEmulators {
                 preferred = listOf(Regex("^eglantine-linux-aarch64\\.AppImage$")),
             ),
         ),
+        // Lichii (zortos293), built by AriseOS from its source with tools/emulators/arise_patches.py
+        // (.github/workflows/build-lichii.yml): build-88 already carries Frizti's performance and Ocarina of Time work.
         Extra(
-            "lichii", "Lichii", "Switch / Switch 2 · ARM64", "zortos293/Lichii", R.drawable.emu_lichii,
+            "lichii", "Lichii", "Switch / Switch 2 · build AriseOS · ARM64", "Alway-L/AriseOS", R.drawable.emu_lichii,
             UserApps.Source.GitHubAppImage(
-                "zortos293/Lichii", Regex("^lichii-linux-aarch64-pgo\\.AppImage$"), Regex("^build-"), previews = true,
-                preferred = listOf(Regex("^lichii-linux-aarch64\\.AppImage$")),
+                "Alway-L/AriseOS", Regex("^lichii-arise-linux-aarch64\\.AppImage$"), Regex("^lichii-arise-"), previews = true,
             ),
+        ),
         ),
         // Frizti's Lichii fork carries Ocarina of Time fixes but publishes Windows builds only; AriseOS builds its
         // Linux ARM64 AppImage (.github/workflows/build-lichii-frizti.yml) and attaches it to a release here.
