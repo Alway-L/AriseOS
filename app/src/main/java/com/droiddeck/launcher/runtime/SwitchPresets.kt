@@ -17,7 +17,8 @@ object SwitchPresets {
     // v2 also turns off the startup Vulkan check and puts Vulkan back: the check re-runs the program in a child
     // process, which under FEX in proot cannot start (execveat), so it always reported "broken Vulkan" and fell back
     // to OpenGL even though the Vulkan thunk works.
-    private const val MARKER = ".ariseos-preset-2"
+    // v3: once more, for configs the false "broken Vulkan" fallback had switched to OpenGL before the fix.
+    private const val MARKER = ".ariseos-preset-3"
 
     /** (key, value) in the [Renderer] section. */
     internal val RENDERER = listOf(

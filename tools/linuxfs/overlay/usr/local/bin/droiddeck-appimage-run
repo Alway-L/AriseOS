@@ -45,12 +45,6 @@ if [ "$qt" = wayland ] && [ -n "$wayland" ]; then
 elif [ "$qt" = xcb ] && [ -n "${DISPLAY:-}" ]; then
   export QT_QPA_PLATFORM=xcb
 fi
-# AriseOS: Eden-family emulators (Orchid, Eglantine, Lichii; they ship eden-cli) re-run themselves at start
-# to test Vulkan. That child did not find the AppImage's bundled libraries (libQt6Charts...), died, and the
-# emulator then reported "broken Vulkan" and fell back to OpenGL. Give every process the bundled library folder.
-if [ -e "$APPDIR/usr/bin/eden-cli" ] && [ -d "$APPDIR/usr/lib" ]; then
-  export LD_LIBRARY_PATH="$APPDIR/usr/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
-fi
 fex=$(cat "$dir/fex" 2>/dev/null)
 case $fex in on|off) ;; *) fex=auto ;; esac
 run=("$APPDIR/AppRun")
@@ -60,6 +54,14 @@ if [ -x /usr/local/bin/droiddeck-fex ]; then
     auto:arm64) ;;
     *) run=(/usr/local/bin/droiddeck-fex run --mode "$fex" --for "$APPDIR" -- "$APPDIR/AppRun") ;;
   esac
+fi
+# AriseOS: Eden-family emulators (Orchid, Eglantine, Lichii; they ship eden-cli) re-run themselves at start
+# to test Vulkan. That child did not find the AppImage's bundled libraries (libQt6Charts...), died, and the
+# emulator then reported "broken Vulkan" and fell back to OpenGL. The program (and so that child) gets the
+# bundled library folder; set only on the program, so dbus-run-session and other system tools started before
+# it keep the system's libraries (an ARM64 AppImage's own libdbus broke dbus-run-session).
+if [ -e "$APPDIR/usr/bin/eden-cli" ] && [ -d "$APPDIR/usr/lib" ]; then
+  run=(env "LD_LIBRARY_PATH=$APPDIR/usr/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" "${run[@]}")
 fi
 echo "== appimage $ARGV0 ($APPDIR) ${flags[*]} FEX $fex Qt $qt${QT_QPA_PLATFORM:+ ($QT_QPA_PLATFORM)}"
 cd "$APPDIR" || exit 1
