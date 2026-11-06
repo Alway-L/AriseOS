@@ -18,7 +18,9 @@ object SwitchPresets {
     // process, which under FEX in proot cannot start (execveat), so it always reported "broken Vulkan" and fell back
     // to OpenGL even though the Vulkan thunk works.
     // v3: once more, for configs the false "broken Vulkan" fallback had switched to OpenGL before the fix.
-    private const val MARKER = ".ariseos-preset-3"
+    // v4: Dynarmic instead of NCE. In the Linux runtime the 12 GiB host memory a Switch 2 game needs cannot be
+    // mapped (mmap ENOMEM), and NCE then still runs without fastmem and the game hangs right after it starts.
+    private const val MARKER = ".ariseos-preset-4"
 
     /** (key, value) in the [Renderer] section. */
     internal val RENDERER = listOf(
@@ -33,6 +35,9 @@ object SwitchPresets {
         "scaling_filter" to "5",             // ScaleForce
         "anti_aliasing" to "1",              // FXAA
     )
+
+    /** (key, value) in the [Cpu] section: Dynarmic (0), which works without the fastmem arena. */
+    internal val CPU = listOf("cpu_backend" to "0")
 
     /** (key, value) in the [Debugging] section. */
     internal val DEBUGGING = listOf("perform_vulkan_check" to "false")
@@ -50,7 +55,7 @@ object SwitchPresets {
                 config.mkdirs()
                 val ini = File(config, "qt-config.ini")
                 val text = merge(if (ini.isFile) ini.readText() else "", "Renderer", RENDERER)
-                ini.writeText(merge(text, "Debugging", DEBUGGING))
+                ini.writeText(merge(merge(text, "Debugging", DEBUGGING), "Cpu", CPU))
                 marker.writeText("$id\n")
                 Log.i(TAG, "recommended settings written for $id in ~/.config/$dir")
             } catch (e: Exception) {
