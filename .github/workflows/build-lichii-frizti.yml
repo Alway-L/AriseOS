@@ -32,6 +32,15 @@ jobs:
       with:
         repository: Frizti/Lichii
         ref: ${{ inputs.ref }}
+    - name: Fix Linux-only build issues
+      shell: bash
+      run: |
+        set -euo pipefail
+        # The fork is built for Windows only. On Linux, vulkan.h pulls in Xlib.h, whose "Success" macro breaks
+        # NvResult::Success in nvdata.h when a file includes Vulkan first (vk_flash_watch.cpp).
+        f=src/core/hle/service/nvdrv/nvdata.h
+        grep -q 'AriseOS: X11' "$f" || sed -i '0,/^#pragma once/s//#pragma once\n\/\/ AriseOS: X11 defines Success as a macro.\n#ifdef Success\n#undef Success\n#endif/' "$f"
+        head -12 "$f"
     - name: Install Linux dependencies
       if: startsWith(matrix.platform, 'linux')
       shell: bash
