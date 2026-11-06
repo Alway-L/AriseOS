@@ -43,7 +43,7 @@ jobs:
       shell: bash
       run: |
         set -euo pipefail
-        python3 _arise/tools/emulators/arise_patches.py
+        python3 _arise/tools/emulators/arise_patches.py orchid
     - name: Cache apt packages
       if: startsWith(matrix.platform, 'linux')
       uses: actions/cache@v5

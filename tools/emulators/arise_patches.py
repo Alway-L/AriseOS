@@ -10,6 +10,18 @@ import sys
 
 applied, skipped = [], []
 
+# Larger changes (ports from other forks) live as git patches in tools/emulators/patches/<emulator>/, applied in
+# order with a 3-way merge; one that no longer applies fails the build, so it is redone on purpose.
+if len(sys.argv) > 1:
+    import glob
+    import subprocess
+    here = os.path.dirname(os.path.abspath(__file__))
+    for series in sorted(glob.glob(os.path.join(here, "patches", sys.argv[1], "*.patch"))):
+        r = subprocess.run(["git", "apply", "--3way", "--whitespace=nowarn", series], capture_output=True, text=True)
+        if r.returncode != 0:
+            sys.exit(f"{os.path.basename(series)} did not apply:\n{r.stdout}{r.stderr}")
+        applied.append(f"git patch {os.path.basename(series)}")
+
 
 def patch(path, marker, old, new, why):
     if not os.path.isfile(path):
@@ -54,6 +66,9 @@ patch(
 #define MAP_NOCORE 0
 #endif
 
+#include <cerrno>
+#include <cstdio>
+#include <cstring>
 // AriseOS: early 256 GiB reservation (see tools/emulators/arise_patches.py). Zero-initialised globals, so the
 // constructor below cannot be undone by later dynamic initialisation.
 static constexpr size_t AriseReserveSize = 1ULL << 38;
@@ -64,6 +79,7 @@ __attribute__((constructor)) static void AriseReserveEarly() {
     const size_t span = AriseReserveSize + HugePageSize;
     void* p = mmap(nullptr, span, PROT_NONE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_NORESERVE, -1, 0);
     if (p == MAP_FAILED) {
+        std::fprintf(stderr, "AriseOS: could not reserve the 256 GiB block at start: %s\\n", std::strerror(errno));
         return;
     }
     const uintptr_t start = reinterpret_cast<uintptr_t>(p);
@@ -76,15 +92,59 @@ __attribute__((constructor)) static void AriseReserveEarly() {
         munmap(reinterpret_cast<void*>(aligned + AriseReserveSize), end - (aligned + AriseReserveSize));
     }
     g_arise_reserved = aligned;
+    std::fprintf(stderr, "AriseOS: reserved the 256 GiB block at start at %#lx\\n", static_cast<unsigned long>(aligned));
 }
 #endif
+// Mappings of 1 GiB or more and the three largest gaps, to see what took the address space.
+static void AriseLogAddressSpace() {
+    FILE* maps = std::fopen("/proc/self/maps", "r");
+    if (maps == nullptr) {
+        return;
+    }
+    char line[512];
+    unsigned long prev_end = 0;
+    unsigned long gaps[3][2] = {};
+    unsigned long total = 0;
+    while (std::fgets(line, sizeof(line), maps) != nullptr) {
+        unsigned long start = 0, end = 0;
+        if (std::sscanf(line, "%lx-%lx", &start, &end) != 2) {
+            continue;
+        }
+        total += end - start;
+        if (end - start >= (1UL << 30)) {
+            line[std::strcspn(line, "\\n")] = 0;
+            LOG_WARNING(HW_Memory, "AriseOS: big mapping {} GiB: {}", (end - start) >> 30, line);
+        }
+        const unsigned long gap = start > prev_end ? start - prev_end : 0;
+        for (int i = 0; i < 3; ++i) {
+            if (gap > gaps[i][1]) {
+                for (int j = 2; j > i; --j) {
+                    gaps[j][0] = gaps[j - 1][0];
+                    gaps[j][1] = gaps[j - 1][1];
+                }
+                gaps[i][0] = prev_end;
+                gaps[i][1] = gap;
+                break;
+            }
+        }
+        prev_end = end;
+    }
+    std::fclose(maps);
+    LOG_WARNING(HW_Memory, "AriseOS: {} GiB mapped; largest gaps {} GiB at {:#x}, {} GiB at {:#x}, {} GiB at {:#x}; "
+                "reserved block {:#x} in use {}",
+                total >> 30, gaps[0][1] >> 30, gaps[0][0], gaps[1][1] >> 30, gaps[1][0], gaps[2][1] >> 30, gaps[2][0],
+                g_arise_reserved, g_arise_reserved_in_use);
+}
 static void* AriseTakeReserved(size_t size) {
     if (g_arise_reserved == 0 || g_arise_reserved_in_use || size > AriseReserveSize) {
+        LOG_WARNING(HW_Memory, "AriseOS: reserved block not used (at {:#x}, in use {}, size {:#x})", g_arise_reserved,
+                    g_arise_reserved_in_use, size);
         return MAP_FAILED;
     }
     void* p = mmap(reinterpret_cast<void*>(g_arise_reserved), size, PROT_READ | PROT_WRITE,
                    MAP_FIXED | MAP_PRIVATE | MAP_ANONYMOUS | MAP_NORESERVE | MAP_NOCORE, -1, 0);
     if (p == MAP_FAILED) {
+        LOG_WARNING(HW_Memory, "AriseOS: the reserved block could not be mapped: {}", std::strerror(errno));
         return MAP_FAILED;
     }
     g_arise_reserved_in_use = true;
@@ -119,6 +179,11 @@ patch(
         virtual_base = virtual_map_base = static_cast<u8*>(AriseTakeReserved(virtual_size));
         if (virtual_base == MAP_FAILED) {
             virtual_base = virtual_map_base = static_cast<u8*>(ChooseVirtualBase(virtual_size));
+        }
+        if (virtual_base == MAP_FAILED) {
+            const int saved = errno;
+            AriseLogAddressSpace();
+            errno = saved;
         }
 """,
     "use the reserved block for the virtual base",

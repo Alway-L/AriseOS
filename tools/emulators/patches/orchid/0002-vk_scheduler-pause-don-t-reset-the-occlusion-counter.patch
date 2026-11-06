@@ -1,0 +1,48 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Kajcsi <64730213+Kajcsi@users.noreply.github.com>
+Date: Thu, 5 Nov 2026 15:09:32 +0100
+Subject: [PATCH 2/3] vk_scheduler: pause, don't reset, the occlusion counter
+ at each submission
+
+EndPendingOperations runs before every Vulkan submission and reset the
+ZPassPixelCount64 counter there (since Eden b1f3b568fb). A guest that resets
+the counter, draws, and reports expects the report to cover every draw since
+its own reset. When a submission lands between those draws and the report,
+the reset drops the samples counted so far and the report reads too low.
+
+The split GPU thread batches fence and command-list submissions on the back
+thread (EDEN_NX2_FENCE_FLUSH_US), and other threads can force a pending flush
+at any ring entry, so submissions now land mid-sequence often. In Ocarina of
+Time (0400486024DEC000) this shows as one-frame white flashes on Link.
+
+Pause the counter instead, as yuzu did, and keep the query running across
+the submission. EndRenderPass already pauses it at render pass end, the next
+draw resumes it, and the guest's own reset still clears it.
+
+Tested in Kokiri Forest (RTX 4090, Low GPU accuracy, split=2), 36 s of
+consecutive frames with Link on screen, same binary with a temporary switch:
+old reset 15 and 9 flashes, this change 0 and 0.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+
+(cherry picked from commit e3cf9394c1891e8e44da584af7816c9ce06fcffb)
+(cherry picked from commit e44ee5c79f15484e72e1ecf1b017302e8655d006)
+---
+ src/video_core/renderer_vulkan/vk_scheduler.cpp | 4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/src/video_core/renderer_vulkan/vk_scheduler.cpp b/src/video_core/renderer_vulkan/vk_scheduler.cpp
+index 15a474f66b..f2a5185dd3 100644
+--- a/src/video_core/renderer_vulkan/vk_scheduler.cpp
++++ b/src/video_core/renderer_vulkan/vk_scheduler.cpp
+@@ -524,7 +524,9 @@ void Scheduler::InvalidateState() {
+ }
+ 
+ void Scheduler::EndPendingOperations() {
+-    query_cache->CounterReset(VideoCommon::QueryType::ZPassPixelCount64);
++    // Pause, don't reset: a submission can land between a guest's counter reset and its report,
++    // and resetting here would drop the samples counted so far (the report then reads too low).
++    query_cache->CounterClose(VideoCommon::QueryType::ZPassPixelCount64);
+     EndRenderPass();
+ }
+ 

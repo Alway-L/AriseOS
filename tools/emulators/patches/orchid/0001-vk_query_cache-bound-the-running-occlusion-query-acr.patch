@@ -1,0 +1,58 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Kajcsi <64730213+Kajcsi@users.noreply.github.com>
+Date: Thu, 5 Nov 2026 17:25:00 +0100
+Subject: [PATCH 1/3] vk_query_cache: bound the running occlusion query across
+ submissions
+
+Since the counter is paused instead of reset at each submission, the host
+query runs until the guest resets or reports the counter. Ocarina of
+Time's title screen and file select keep ZPass counting on and do
+neither, so the query grew by a slot at every submission and render
+pass. By the time gameplay started it held 16,384 slots over all 64
+sample banks, and a running query keeps every bank it touches alive. On
+AMD with EDEN_NX2_SPLIT=2 the game then hung right after picking the
+save, with WaitSubmitted waiting on a tick the GPU thread never
+submitted (reported on zortos293/Lichii#121).
+
+Once the running query passes one bank (256 slots), drop the count as a
+reset would. In gameplay the longest reset-to-report window measured was
+36 slots over 4 submissions (1.36M reports), so real windows keep the
+carried count.
+
+Tested on RTX 4090, Low accuracy, EDEN_NX2_SPLIT=2,
+EDEN_NX2_FENCE_BATCH=1. With logging on, the query stayed within two
+banks through the title screen and file select, and gameplay windows
+were unchanged. Outside Link's house, 36 s of consecutive frames with
+Link on screen: 0 flashes in 576 frames, 60.5 fps.
+tests.exe: 651 of 654 pass, the same 3 known failures as before. The
+hang itself doesn't reproduce on NVIDIA, so the AMD retest is pending.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+(cherry picked from commit 47e1e95208490cbcf0e036505ec23ba7f033b0ff)
+(cherry picked from commit 87203d5936d6b1c26f54ea83829c941a37a3ddfc)
+---
+ src/video_core/renderer_vulkan/vk_query_cache.cpp | 9 +++++++++
+ 1 file changed, 9 insertions(+)
+
+diff --git a/src/video_core/renderer_vulkan/vk_query_cache.cpp b/src/video_core/renderer_vulkan/vk_query_cache.cpp
+index 4b8161a30d..e7c965ca02 100644
+--- a/src/video_core/renderer_vulkan/vk_query_cache.cpp
++++ b/src/video_core/renderer_vulkan/vk_query_cache.cpp
+@@ -210,8 +210,17 @@ public:
+         last_accumulation_checkpoint = (std::max)(last_accumulation_checkpoint, num_slots_used);
+     }
+ 
++    // Called at each submission. The running query carries the count across it: a guest's
++    // reset-to-report window can span one.
+     void CloseCounter() override {
+         PauseCounter();
++        // A title that counts without resetting or reporting grows the query by a slot at every
++        // submission and render pass, and the query keeps every bank it touches alive. Ocarina of
++        // Time's title screen and file select reached 16,384 slots over 64 banks (its gameplay
++        // windows span at most 36 slots). Past a bank, drop the count as a reset would.
++        if (current_query && current_query->size_slots > SamplesQueryBank::BANK_SIZE) {
++            ResetCounter();
++        }
+     }
+ 
+     bool HasPendingSync() const override {

@@ -33,7 +33,7 @@ for st in build["steps"]:
         steps.append({"name": "Check out the AriseOS patches", "uses": "actions/checkout@v5",
                       "with": {"path": "_arise", "sparse-checkout": "tools/emulators"}})
         steps.append({"name": "Apply the AriseOS patches", "shell": "bash",
-                      "run": "set -euo pipefail\npython3 _arise/tools/emulators/arise_patches.py\n"})
+                      "run": f"set -euo pipefail\npython3 _arise/tools/emulators/arise_patches.py {key}\n"})
         continue
     if name.startswith("Configure Linux"):
         st["run"] = st["run"].replace("-DENABLE_UPDATE_CHECKER=ON", "-DENABLE_UPDATE_CHECKER=OFF")

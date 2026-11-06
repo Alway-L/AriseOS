@@ -489,7 +489,12 @@ object UserApps {
      */
     private fun latestFor(context: Context, app: App, repo: String): Pair<Release?, String?> {
         val s = ExtraEmulators.all.firstOrNull { ExtraEmulators.installed(listOf(app), it) != null }?.source
-            as? Source.GitHubAppImage ?: return latestRelease(context, repo)
+            as? Source.GitHubAppImage
+        if (s == null) {
+            // Lichii and Lichii Frizti left AriseOS's list; any AppImage in its repo would be another emulator.
+            if (repo.equals("Alway-L/AriseOS", ignoreCase = true)) return null to context.getString(R.string.user_apps_update_failed)
+            return latestRelease(context, repo)
+        }
         val release = s.preferred.firstNotNullOfOrNull { latestArchive(context, s.repo, it, s.previews, s.tag) }
             ?: latestArchive(context, s.repo, s.asset, s.previews, s.tag)
         return release to if (release == null) context.getString(R.string.user_apps_github_no_appimage, repo) else null
