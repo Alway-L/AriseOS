@@ -320,7 +320,7 @@ object UserApps {
     }
 
     private fun latestRelease(context: Context, repo: String): Pair<Release?, String?> {
-        val body = Downloader.downloadString("https://api.github.com/repos/$repo/releases?per_page=15")
+        val body = Downloader.downloadString("https://api.github.com/repos/$repo/releases?per_page=100")
         val releases = body?.let { runCatching { JSONArray(it) }.getOrNull() }
             ?: return null to context.getString(R.string.user_apps_github_unreachable, repo)
         val candidates = (0 until releases.length()).mapNotNull { i ->
@@ -375,7 +375,7 @@ object UserApps {
     }
 
     private fun latestArchive(context: Context, repo: String, pattern: Regex, previews: Boolean = false, tag: Regex? = null): Release? {
-        val body = Downloader.downloadString("https://api.github.com/repos/$repo/releases?per_page=15") ?: return null
+        val body = Downloader.downloadString("https://api.github.com/repos/$repo/releases?per_page=100") ?: return null
         val releases = runCatching { JSONArray(body) }.getOrNull() ?: return null
         for (i in 0 until releases.length()) {
             val r = releases.getJSONObject(i)

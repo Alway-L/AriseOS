@@ -65,7 +65,7 @@ object AndroidEmulators {
 
     /** Returns an error message, or null once Android's installer has been opened. */
     private fun download(context: Context, extra: Extra): String? {
-        val body = Downloader.downloadString("https://api.github.com/repos/${extra.repo}/releases?per_page=15")
+        val body = Downloader.downloadString("https://api.github.com/repos/${extra.repo}/releases?per_page=100")
             ?: return context.getString(R.string.user_apps_github_unreachable, extra.repo)
         val releases = JSONArray(body)
         var url: String? = null; var name = ""; var sha: String? = null
