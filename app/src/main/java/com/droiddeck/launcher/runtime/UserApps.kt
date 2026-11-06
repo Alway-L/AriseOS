@@ -475,11 +475,24 @@ object UserApps {
 
     fun checkUpdate(context: Context, app: App): UpdateCheck {
         val repo = app.repo ?: return UpdateCheck.Failed(context.getString(R.string.user_apps_update_failed))
-        val (release, problem) = latestRelease(context, repo)
+        val (release, problem) = latestFor(context, app, repo)
         if (release == null) return UpdateCheck.Failed(problem ?: context.getString(R.string.user_apps_update_failed))
         val published = FileUtils.readString(File(AppImageManager.dir(context, app.key.substringAfter(':')), GITHUB_PUBLISHED))?.trim().orEmpty()
         val newer = if (published.isNotEmpty() && release.published.isNotEmpty()) release.published > published else release.tag != app.version
         return if (newer) UpdateCheck.Available(release) else UpdateCheck.Current(app.version ?: release.tag)
+    }
+
+    /**
+     * The newest release for this app. Orchid, Lichii and Lichii Frizti all come from AriseOS's own repo, so the
+     * newest AppImage there may belong to another emulator: an update had put Orchid in Lichii Frizti's place.
+     * Apps from AriseOS's emulator list are matched by their own asset and tag, as when they were installed.
+     */
+    private fun latestFor(context: Context, app: App, repo: String): Pair<Release?, String?> {
+        val s = ExtraEmulators.all.firstOrNull { ExtraEmulators.installed(listOf(app), it) != null }?.source
+            as? Source.GitHubAppImage ?: return latestRelease(context, repo)
+        val release = s.preferred.firstNotNullOfOrNull { latestArchive(context, s.repo, it, s.previews, s.tag) }
+            ?: latestArchive(context, s.repo, s.asset, s.previews, s.tag)
+        return release to if (release == null) context.getString(R.string.user_apps_github_no_appimage, repo) else null
     }
 
     fun update(context: Context, app: App, release: Release, onProgress: (String, Int) -> Unit): String? {
