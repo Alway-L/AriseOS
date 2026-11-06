@@ -72,6 +72,50 @@ if [ -e "$APPDIR/usr/bin/eden-cli" ] && [ -d "$APPDIR/usr/lib" ]; then
   fi
   run=(env "${eden_env[@]}" "${run[@]}")
 fi
+# AriseOS diagnostics for Eden-family emulators: Switch 2 games need a 12 GiB host memory mapping, which failed
+# (mmap ENOMEM) in this runtime. Record what the kernel allows, so the cause can be read from the session log.
+if [ -e "$APPDIR/usr/bin/eden-cli" ] && command -v python3 >/dev/null 2>&1; then
+  python3 - <<'PY' 2>&1 | sed 's/^/== memory: /'
+import mmap, os
+def read(p):
+    try:
+        return open(p).read().strip()
+    except OSError as e:
+        return "unreadable (%s)" % e.strerror
+print("overcommit_memory=%s overcommit_ratio=%s max_map_count=%s" % (read("/proc/sys/vm/overcommit_memory"),
+      read("/proc/sys/vm/overcommit_ratio"), read("/proc/sys/vm/max_map_count")))
+info = dict(l.split(":", 1) for l in read("/proc/meminfo").splitlines() if ":" in l)
+print("MemTotal=%s SwapTotal=%s CommitLimit=%s Committed_AS=%s" % tuple(info.get(k, "?").strip() for k in
+      ("MemTotal", "SwapTotal", "CommitLimit", "Committed_AS")))
+for gib in (12, 8, 4):
+    size = gib << 30
+    out = []
+    try:
+        fd = os.memfd_create("arise-test")
+        os.ftruncate(fd, size)
+        m = mmap.mmap(fd, size, mmap.MAP_SHARED, mmap.PROT_READ | mmap.PROT_WRITE)
+        m.close(); out.append("memfd shared ok")
+    except OSError as e:
+        out.append("memfd shared FAILED (%s)" % e.strerror)
+    finally:
+        try:
+            os.close(fd)
+        except Exception:
+            pass
+    try:
+        m = mmap.mmap(-1, size, mmap.MAP_PRIVATE | mmap.MAP_ANONYMOUS, mmap.PROT_READ | mmap.PROT_WRITE)
+        m.close(); out.append("anonymous ok")
+    except OSError as e:
+        out.append("anonymous FAILED (%s)" % e.strerror)
+    try:
+        noreserve = getattr(mmap, "MAP_NORESERVE", 0x4000)
+        m = mmap.mmap(-1, size, mmap.MAP_PRIVATE | mmap.MAP_ANONYMOUS | noreserve, mmap.PROT_READ | mmap.PROT_WRITE)
+        m.close(); out.append("anonymous noreserve ok")
+    except OSError as e:
+        out.append("anonymous noreserve FAILED (%s)" % e.strerror)
+    print("%d GiB: %s" % (gib, ", ".join(out)))
+PY
+fi
 echo "== appimage $ARGV0 ($APPDIR) ${flags[*]} FEX $fex Qt $qt${QT_QPA_PLATFORM:+ ($QT_QPA_PLATFORM)}"
 cd "$APPDIR" || exit 1
 started=$(mktemp "${TMPDIR:-/tmp}/droiddeck-appimage.XXXXXX")
