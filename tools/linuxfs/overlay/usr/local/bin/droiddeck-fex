@@ -374,6 +374,42 @@ def host_preloads():
     return [name for name in PRELOAD_NAMES if name in listed]
 
 
+
+# AriseOS: Eden-family emulators (Orchid) test Vulkan at start by re-running themselves with
+# YUZU_DO_STARTUP_CHECKS=ON and switch to OpenGL for good if that child crashes. Under FEX in proot the child
+# dies for reasons unrelated to the GPU (the setting meant to skip the test is read before the config is), so this
+# preload ends exactly that child with success; with the variable unset it does nothing.
+NO_VK_CHECK = "libnovkcheck.so"
+NO_VK_CHECK_BLOBS = {
+    "x86_64": "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",
+    "i386": "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",
+}
+
+
+def install_no_vk_check(root):
+    import base64
+    import zlib
+    shipped = 0
+    for arch, libdir in GUEST_LIBDIRS:
+        blob = NO_VK_CHECK_BLOBS.get(arch)
+        if not blob:
+            continue
+        target = os.path.join(root, libdir, "droiddeck", NO_VK_CHECK)
+        data = zlib.decompress(base64.b64decode(blob))
+        with contextlib.suppress(OSError):
+            os.makedirs(os.path.dirname(target), exist_ok=True)
+            current = None
+            with contextlib.suppress(OSError):
+                with open(target, "rb") as f:
+                    current = f.read()
+            if current != data:
+                with open(target + ".tmp", "wb") as f:
+                    f.write(data)
+                os.replace(target + ".tmp", target)
+            shipped += 1
+    return shipped == len(GUEST_LIBDIRS)
+
+
 def install_preloads(root):
     shipped = {}
     for arch, libdir in GUEST_LIBDIRS:
@@ -391,6 +427,8 @@ def install_preloads(root):
                 os.unlink(alias)
             os.symlink("libvulkan.so.1", alias)
     wanted = [name for name in host_preloads() if name in shipped]
+    if install_no_vk_check(root):
+        wanted.append(NO_VK_CHECK)
     if len(shipped.get(FAULT_REPORT, ())) == len(GUEST_LIBDIRS):
         wanted.append(FAULT_REPORT)
     write_if_changed(os.path.join(root, "etc", "ld.so.preload"), "".join("/usr/$LIB/droiddeck/%s\n" % name for name in wanted))

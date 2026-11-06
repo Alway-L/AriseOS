@@ -14,7 +14,10 @@ import java.io.File
  */
 object SwitchPresets {
     private const val TAG = "SwitchPresets"
-    private const val MARKER = ".ariseos-preset-1"
+    // v2 also turns off the startup Vulkan check and puts Vulkan back: the check re-runs the program in a child
+    // process, which under FEX in proot cannot start (execveat), so it always reported "broken Vulkan" and fell back
+    // to OpenGL even though the Vulkan thunk works.
+    private const val MARKER = ".ariseos-preset-2"
 
     /** (key, value) in the [Renderer] section. */
     internal val RENDERER = listOf(
@@ -30,6 +33,9 @@ object SwitchPresets {
         "anti_aliasing" to "1",              // FXAA
     )
 
+    /** (key, value) in the [Debugging] section. */
+    internal val DEBUGGING = listOf("perform_vulkan_check" to "false")
+
     /** AppImage id under /opt/appimages/user → config folder name. */
     private val EMULATORS = mapOf("eglantine" to "eglantine", "lichii" to "eden", "orchid" to "eden")
 
@@ -42,7 +48,8 @@ object SwitchPresets {
             try {
                 config.mkdirs()
                 val ini = File(config, "qt-config.ini")
-                ini.writeText(merge(if (ini.isFile) ini.readText() else "", "Renderer", RENDERER))
+                val text = merge(if (ini.isFile) ini.readText() else "", "Renderer", RENDERER)
+                ini.writeText(merge(text, "Debugging", DEBUGGING))
                 marker.writeText("$id\n")
                 Log.i(TAG, "recommended settings written for $id in ~/.config/$dir")
             } catch (e: Exception) {

@@ -321,13 +321,15 @@ class PrepareTest(FexTestCase):
         self.assertEqual((root / "lib/x86_64-linux-gnu/droiddeck/vulkan/libvulkan.so.1").read_bytes(), b"pin")
         self.assertEqual(os.readlink(root / "lib/x86_64-linux-gnu/droiddeck/vulkan/libvulkan.so"), "libvulkan.so.1")
         self.assertEqual((root / "etc/ld.so.preload").read_text(),
-                         "/usr/$LIB/droiddeck/libblsession.so\n/usr/$LIB/droiddeck/libfakeinput.so\n")
+                         "/usr/$LIB/droiddeck/libblsession.so\n/usr/$LIB/droiddeck/libfakeinput.so\n"
+                         "/usr/$LIB/droiddeck/libnovkcheck.so\n")
         self.assertEqual((root / "lib/i386-linux-gnu/droiddeck/libfakeinput.so").read_bytes(), b"i386libfakeinput.so")
         self.assertEqual((root / "etc/asound.conf").read_text(),
                          "pcm.!default {\n    type pulse\n}\nctl.!default {\n    type pulse\n}\n")
         self.write(self.tmp / "ld.so.preload", "/usr/local/lib/libblsession.so\n")
         FEX["install_preloads"](str(root))
-        self.assertEqual((root / "etc/ld.so.preload").read_text(), "/usr/$LIB/droiddeck/libblsession.so\n")
+        self.assertEqual((root / "etc/ld.so.preload").read_text(),
+                         "/usr/$LIB/droiddeck/libblsession.so\n/usr/$LIB/droiddeck/libnovkcheck.so\n")
 
     def test_only_x86_loaders_preload_the_fault_report(self):
         root = self.tmp / "root"
@@ -338,7 +340,8 @@ class PrepareTest(FexTestCase):
         FEX["install_preloads"](str(root))
         self.assertEqual((root / "lib/x86_64-linux-gnu/droiddeck/libfaultreport.so").read_bytes(), b"report64")
         self.assertEqual((root / "lib/i386-linux-gnu/droiddeck/libfaultreport.so").read_bytes(), b"report32")
-        self.assertEqual((root / "etc/ld.so.preload").read_text(), "/usr/$LIB/droiddeck/libfaultreport.so\n")
+        self.assertEqual((root / "etc/ld.so.preload").read_text(),
+                         "/usr/$LIB/droiddeck/libnovkcheck.so\n/usr/$LIB/droiddeck/libfaultreport.so\n")
 
     def test_device_fonts_reach_the_x86_runtime(self):
         root = self.tmp / "root"
