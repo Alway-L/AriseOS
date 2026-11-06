@@ -3,6 +3,9 @@
     xmlns:tools="http://schemas.android.com/tools">
 
     <queries>
+        <!-- AriseOS: native Android emulators the desktop dock opens (AndroidEmulators). -->
+        <package android:name="dev.lichii.android" />
+        <package android:name="dev.lichii.android.nightly" />
         <intent>
             <action android:name="android.content.pm.action.CONFIRM_INSTALL" />
         </intent>

@@ -192,7 +192,16 @@ private fun DesktopDock(
     val scroll = rememberScrollState()
     val dockContext = LocalContext.current
     val extras = com.droiddeck.launcher.runtime.ExtraEmulators.all.filter { com.droiddeck.launcher.runtime.ExtraEmulators.installed(apps, it) == null }
-    if (keys.isEmpty() && available.isEmpty() && extras.isEmpty() && UserAppsState.working == null && UserAppsState.lastError == null) return
+    val androidExtras = com.droiddeck.launcher.runtime.AndroidEmulators.all
+    val lifecycle = androidx.compose.ui.platform.LocalLifecycleOwner.current
+    androidx.compose.runtime.DisposableEffect(lifecycle) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) com.droiddeck.launcher.runtime.AndroidEmulators.refresh++
+        }
+        lifecycle.lifecycle.addObserver(observer)
+        onDispose { lifecycle.lifecycle.removeObserver(observer) }
+    }
+    if (keys.isEmpty() && available.isEmpty() && extras.isEmpty() && androidExtras.isEmpty() && UserAppsState.working == null && UserAppsState.lastError == null) return
     Column(Modifier.fillMaxWidth().padding(top = if (compactDesktop()) 14.dp else 22.dp)) {
         Text(
             stringResource(R.string.user_apps_section).uppercase(), fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.6.sp,
@@ -256,6 +265,22 @@ private fun DesktopDock(
                     }
                 }
             }
+            androidExtras.forEach { x ->
+                key("android:${x.id}") {
+                    val ae = com.droiddeck.launcher.runtime.AndroidEmulators
+                    val installedPkg = remember(ae.refresh, ae.working) { ae.installedPackage(dockContext, x) }
+                    val busyHere = ae.working == x.id
+                    DesktopCard(
+                        "android:${x.id}", x.name,
+                        if (busyHere) (if (ae.percent >= 0) "${ae.percent}%" else stringResource(R.string.store_installing)) else x.system,
+                        art = x.iconRes, badge = if (busyHere || installedPkg != null) null else stringResource(R.string.comp_get),
+                        progress = if (busyHere) ae.percent else null,
+                    ) { _ ->
+                        if (installedPkg != null) ae.launch(dockContext, x)
+                        else if (ae.working == null) ae.install(dockContext, x)
+                    }
+                }
+            }
             extras.forEach { x ->
                 key("extra:${x.id}") {
                     val busyHere = UserAppsState.working == x.name
@@ -273,6 +298,9 @@ private fun DesktopDock(
         }
         if (UserAppsState.working != null || UserAppsState.lastError != null) {
             Box(Modifier.padding(start = if (narrow) 20.dp else 44.dp, end = 20.dp, top = 6.dp)) { UserAppsProgressLine() }
+        }
+        com.droiddeck.launcher.runtime.AndroidEmulators.error?.let { msg ->
+            Text(msg, fontSize = 12.5.sp, color = pal.error, modifier = Modifier.padding(start = if (narrow) 20.dp else 44.dp, end = 20.dp, top = 6.dp))
         }
     }
 }
