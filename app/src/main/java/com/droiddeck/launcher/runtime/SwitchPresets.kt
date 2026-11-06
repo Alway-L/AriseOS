@@ -1,0 +1,75 @@
+package com.droiddeck.launcher.runtime
+
+import android.util.Log
+import java.io.File
+
+/**
+ * AriseOS: the recommended settings for the Switch 2 emulators (Eglantine, Lichii, Orchid), written once into
+ * each one's qt-config.ini so they start tuned for the phone. All three come from Eden and share its settings
+ * and enum order (src/common/settings.h, settings_enums.h). Eglantine keeps its config in ~/.config/eglantine;
+ * Lichii and Orchid both use ~/.config/eden.
+ *
+ * Eden reads a key only when "key\default" is false, so every value is written with that flag.
+ * After the first time a marker file keeps the user's own changes from being overwritten.
+ */
+object SwitchPresets {
+    private const val TAG = "SwitchPresets"
+    private const val MARKER = ".ariseos-preset-1"
+
+    /** (key, value) in the [Renderer] section. */
+    internal val RENDERER = listOf(
+        "backend" to "1",                    // Vulkan
+        "resolution_setup" to "3",           // 1x
+        "gpu_accuracy" to "0",               // Fast
+        "use_asynchronous_shaders" to "true",
+        "astc_recompression" to "2",         // BC3
+        "vram_usage_mode" to "0",            // Conservative
+        "use_reactive_flushing" to "true",
+        "use_vsync" to "3",                  // FIFO Relaxed
+        "scaling_filter" to "5",             // ScaleForce
+        "anti_aliasing" to "1",              // FXAA
+    )
+
+    /** AppImage id under /opt/appimages/user → config folder name. */
+    private val EMULATORS = mapOf("eglantine" to "eglantine", "lichii" to "eden", "orchid" to "eden")
+
+    fun apply(root: File) {
+        for ((id, dir) in EMULATORS) {
+            if (!File(root, "opt/appimages/user/$id").isDirectory) continue
+            val config = File(root, "root/.config/$dir")
+            val marker = File(config, MARKER)
+            if (marker.exists()) continue
+            try {
+                config.mkdirs()
+                val ini = File(config, "qt-config.ini")
+                ini.writeText(merge(if (ini.isFile) ini.readText() else "", "Renderer", RENDERER))
+                marker.writeText("$id\n")
+                Log.i(TAG, "recommended settings written for $id in ~/.config/$dir")
+            } catch (e: Exception) {
+                Log.w(TAG, "could not write the recommended settings for $id", e)
+            }
+        }
+    }
+
+    /** Sets each key (with "key\default=false") in [section] of an INI text, keeping everything else. */
+    internal fun merge(text: String, section: String, values: List<Pair<String, String>>): String {
+        val lines = text.lines().dropLastWhile { it.isEmpty() }.toMutableList()
+        var start = lines.indexOfFirst { it.trim() == "[$section]" }
+        if (start < 0) {
+            if (lines.isNotEmpty()) lines += ""
+            lines += "[$section]"
+            start = lines.size - 1
+        }
+        var end = (start + 1 until lines.size).firstOrNull { lines[it].trim().startsWith("[") } ?: lines.size
+        val wanted = LinkedHashMap<String, String>()
+        for ((k, v) in values) { wanted["$k\\default"] = "false"; wanted[k] = v }
+        for (i in start + 1 until end) {
+            val key = lines[i].substringBefore('=', "").trim()
+            wanted.remove(key)?.let { lines[i] = "$key=$it" }
+        }
+        val missing = wanted.map { (k, v) -> "$k=$v" }
+        lines.addAll(end, missing)
+        end += missing.size
+        return lines.joinToString("\n") + "\n"
+    }
+}

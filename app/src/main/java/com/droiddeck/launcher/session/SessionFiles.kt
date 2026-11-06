@@ -64,6 +64,7 @@ object SessionFiles {
         if (DesktopCatalog.desktopInstalled(root) && !DesktopCatalog.desktopFromPack(root)) try { DesktopCatalog.cleanLegacy(context) }
         catch (e: Exception) { Log.w(TAG, "LXQt cleanup will retry next session", e) }
         if (DesktopCatalog.desktopInstalled(root)) ariseWallpaper(context, root)
+        com.droiddeck.launcher.runtime.SwitchPresets.apply(root)
         GameEnvironmentStore.publish(context)
         WinComponents.publish(context)
         val files = arrayOf(
