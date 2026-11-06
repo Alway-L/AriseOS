@@ -35,7 +35,6 @@ object ExtraEmulators {
                 "Alway-L/AriseOS", Regex("^lichii-arise-linux-aarch64\\.AppImage$"), Regex("^lichii-arise-"), previews = true,
             ),
         ),
-        ),
         // Frizti's Lichii fork carries Ocarina of Time fixes but publishes Windows builds only; AriseOS builds its
         // Linux ARM64 AppImage (.github/workflows/build-lichii-frizti.yml) and attaches it to a release here.
         Extra(
