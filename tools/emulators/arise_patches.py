@@ -43,6 +43,87 @@ patch(
     "address-space fallback for the 256 GiB block",
 )
 
+# 1b. Even the kernel could not find a free 256 GiB block once Qt, the Vulkan driver and the 12 GiB guest memory
+#     were mapped (Orchid 1.3.30 log: "mmap failed" at the virtual base, no fastmem, game hung at Launching...).
+#     Reserve the block (PROT_NONE, nothing committed) when the program loads, while the address space is still
+#     empty, and hand that exact block to the emulator; on release it goes back to the reservation for the next game.
+patch(
+    "src/common/host_memory.cpp", "AriseOS: early 256 GiB",
+    "#ifndef MAP_NOCORE\n#define MAP_NOCORE 0\n#endif\n",
+    """#ifndef MAP_NOCORE
+#define MAP_NOCORE 0
+#endif
+
+// AriseOS: early 256 GiB reservation (see tools/emulators/arise_patches.py). Zero-initialised globals, so the
+// constructor below cannot be undone by later dynamic initialisation.
+static constexpr size_t AriseReserveSize = 1ULL << 38;
+static uintptr_t g_arise_reserved = 0;
+static bool g_arise_reserved_in_use = false;
+#ifdef ARCHITECTURE_arm64
+__attribute__((constructor)) static void AriseReserveEarly() {
+    const size_t span = AriseReserveSize + HugePageSize;
+    void* p = mmap(nullptr, span, PROT_NONE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_NORESERVE, -1, 0);
+    if (p == MAP_FAILED) {
+        return;
+    }
+    const uintptr_t start = reinterpret_cast<uintptr_t>(p);
+    const uintptr_t aligned = (start + HugePageSize - 1) & ~(uintptr_t(HugePageSize) - 1);
+    if (aligned > start) {
+        munmap(p, aligned - start);
+    }
+    const uintptr_t end = start + span;
+    if (end > aligned + AriseReserveSize) {
+        munmap(reinterpret_cast<void*>(aligned + AriseReserveSize), end - (aligned + AriseReserveSize));
+    }
+    g_arise_reserved = aligned;
+}
+#endif
+static void* AriseTakeReserved(size_t size) {
+    if (g_arise_reserved == 0 || g_arise_reserved_in_use || size > AriseReserveSize) {
+        return MAP_FAILED;
+    }
+    void* p = mmap(reinterpret_cast<void*>(g_arise_reserved), size, PROT_READ | PROT_WRITE,
+                   MAP_FIXED | MAP_PRIVATE | MAP_ANONYMOUS | MAP_NORESERVE | MAP_NOCORE, -1, 0);
+    if (p == MAP_FAILED) {
+        return MAP_FAILED;
+    }
+    g_arise_reserved_in_use = true;
+    LOG_INFO(HW_Memory, "AriseOS: using the 256 GiB block reserved at start ({})", p);
+    return p;
+}
+static int AriseUnmapVirtual(void* base, size_t size) {
+    if (g_arise_reserved_in_use && reinterpret_cast<uintptr_t>(base) == g_arise_reserved) {
+        void* p = mmap(base, AriseReserveSize, PROT_NONE, MAP_FIXED | MAP_PRIVATE | MAP_ANONYMOUS | MAP_NORESERVE, -1, 0);
+        g_arise_reserved_in_use = false;
+        if (p == MAP_FAILED) {
+            g_arise_reserved = 0;
+            return munmap(base, size);
+        }
+        return 0;
+    }
+    return munmap(base, size);
+}
+""",
+    "reserve the 256 GiB block at program start",
+)
+patch(
+    "src/common/host_memory.cpp", "AriseUnmapVirtual(virtual_map_base",
+    "int ret = munmap(virtual_map_base, virtual_size);",
+    "int ret = AriseUnmapVirtual(virtual_map_base, virtual_size);",
+    "give the reserved block back on release",
+)
+patch(
+    "src/common/host_memory.cpp", "AriseOS: try the reserved block first",
+    "        virtual_base = virtual_map_base = static_cast<u8*>(ChooseVirtualBase(virtual_size));\n",
+    """        // AriseOS: try the reserved block first
+        virtual_base = virtual_map_base = static_cast<u8*>(AriseTakeReserved(virtual_size));
+        if (virtual_base == MAP_FAILED) {
+            virtual_base = virtual_map_base = static_cast<u8*>(ChooseVirtualBase(virtual_size));
+        }
+""",
+    "use the reserved block for the virtual base",
+)
+
 # 2. Say why a ZBIC (zstd) decompression of game code failed, instead of only "got -1".
 patch(
     "src/common/zbic_compression.cpp", "AriseOS: ZBIC",
