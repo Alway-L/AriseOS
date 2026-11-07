@@ -41,7 +41,7 @@ class SteamTouchControls(
     private var shakeToHide = prefs.getBoolean("shake", false)
     // Button labels only: each face button keeps its position (and the signal it sends), so a
     // Switch layout shows B at the bottom and A on the right, as on a Switch controller.
-    private var style = prefs.getInt("style", STYLE_DECK).coerceIn(0, STYLES.size - 1)
+    private var buttonStyle = prefs.getInt("buttonStyle", STYLE_DECK).coerceIn(0, STYLES.size - 1)
     private var shakenAway = false
     private val sensors by lazy { context.getSystemService(Context.SENSOR_SERVICE) as android.hardware.SensorManager }
     private var lastJolt = 0L
@@ -406,7 +406,7 @@ class SteamTouchControls(
         }
         text.color = when {
             pressed -> Color.argb(alpha, 23, 26, 33)
-            shown == own -> STYLE_COLORS[style][type]?.let { Color.argb(alpha, Color.red(it), Color.green(it), Color.blue(it)) } ?: text.color
+            shown == own -> STYLE_COLORS[buttonStyle][type]?.let { Color.argb(alpha, Color.red(it), Color.green(it), Color.blue(it)) } ?: text.color
             else -> text.color
         }
         val line = if (shown.length > 10) shown.take(9) + "…" else shown
@@ -524,22 +524,22 @@ class SteamTouchControls(
     }
 
     private fun label(type: Int) = when (type) {
-        SteamTouchConfig.A -> STYLE_FACE[style][0]
-        SteamTouchConfig.B -> STYLE_FACE[style][1]
-        SteamTouchConfig.X -> STYLE_FACE[style][2]
-        SteamTouchConfig.Y -> STYLE_FACE[style][3]
+        SteamTouchConfig.A -> STYLE_FACE[buttonStyle][0]
+        SteamTouchConfig.B -> STYLE_FACE[buttonStyle][1]
+        SteamTouchConfig.X -> STYLE_FACE[buttonStyle][2]
+        SteamTouchConfig.Y -> STYLE_FACE[buttonStyle][3]
         SteamTouchConfig.STEAM -> "STEAM"
         SteamTouchConfig.THUMB -> "…"
         SteamTouchConfig.KEYBOARD -> "⌨"
         SteamTouchConfig.PASTE -> context.getString(R.string.touch_paste)
-        SteamTouchConfig.SELECT -> STYLE_SYSTEM[style][0]
-        SteamTouchConfig.START -> STYLE_SYSTEM[style][1]
-        SteamTouchConfig.BUMPER_LEFT -> STYLE_SHOULDER[style][0]
-        SteamTouchConfig.BUMPER_RIGHT -> STYLE_SHOULDER[style][1]
-        SteamTouchConfig.TRIGGER_LEFT -> STYLE_SHOULDER[style][2]
-        SteamTouchConfig.TRIGGER_RIGHT -> STYLE_SHOULDER[style][3]
-        SteamTouchConfig.JOYSTICK_LEFT_BUTTON -> STYLE_STICK[style][0]
-        SteamTouchConfig.JOYSTICK_RIGHT_BUTTON -> STYLE_STICK[style][1]
+        SteamTouchConfig.SELECT -> STYLE_SYSTEM[buttonStyle][0]
+        SteamTouchConfig.START -> STYLE_SYSTEM[buttonStyle][1]
+        SteamTouchConfig.BUMPER_LEFT -> STYLE_SHOULDER[buttonStyle][0]
+        SteamTouchConfig.BUMPER_RIGHT -> STYLE_SHOULDER[buttonStyle][1]
+        SteamTouchConfig.TRIGGER_LEFT -> STYLE_SHOULDER[buttonStyle][2]
+        SteamTouchConfig.TRIGGER_RIGHT -> STYLE_SHOULDER[buttonStyle][3]
+        SteamTouchConfig.JOYSTICK_LEFT_BUTTON -> STYLE_STICK[buttonStyle][0]
+        SteamTouchConfig.JOYSTICK_RIGHT_BUTTON -> STYLE_STICK[buttonStyle][1]
         SteamTouchConfig.MACRO_1_FINGER -> "1F"
         SteamTouchConfig.MACRO_2_FINGER -> "2F"
         in SteamTouchConfig.MACRO_0..SteamTouchConfig.MACRO_0 + 7 -> "M${type - SteamTouchConfig.MACRO_0 + 1}"
@@ -1069,9 +1069,9 @@ class SteamTouchControls(
         }
         drawVolume(canvas, f, s)
         blueButton(canvas, ref(f, s, 300f, 22f, 480f, 52f),
-            context.getString(R.string.touch_style, context.getString(STYLES[style])), s) {
-            style = (style + 1) % STYLES.size
-            prefs.edit().putInt("style", style).apply()
+            context.getString(R.string.touch_style, context.getString(STYLES[buttonStyle])), s) {
+            buttonStyle = (buttonStyle + 1) % STYLES.size
+            prefs.edit().putInt("buttonStyle", buttonStyle).apply()
         }
         blueButton(canvas, ref(f, s, 45f, 329f, 249f, 372f), context.getString(R.string.touch_edit_layout), s, primary = true) { menuOpen = false; startEditing() }
         blueButton(canvas, ref(f, s, 271f, 329f, 475f, 372f), context.getString(R.string.touch_droiddeck_menu), s) { menuOpen = false; onMenu() }
