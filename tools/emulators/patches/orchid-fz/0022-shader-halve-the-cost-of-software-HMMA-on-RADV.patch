@@ -1,0 +1,429 @@
+From 1148ca6c4b162c2c948bd3462c36f45ef367f6d1 Mon Sep 17 00:00:00 2001
+From: pavelgajdo <pavel.gajdo@gmail.com>
+Date: Thu, 5 Nov 2026 22:48:24 +0100
+Subject: [PATCH 22/23] shader: halve the cost of software HMMA on RADV
+
+Ocarina of Time runs neural-network compute passes (HMMA m16n8k16) on
+every frame, including its pre-rendered movies. On the Xclipse 960
+(RADV, GFX11) they took 115 ms of GPU time per frame, so the title and
+cutscenes ran at ~8 fps.
+
+- One loop iteration per K=8 group with its four K pairs unrolled, so
+  each pair's source lanes are constants and the rounding needs no
+  branch. Unrolling all of K=16 was measured worse: RADV hoists the
+  second group's shuffles and the larger networks spill thousands of
+  VGPRs.
+- A comes from the lane's own quad: a quad broadcast with a constant
+  index (a DPP move on AMD) instead of an LDS permute.
+- When the shader already has halves, round at each K8 boundary with a
+  float->half->float conversion marked NoContraction (RADV fuses it
+  into the last FMA) instead of ~10 integer operations.
+
+GPU time per frame on the title movie: 115 ms -> 58 ms; no spills in
+any of the hot pipelines. Tests updated for the new shape and a test
+added for the conversion path.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+(cherry picked from commit 4d3d244657515af71362bb139f8187ab7aa7c6f4)
+---
+ .../backend/spirv/emit_spirv_tensor.cpp       |  98 +++++----
+ .../video_core/spirv_software_matrix.cpp      | 208 ++++++++----------
+ 2 files changed, 146 insertions(+), 160 deletions(-)
+
+diff --git a/src/shader_recompiler/backend/spirv/emit_spirv_tensor.cpp b/src/shader_recompiler/backend/spirv/emit_spirv_tensor.cpp
+index c8f3ae570d..02121bfa3e 100644
+--- a/src/shader_recompiler/backend/spirv/emit_spirv_tensor.cpp
++++ b/src/shader_recompiler/backend/spirv/emit_spirv_tensor.cpp
+@@ -30,6 +30,17 @@ void DefineSoftwareMatrixFunctions(EmitContext& ctx, const IR::Program& program)
+         const auto and_ = [&](Id a, u32 b) { return ctx.OpBitwiseAnd(u32ty, a, imm(b)); };
+         const auto unpack = [&](Id v) { return ctx.OpUnpackHalf2x16(ctx.F32[2], v); };
+         const auto round_half = [&](Id value) {
++            if (program.info.uses_fp16) {
++                // A round trip through a half: the conversion rounds to nearest even, keeps half
++                // subnormals and overflows to infinity, as the bit operations below do, in two
++                // instructions (RADV fuses it into the last FMA). NoContraction keeps the pair
++                // exact so it is not folded away.
++                const Id half = ctx.OpFConvert(ctx.F16[1], value);
++                ctx.Decorate(half, spv::Decoration::NoContraction);
++                const Id widened = ctx.OpFConvert(f32ty, half);
++                ctx.Decorate(widened, spv::Decoration::NoContraction);
++                return widened;
++            }
+             // Do not express the intermediate rounding as unpack(pack(value)): drivers may
+             // eliminate that round trip. Round normal significands explicitly, ties to even;
+             // half subnormals lie on the exactly representable 2^-24 grid.
+@@ -56,11 +67,11 @@ void DefineSoftwareMatrixFunctions(EmitContext& ctx, const IR::Program& program)
+         const Id matrix_c = ctx.OpFunctionParameter(ctx.U32[2]);
+         ctx.AddLabel();
+         const Id counter = ctx.AddLocalVariable(ctx.TypePointer(spv::StorageClass::Function, u32ty),
+-                                           spv::StorageClass::Function);
++                                                spv::StorageClass::Function);
+         std::array<Id, 4> accumulators;
+         for (auto& acc : accumulators)
+             acc = ctx.AddLocalVariable(ctx.TypePointer(spv::StorageClass::Function, f32ty),
+-                                 spv::StorageClass::Function);
++                                       spv::StorageClass::Function);
+         std::array<Id, 8> inputs;
+         for (u32 i = 0; i < 4; ++i)
+             inputs[i] = ctx.OpCompositeExtract(u32ty, matrix_a, i);
+@@ -73,64 +84,73 @@ void DefineSoftwareMatrixFunctions(EmitContext& ctx, const IR::Program& program)
+             for (u32 col = 0; col < 2; ++col)
+                 ctx.OpStore(accumulators[row * 2 + col], ctx.OpCompositeExtract(f32ty, c, col));
+         }
+-        ctx.OpStore(counter, imm(0));
+         const Id lane = ctx.OpLoad(u32ty, ctx.subgroup_local_invocation_id);
+         const Id warp_base = and_(lane, ~31U);
+-        const Id row_base = and_(lane, 28);
+-        const Id col_base = ctx.OpShiftLeftLogical(u32ty, and_(lane, 3), imm(3));
+-        const Id header = ctx.OpLabel(), body = ctx.OpLabel(), next = ctx.OpLabel(), end = ctx.OpLabel();
++        const Id row_base = add(warp_base, and_(lane, 28));
++        const Id col_base = add(warp_base, ctx.OpShiftLeftLogical(u32ty, and_(lane, 3), imm(3)));
++        // A comes from lane `component` of this lane's own quad: a quad broadcast with a constant
++        // index, which hosts do without a general (LDS) shuffle.
++        const bool quad = ctx.profile.support_quad_shuffles;
++        if (quad) {
++            ctx.AddCapability(spv::Capability::GroupNonUniformQuad);
++        }
++        // One iteration per K=8 group (the four K pairs between roundings), unrolled so every
++        // pair's lanes are constants. Unrolling all of K=16 instead lets the host compiler hoist
++        // the second group's shuffles, and large networks then spill registers.
++        const u32 groups = variant ? 2 : 1;
++        const Id header = ctx.OpLabel(), body = ctx.OpLabel(), next = ctx.OpLabel(),
++                 end = ctx.OpLabel();
++        ctx.OpStore(counter, imm(0));
+         ctx.OpBranch(header);
+         ctx.AddLabel(header);
+-        const Id pair = ctx.OpLoad(u32ty, counter);
+-        const Id more = ctx.OpULessThan(ctx.U1, pair, imm(variant ? 8 : 4));
++        const Id group = ctx.OpLoad(u32ty, counter);
++        const Id more = ctx.OpULessThan(ctx.U1, group, imm(groups));
+         ctx.OpLoopMerge(end, next, spv::LoopControlMask::DontUnroll);
+         ctx.OpBranchConditional(more, body, end);
+         ctx.AddLabel(body);
+-        const Id upper = ctx.OpUGreaterThanEqual(ctx.U1, pair, imm(4));
+-        const Id component = and_(pair, 3);
+-        const Id a_lane = add(warp_base, add(row_base, component));
+-        const Id b_lane = add(warp_base, add(col_base, component));
+-        const Id b = ctx.OpSelect(u32ty, upper, inputs[5], inputs[4]);
+-        std::array<Id, 2> bs;
+-        for (u32 col = 0; col < 2; ++col)
+-            bs[col] = unpack(ctx.OpGroupNonUniformShuffle(u32ty, imm(3), b,
+-                                                          add(b_lane, imm(col * 4))));
+-        const Id round_now = ctx.OpIEqual(ctx.U1, component, imm(3));
+-        for (u32 row = 0; row < 2; ++row) {
+-            const Id a = ctx.OpSelect(u32ty, upper, inputs[row + 2], inputs[row]);
+-            const Id as = unpack(ctx.OpGroupNonUniformShuffle(u32ty, imm(3), a, a_lane));
+-            for (u32 col = 0; col < 2; ++col) {
+-                Id value = ctx.OpLoad(f32ty, accumulators[row * 2 + col]);
+-                for (u32 half = 0; half < 2; ++half) {
+-                    value = ctx.OpFma(f32ty, ctx.OpCompositeExtract(f32ty, as, half),
+-                                      ctx.OpCompositeExtract(f32ty, bs[col], half), value);
+-                    ctx.Decorate(value, spv::Decoration::NoContraction);
++        const Id upper = ctx.OpUGreaterThanEqual(ctx.U1, group, imm(1));
++        const auto pick = [&](u32 low, u32 high) {
++            return groups == 1 ? inputs[low] : ctx.OpSelect(u32ty, upper, inputs[high], inputs[low]);
++        };
++        const Id b = pick(4, 5);
++        std::array<Id, 2> a_regs{pick(0, 2), pick(1, 3)};
++        for (u32 component = 0; component < 4; ++component) {
++            std::array<Id, 2> bs;
++            for (u32 col = 0; col < 2; ++col)
++                bs[col] = unpack(ctx.OpGroupNonUniformShuffle(
++                    u32ty, imm(3), b, add(col_base, imm(component + col * 4))));
++            for (u32 row = 0; row < 2; ++row) {
++                const Id shuffled =
++                    quad ? ctx.OpGroupNonUniformQuadBroadcast(u32ty, imm(3), a_regs[row],
++                                                              imm(component))
++                         : ctx.OpGroupNonUniformShuffle(u32ty, imm(3), a_regs[row],
++                                                        add(row_base, imm(component)));
++                const Id as = unpack(shuffled);
++                for (u32 col = 0; col < 2; ++col) {
++                    Id value = ctx.OpLoad(f32ty, accumulators[row * 2 + col]);
++                    for (u32 half = 0; half < 2; ++half) {
++                        value = ctx.OpFma(f32ty, ctx.OpCompositeExtract(f32ty, as, half),
++                                          ctx.OpCompositeExtract(f32ty, bs[col], half), value);
++                        ctx.Decorate(value, spv::Decoration::NoContraction);
++                    }
++                    ctx.OpStore(accumulators[row * 2 + col], value);
+                 }
+-                ctx.OpStore(accumulators[row * 2 + col], value);
+             }
+         }
+         // HMMA.F16 rounds after each K=8 group, including the midpoint of K=16.
+-        // OpSelect evaluates both operands: keep the expensive half conversion in
+-        // a branch so the other three pairs do no rounding work. The counter is
+-        // identical in every participating lane and all shuffles precede this branch.
+-        const Id round_block = ctx.OpLabel(), round_merge = ctx.OpLabel();
+-        ctx.OpSelectionMerge(round_merge, spv::SelectionControlMask::DontFlatten);
+-        ctx.OpBranchConditional(round_now, round_block, round_merge);
+-        ctx.AddLabel(round_block);
+         for (const Id accumulator : accumulators) {
+             ctx.OpStore(accumulator, round_half(ctx.OpLoad(f32ty, accumulator)));
+         }
+-        ctx.OpBranch(round_merge);
+-        ctx.AddLabel(round_merge);
+         ctx.OpBranch(next);
+         ctx.AddLabel(next);
+-        ctx.OpStore(counter, add(pair, imm(1)));
++        ctx.OpStore(counter, add(group, imm(1)));
+         ctx.OpBranch(header);
+         ctx.AddLabel(end);
+         std::array<Id, 2> packed;
+         for (u32 row = 0; row < 2; ++row)
+             packed[row] = ctx.OpPackHalf2x16(u32ty, ctx.OpCompositeConstruct(ctx.F32[2],
+-                ctx.OpLoad(f32ty, accumulators[row * 2]), ctx.OpLoad(f32ty, accumulators[row * 2 + 1])));
++                ctx.OpLoad(f32ty, accumulators[row * 2]),
++                ctx.OpLoad(f32ty, accumulators[row * 2 + 1])));
+         ctx.OpReturnValue(ctx.OpCompositeConstruct(ctx.U32[2], packed[0], packed[1]));
+         ctx.OpFunctionEnd();
+     }
+diff --git a/src/tests/video_core/spirv_software_matrix.cpp b/src/tests/video_core/spirv_software_matrix.cpp
+index 918fcf1c0e..76faeea608 100644
+--- a/src/tests/video_core/spirv_software_matrix.cpp
++++ b/src/tests/video_core/spirv_software_matrix.cpp
+@@ -134,147 +134,113 @@ bool HasCapability(const std::vector<u32>& code, u32 capability) {
+ 
+ }
+ 
+-TEST_CASE("Software HMMA shares a bounded loop without tensor extensions", "[video_core][tensor][ampere]") {
++TEST_CASE("Software HMMA shares one helper without tensor extensions", "[video_core][tensor][ampere]") {
+     for (const u32 depth : {8U, 16U}) {
+         TensorProgram single{1, depth};
+         const auto first = single.Emit(depth == 8 ? "software-k8" : "software-k16");
+         REQUIRE_FALSE(HasCapability(first, 5357));
+-        REQUIRE(Instructions(first, 246).size() == 1); // OpLoopMerge
++        REQUIRE(Instructions(first, 246).size() == 1); // OpLoopMerge: one loop over K8 groups
++        REQUIRE(Instructions(first, 54).size() == 2); // OpFunction: main and the helper
+         REQUIRE(Instructions(first, 57).size() == 1); // OpFunctionCall
+         TensorProgram repeated{64, depth};
+         const auto many = repeated.Emit(depth == 8 ? "software-k8-many" : "software-k16-many");
+         REQUIRE(Instructions(many, 246).size() == 1);
+         REQUIRE(Instructions(many, 57).size() == 64);
+         // Three fragment-vector constructions, the call and two result extracts
+-        // take at most 40 words per site; the matrix loop itself is never duplicated.
++        // take at most 40 words per site; the matrix helper itself is never duplicated.
+         REQUIRE(many.size() < first.size() + 64 * 40);
+     }
+ }
+ 
+-TEST_CASE("Software HMMA rounds only on uniform K8 boundaries", "[video_core][tensor][ampere]") {
+-    for (const u32 depth : {8U, 16U}) {
+-        TensorProgram fixture{1, depth};
+-        const auto code = fixture.Emit();
+-        std::map<u32, u32> constants;
+-        for (const auto& words : Instructions(code, 43)) { // OpConstant
+-            constants.emplace(words[1], words[2]);
+-        }
++namespace {
++struct HelperCounts {
++    u32 fma{};
++    u32 shuffles{};
++    u32 quad_broadcasts{};
++    u32 conversions{};
++    std::vector<u32> fma_before_rounding; ///< FMAs emitted before each RoundEven
++    std::vector<u32> quad_indices;
++    std::vector<u32> conversion_ids;
++};
+ 
+-        const auto selections = Instructions(code, 247); // OpSelectionMerge
+-        REQUIRE(selections.size() == 1);
+-        REQUIRE(selections.front()[1] == 2); // DontFlatten
+-        const u32 merge = selections.front()[0];
+-        const auto branches = Instructions(code, 250); // OpBranchConditional
+-        const auto branch = std::ranges::find_if(branches, [=](const auto& words) {
+-            return words[2] == merge;
+-        });
+-        REQUIRE(branch != branches.end());
+-        const u32 condition = (*branch)[0];
+-        const u32 round_block = (*branch)[1];
+-        REQUIRE(round_block != merge);
++HelperCounts CountHelper(const std::vector<u32>& code) {
++    std::map<u32, u32> constants;
++    for (const auto& words : Instructions(code, 43)) { // OpConstant
++        constants.emplace(words[1], words[2]);
++    }
++    HelperCounts counts;
++    for (size_t offset = 5; offset < code.size();) {
++        const u32 length = code[offset] >> 16;
++        const u32 opcode = code[offset] & 0xffffU;
++        REQUIRE(length != 0);
++        REQUIRE(offset + length <= code.size());
++        const auto words = std::span{code}.subspan(offset + 1, length - 1);
++        if (opcode == 12 && words[3] == 2) { // GLSL.std.450 RoundEven
++            counts.fma_before_rounding.push_back(counts.fma);
++        } else if (opcode == 12 && words[3] == 50) { // GLSL.std.450 Fma
++            ++counts.fma;
++        } else if (opcode == 345) { // OpGroupNonUniformShuffle
++            ++counts.shuffles;
++        } else if (opcode == 365) { // OpGroupNonUniformQuadBroadcast
++            ++counts.quad_broadcasts;
++            REQUIRE(constants.contains(words[4]));
++            counts.quad_indices.push_back(constants.at(words[4]));
++        } else if (opcode == 115) { // OpFConvert
++            ++counts.conversions;
++            counts.conversion_ids.push_back(words[1]);
++        }
++        offset += length;
++    }
++    return counts;
++}
++} // namespace
+ 
+-        const auto comparisons = Instructions(code, 170); // OpIEqual
+-        const auto comparison = std::ranges::find_if(comparisons, [=](const auto& words) {
+-            return words[1] == condition;
+-        });
+-        REQUIRE(comparison != comparisons.end());
+-        const u32 component = (*comparison)[2];
+-        const u32 boundary = constants.at((*comparison)[3]);
+-        const auto masks = Instructions(code, 199); // OpBitwiseAnd
+-        const auto mask = std::ranges::find_if(masks, [=](const auto& words) {
+-            return words[1] == component;
+-        });
+-        REQUIRE(mask != masks.end());
+-        const u32 pair = (*mask)[2];
+-        const u32 pair_mask = constants.at((*mask)[3]);
+-        REQUIRE(pair_mask == 3);
+-        REQUIRE(boundary == 3);
+-        const auto loads = Instructions(code, 61); // OpLoad
+-        const auto pair_load = std::ranges::find_if(loads, [=](const auto& words) {
+-            return words[1] == pair;
+-        });
+-        REQUIRE(pair_load != loads.end());
+-        const u32 counter = (*pair_load)[2];
+-        const auto stores = Instructions(code, 62); // OpStore
+-        const auto additions = Instructions(code, 128); // OpIAdd
+-        u32 initializations = 0;
+-        u32 increments = 0;
+-        for (const auto& store : stores) {
+-            if (store[0] != counter) {
+-                continue;
+-            }
+-            if (constants.contains(store[1])) {
+-                REQUIRE(constants.at(store[1]) == 0);
+-                ++initializations;
+-            } else {
+-                const auto increment = std::ranges::find_if(additions, [&](const auto& words) {
+-                    return words[1] == store[1];
+-                });
+-                REQUIRE(increment != additions.end());
+-                REQUIRE((*increment)[2] == pair);
+-                REQUIRE(constants.at((*increment)[3]) == 1);
+-                ++increments;
++TEST_CASE("Software HMMA rounds once per K8 group", "[video_core][tensor][ampere]") {
++    for (const u32 depth : {8U, 16U}) {
++        for (const bool quad : {false, true}) {
++            TensorProgram fixture{1, depth};
++            fixture.profile.support_quad_shuffles = quad;
++            const auto code = fixture.Emit();
++            std::map<u32, u32> constants;
++            for (const auto& words : Instructions(code, 43)) { // OpConstant
++                constants.emplace(words[1], words[2]);
+             }
+-        }
+-        REQUIRE(initializations == 1);
+-        REQUIRE(increments == 1); // No lane-dependent input controls rounding.
+-        const auto limits = Instructions(code, 176); // OpULessThan
+-        const auto limit = std::ranges::find_if(limits, [=](const auto& words) {
+-            return words[2] == pair;
+-        });
+-        REQUIRE(limit != limits.end());
+-        const u32 pairs = constants.at((*limit)[3]);
+-        REQUIRE(pairs == depth / 2);
+-        std::vector<u32> rounded_pairs;
+-        for (u32 value = 0; value < pairs; ++value) {
+-            if ((value & pair_mask) == boundary) {
+-                rounded_pairs.push_back(value);
++            REQUIRE(Instructions(code, 247).empty()); // OpSelectionMerge: no lane-dependent branch
++            REQUIRE(HasCapability(code, 68) == quad); // GroupNonUniformQuad
++            // The loop runs once per K8 group.
++            const auto limits = Instructions(code, 176); // OpULessThan
++            REQUIRE(limits.size() == 1);
++            REQUIRE(constants.at(limits.front()[3]) == depth / 8);
++            const HelperCounts counts = CountHelper(code);
++            // Four K pairs x 2 rows x 2 columns x 2 halves, then the four accumulators rounded.
++            REQUIRE(counts.fma == 32);
++            REQUIRE(counts.fma_before_rounding == std::vector<u32>(4, 32));
++            // B always needs a general shuffle (two columns); A comes from its own quad.
++            REQUIRE(counts.shuffles == (quad ? 8U : 16U));
++            REQUIRE(counts.quad_broadcasts == (quad ? 8U : 0U));
++            for (u32 i = 0; i < counts.quad_indices.size(); ++i) {
++                REQUIRE(counts.quad_indices[i] == i / 2);
+             }
+         }
+-        REQUIRE(rounded_pairs == (depth == 8 ? std::vector<u32>{3} : std::vector<u32>{3, 7}));
++    }
++}
+ 
+-        // Inspect the generated function, not a second implementation of its branch.
+-        // Every expensive conversion is inside the true block; no collective is.
+-        u32 block = 0;
+-        u32 rounding_operations = 0;
+-        u32 fma_operations = 0;
+-        u32 shuffles = 0;
+-        std::vector<u32> rounded_accumulators;
+-        bool round_rejoins = false;
+-        for (size_t offset = 5; offset < code.size();) {
+-            const u32 length = code[offset] >> 16;
+-            const u32 opcode = code[offset] & 0xffffU;
+-            REQUIRE(length != 0);
+-            REQUIRE(offset + length <= code.size());
+-            const auto words = std::span{code}.subspan(offset + 1, length - 1);
+-            if (opcode == 248) { // OpLabel
+-                block = words[0];
+-            } else if (opcode == 12 && words[3] == 2) { // GLSL.std.450 RoundEven
+-                REQUIRE(block == round_block);
+-                ++rounding_operations;
+-            } else if (opcode == 12 && words[3] == 50) { // GLSL.std.450 Fma
+-                REQUIRE(block != round_block);
+-                ++fma_operations;
+-            } else if (opcode == 345) { // OpGroupNonUniformShuffle
+-                REQUIRE(block != round_block);
+-                ++shuffles;
+-            } else if (opcode == 62 && block == round_block) { // OpStore
+-                rounded_accumulators.push_back(words[0]);
+-            } else if (opcode == 249 && block == round_block) { // OpBranch
+-                REQUIRE(words[0] == merge);
+-                round_rejoins = true;
+-            } else if (opcode == 169) { // OpSelect must not evaluate a discarded conversion.
+-                REQUIRE(words[2] != condition);
+-            }
+-            offset += length;
++TEST_CASE("Software HMMA rounds through a half when the shader has one",
++          "[video_core][tensor][ampere]") {
++    for (const u32 depth : {8U, 16U}) {
++        TensorProgram fixture{1, depth};
++        fixture.program.info.uses_fp16 = true;
++        const auto code = fixture.Emit();
++        const HelperCounts counts = CountHelper(code);
++        REQUIRE(counts.fma_before_rounding.empty());
++        // Narrow and widen each of the four accumulators, both kept exact.
++        REQUIRE(counts.conversions == 8);
++        const auto decorations = Instructions(code, 71); // OpDecorate
++        for (const u32 id : counts.conversion_ids) {
++            REQUIRE(std::ranges::any_of(decorations, [=](const auto& words) {
++                return words[0] == id && words[1] == 42; // NoContraction
++            }));
+         }
+-        REQUIRE(rounding_operations == 4);
+-        REQUIRE(fma_operations == 8);
+-        REQUIRE(shuffles == 4);
+-        REQUIRE(round_rejoins);
+-        REQUIRE(rounded_accumulators.size() == 4);
+-        std::ranges::sort(rounded_accumulators);
+-        REQUIRE(std::ranges::adjacent_find(rounded_accumulators) == rounded_accumulators.end());
+     }
+ }
+ 
+@@ -286,7 +252,7 @@ TEST_CASE("Software matrix helpers also emit for 64-lane host subgroups",
+         const auto code = fixture.Emit(depth == 8 ? "software-k8-wave64" : "software-k16-wave64");
+         REQUIRE_FALSE(HasCapability(code, 5357));
+         REQUIRE(Instructions(code, 246).size() == 1);
+-        REQUIRE(Instructions(code, 345).size() == 4); // OpGroupNonUniformShuffle
++        REQUIRE(Instructions(code, 345).size() == 16); // OpGroupNonUniformShuffle
+     }
+ }
+ 
+-- 
+2.43.0
+
