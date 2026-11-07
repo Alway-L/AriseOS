@@ -8,7 +8,7 @@ on:
       ref:
         description: Tag or branch of Frizti/Lichii
         required: true
-        default: frizti-v2
+        default: frizti-v3
 permissions:
   contents: write
 jobs:
@@ -42,7 +42,7 @@ jobs:
       shell: bash
       run: |
         set -euo pipefail
-        python3 _arise/tools/emulators/arise_patches.py orchid-fz
+        if [ "${{ inputs.ref }}" = frizti-v2 ]; then python3 _arise/tools/emulators/arise_patches.py orchid-fz; else python3 _arise/tools/emulators/arise_patches.py orchid-fz3; fi
     - name: Install Linux dependencies
       if: startsWith(matrix.platform, 'linux')
       shell: bash

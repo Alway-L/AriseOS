@@ -1,0 +1,173 @@
+From 70ff227e6a6e6c181a297c9d5cecda9dda25f928 Mon Sep 17 00:00:00 2001
+From: pavelgajdo <pavel.gajdo@gmail.com>
+Date: Fri, 6 Nov 2026 15:28:34 +0100
+Subject: [PATCH 15/26] nx2: keep other threads out of the Vulkan scheduler
+ while the split's back submits
+
+Port of Djihads80/Eglantine df92fc6c95 (#639, rdenno). The GPU split's
+Drain() now also waits for the back's idle hook (back_quiet), and
+BufferCache::WriteMemory uploads or downloads GPU-written page bytes only
+on the thread that owns the scheduler (GpuSplit::OwnsScheduler). Here the
+gate also covers the inline page-write path (575d0a5bfd), which records
+into the scheduler too, as upstream's oot-optimization-fixes does.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+(cherry picked from commit c937b4e57ad4567f91216f392b3bf66dda299c49)
+(cherry picked from commit 1995342921a214fe538bbe4209a966ec44b45ff7)
+---
+ src/video_core/buffer_cache/buffer_cache.h |  8 +++++-
+ src/video_core/gpu_split.cpp               | 30 +++++++++++++++++-----
+ src/video_core/gpu_split.h                 | 18 +++++++++++++
+ src/video_core/gpu_thread.cpp              |  1 +
+ 4 files changed, 50 insertions(+), 7 deletions(-)
+
+diff --git a/src/video_core/buffer_cache/buffer_cache.h b/src/video_core/buffer_cache/buffer_cache.h
+index 625e19f2e6..ea2c95bd69 100644
+--- a/src/video_core/buffer_cache/buffer_cache.h
++++ b/src/video_core/buffer_cache/buffer_cache.h
+@@ -21,6 +21,7 @@
+ #include "video_core/buffer_cache/buffer_cache_base.h"
+ #include "video_core/buffer_cache/multi_range_refresh.h"
+ #include "video_core/buffer_cache/uniform_stream_reuse.h"
++#include "video_core/gpu_split.h"
+ #include "video_core/guest_memory.h"
+ #include "video_core/host1x/gpu_device_memory_manager.h"
+ #include "video_core/nx2.h"
+@@ -210,9 +211,14 @@ void BufferCache<P>::WriteMemory(DAddr device_addr, u64 size, bool keep_page_gpu
+     // structures next to the draw arguments its compute dispatches fill in; the draws then read
+     // leftover bytes as vertex counts. Download those bytes first (the CPU's own were subtracted
+     // above, so they aren't overwritten).
++    // Only the scheduler's owner may download (it records and submits): unmaps and other writes
++    // reach this from CPU and service threads too, and submitting there raced the GPU thread's
++    // own submissions (crashes in Scheduler::SubmitExecution). Those keep the old behaviour;
++    // guest CPU writes come through TryCacheInvalidation, which sends such pages to the GPU thread.
+     const DAddr page_begin = Common::AlignDown(device_addr, DEVICE_PAGESIZE);
+     const DAddr page_end = Common::AlignUp(device_addr + size, DEVICE_PAGESIZE);
+-    if (keep_page_gpu_data && gpu_modified_ranges.Intersects(page_begin, page_end - page_begin)) {
++    if (keep_page_gpu_data && VideoCommon::GpuSplit::OwnsScheduler() &&
++        gpu_modified_ranges.Intersects(page_begin, page_end - page_begin)) {
+         // Switch 2 titles: upload the CPU's bytes into the buffer instead, as CachedWriteMemory
+         // does, so the page stays GPU-owned and nothing waits for the host GPU.
+         static const int forced = [] {
+diff --git a/src/video_core/gpu_split.cpp b/src/video_core/gpu_split.cpp
+index b7594d5d0a..0f27ba37aa 100644
+--- a/src/video_core/gpu_split.cpp
++++ b/src/video_core/gpu_split.cpp
+@@ -264,19 +264,28 @@ void GpuSplit::ReportBatched() {
+ 
+ void GpuSplit::Drain(DrainSite site) {
+     consumed_cache = consumed.load(std::memory_order_acquire);
+-    if (consumed_cache == write_position) {
++    if (consumed_cache == write_position && BackQuiet()) {
+         return;
+     }
+     Publish();
+     Nx2Profile::Scope scope{Nx2Profile::Zone::SplitDrain};
+     Common::Nx2Timeline::Span timeline_span{drain_site_names[static_cast<size_t>(site)]};
+     const u64 start = Nx2Profile::Enabled() ? Nx2Profile::Ticks() : 0;
++    // Everything consumed is not enough: the back submits deferred work (Scheduler::DeferFlush)
++    // from its idle hook afterwards, and the caller may use the scheduler once this returns.
++    bool hook_asked = false;
+     for (u32 spins = 0;; ++spins) {
+         consumed_cache = consumed.load(std::memory_order_acquire);
+         if (consumed_cache == write_position) {
+-            publish_every = 8;
+-            Nx2Profile::AddDrain(site, start);
+-            return;
++            if (BackQuiet()) {
++                publish_every = 8;
++                Nx2Profile::AddDrain(site, start);
++                return;
++            }
++            if (!hook_asked) {
++                RequestIdleHook();
++                hook_asked = true;
++            }
+         }
+         Backoff(spins, write_position);
+     }
+@@ -843,9 +852,16 @@ void GpuSplit::BackLoop(std::stop_token stop_token) {
+                 Pause();
+                 available = published.load(std::memory_order_acquire);
+             }
+-            if (available == read_position && idle_hook != nullptr) {
++            if (available == read_position) {
+                 hook_requested.store(false, std::memory_order_seq_cst);
+-                idle_hook(idle_argument);
++                // The front may already see everything consumed: Drain() waits for back_quiet
++                // too, so the deferred submit can't overlap whatever the front does next.
++                if (!back_quiet.load(std::memory_order_relaxed)) {
++                    if (idle_hook != nullptr) {
++                        idle_hook(idle_argument);
++                    }
++                    back_quiet.store(true, std::memory_order_release);
++                }
+                 available = published.load(std::memory_order_acquire);
+             }
+             if (available == read_position) {
+@@ -864,6 +880,8 @@ void GpuSplit::BackLoop(std::stop_token stop_token) {
+             }
+         }
+         u64 last_store = read_position;
++        // Before any entry runs, so a front that sees these entries consumed also sees this.
++        back_quiet.store(false, std::memory_order_seq_cst);
+         while (read_position != available) {
+             const size_t index = read_position & RingMask;
+             const size_t size =
+diff --git a/src/video_core/gpu_split.h b/src/video_core/gpu_split.h
+index c1e3fdbe47..f6f9c8f1fc 100644
+--- a/src/video_core/gpu_split.h
++++ b/src/video_core/gpu_split.h
+@@ -128,6 +128,15 @@ public:
+     [[nodiscard]] static bool OnBackThread() {
+         return on_back_thread;
+     }
++    /// Marks the calling thread as the GPU thread (the front, or the only one without the split).
++    static void MarkGpuThread() {
++        on_gpu_thread = true;
++    }
++    /// Whether the calling thread owns the Vulkan scheduler: the back while it runs, else the
++    /// GPU thread. Other threads (CPU cores, services) must not record or submit work.
++    [[nodiscard]] static bool OwnsScheduler() {
++        return Get().BackRunning() ? on_back_thread : on_gpu_thread;
++    }
+     /// Called on the back before it sleeps waiting for work (the rasterizer submits deferred work).
+     void SetIdleHook(void (*hook)(void*), void* argument) {
+         idle_hook = hook;
+@@ -601,12 +610,21 @@ private:
+     // Back side.
+     Tegra::Engines::EngineInterface* back_engine{};
+ 
++    /// Whether the back is done with the Vulkan scheduler until it gets more work: set after its
++    /// idle hook ran, cleared before it executes entries.
++    [[nodiscard]] bool BackQuiet() const {
++        return back_quiet.load(std::memory_order_acquire) ||
++               !back_running.load(std::memory_order_acquire);
++    }
++
+     static GpuSplit instance;
+     static inline thread_local bool on_back_thread{};
++    static inline thread_local bool on_gpu_thread{};
+     void (*idle_hook)(void*){};
+     void* idle_argument{};
+     alignas(64) std::atomic<bool> hook_requested{};
+     std::atomic<bool> back_running{};
++    std::atomic<bool> back_quiet{true};
+ 
+     // 128 bytes: x86 spatial prefetchers pull 64-byte lines in pairs. back_waiting and wake are
+     // always touched together by both threads, so they share a block.
+diff --git a/src/video_core/gpu_thread.cpp b/src/video_core/gpu_thread.cpp
+index 2b676a3c3a..f513bf6ebb 100644
+--- a/src/video_core/gpu_thread.cpp
++++ b/src/video_core/gpu_thread.cpp
+@@ -156,6 +156,7 @@ void ThreadManager::StartThread(VideoCore::RendererBase& renderer, Core::Fronten
+     thread = std::jthread([&](std::stop_token stop_token) {
+         const Common::DkbCpuTrace::Registration cpu_trace{Common::DkbCpuTrace::Role::GpuCommand};
+         Common::SetCurrentThreadName("GPU");
++        VideoCommon::GpuSplit::MarkGpuThread();
+         Common::SetCurrentThreadPriority(Common::ThreadPriority::Critical);
+         Common::PinCurrentThread(Common::PinnedRole::GpuFront);
+         Common::SetCurrentThreadToPerformanceCores();
+-- 
+2.43.0
+

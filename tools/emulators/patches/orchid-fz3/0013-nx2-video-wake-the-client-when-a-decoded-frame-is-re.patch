@@ -1,0 +1,80 @@
+From 1392d4efb51f3701411e566dd262633980449334 Mon Sep 17 00:00:00 2001
+From: pavelgajdo <pavel.gajdo@gmail.com>
+Date: Thu, 5 Nov 2026 22:48:24 +0100
+Subject: [PATCH 13/26] nx2 video: wake the client when a decoded frame is
+ ready
+
+The client waits on one event for both input room and finished frames.
+It was signalled only while the input queue was below its watermark, so
+a movie whose small AV1 frames keep hundreds of inputs queued woke the
+client only on its ~100 ms timeout. Signal it when an output is queued
+and keep it pending until the outputs are fetched.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+(cherry picked from commit 3943fe4e8b80008d2d57f7c99ae2a2e65cefd99c)
+(cherry picked from commit 8c61e11e07764223d78b01ba2f1a7b028916eea7)
+---
+ src/core/hle/service/nx2_gsv.h         |  2 ++
+ src/core/hle/service/nx2_video_ready.h | 15 ++++++++++++++-
+ 2 files changed, 16 insertions(+), 1 deletion(-)
+
+diff --git a/src/core/hle/service/nx2_gsv.h b/src/core/hle/service/nx2_gsv.h
+index a7fc187a00..0486ad1908 100644
+--- a/src/core/hle/service/nx2_gsv.h
++++ b/src/core/hle/service/nx2_gsv.h
+@@ -3002,6 +3002,7 @@ private:
+                 output = m_outputs.front();
+                 m_outputs.pop_front();
+             }
++            m_ready->output_ready.store(!m_outputs.empty(), std::memory_order_relaxed);
+         }
+         if (!output) {
+             if (Nx2VideoTraceEnabled()) {
+@@ -3075,6 +3076,7 @@ private:
+                     m_ready->room.store(false, std::memory_order_relaxed);
+                 }
+                 system.Host1x().GetSyncpointManager().IncrementGuest(m_syncpoint);
++                m_ready->SignalOutput(system.Kernel());
+                 m_last_output = m_outputs.back();
+                 if (frame.end && m_inputs.Empty() && m_decoded.empty() &&
+                     system.GetApplicationProcessProgramID() == Settings::MarioKartWorldProgramId) {
+diff --git a/src/core/hle/service/nx2_video_ready.h b/src/core/hle/service/nx2_video_ready.h
+index 492becc83e..ab20ef99a5 100644
+--- a/src/core/hle/service/nx2_video_ready.h
++++ b/src/core/hle/service/nx2_video_ready.h
+@@ -13,11 +13,19 @@ namespace Service {
+ struct Nx2VideoReadyState {
+     void Signal(Kernel::KernelCore& kernel) {
+         std::scoped_lock lk{mutex};
+-        if (event != nullptr && running && room.load(std::memory_order_relaxed)) {
++        if (event != nullptr && running &&
++            (room.load(std::memory_order_relaxed) ||
++             output_ready.load(std::memory_order_relaxed))) {
+             event->Signal(kernel);
+         }
+     }
+ 
++    /// A decoded frame is waiting for the client: wake it now, whatever the input queue level.
++    void SignalOutput(Kernel::KernelCore& kernel) {
++        output_ready.store(true, std::memory_order_relaxed);
++        Signal(kernel);
++    }
++
+     void SetRunning(Kernel::KernelCore& kernel, bool value) {
+         std::scoped_lock lk{mutex};
+         running = value;
+@@ -29,6 +37,11 @@ struct Nx2VideoReadyState {
+     std::mutex mutex;
+     Kernel::KEvent* event{};
+     std::atomic<bool> room{true};
++    /// Outputs are waiting to be fetched. The client waits on this one event for both input room
++    /// and finished frames: with only `room` (input queue below its watermark) a movie whose tiny
++    /// AV1 frames keep hundreds of inputs queued woke the client only on its ~100 ms timeout,
++    /// playing at ~8 fps.
++    std::atomic<bool> output_ready{false};
+ 
+ private:
+     bool running{true};
+-- 
+2.43.0
+

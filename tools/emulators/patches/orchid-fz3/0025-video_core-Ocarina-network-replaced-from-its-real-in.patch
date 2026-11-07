@@ -1,0 +1,241 @@
+From 4947ded901e83f7246a9f96c671d0eea98b4898b Mon Sep 17 00:00:00 2001
+From: Alway-L <felipemoura2015078@gmail.com>
+Date: Sat, 7 Nov 2026 12:09:00 -0300
+Subject: [PATCH 25/26] video_core: Ocarina network replaced from its real
+ input (cb0+0xc0, the E5B9G9R9 scene colour at the rendered size) with a
+ sampled blit, since E5B9G9R9 is no 2D engine format
+
+(cherry picked from commit 25ffd5cf31c1f8b01233ff454154affe80b1ed41)
+---
+ src/video_core/engines/kepler_compute.cpp     | 42 +++++------
+ src/video_core/rasterizer_interface.h         |  7 ++
+ .../renderer_vulkan/vk_rasterizer.cpp         |  7 ++
+ .../renderer_vulkan/vk_rasterizer.h           |  3 +
+ src/video_core/texture_cache/texture_cache.h  | 75 +++++++++++++++++++
+ .../texture_cache/texture_cache_base.h        |  5 ++
+ 6 files changed, 116 insertions(+), 23 deletions(-)
+
+diff --git a/src/video_core/engines/kepler_compute.cpp b/src/video_core/engines/kepler_compute.cpp
+index e42d82af29..301ed6afe9 100644
+--- a/src/video_core/engines/kepler_compute.cpp
++++ b/src/video_core/engines/kepler_compute.cpp
+@@ -1306,9 +1306,8 @@ bool KeplerCompute::ProcessOcarinaNetwork(u64 program_id, u64 native_key) {
+         return value != nullptr && std::string_view{value} == "blit";
+     }();
+ #endif
+-    static bool failed = false;
+     const auto key_it = std::ranges::find(NetworkKeys, native_key);
+-    if (!enabled || failed || program_id != VideoCommon::OcarinaMovie::ProgramId ||
++    if (!enabled || program_id != VideoCommon::OcarinaMovie::ProgramId ||
+         key_it == NetworkKeys.end()) {
+         return false;
+     }
+@@ -1442,22 +1441,16 @@ bool KeplerCompute::ProcessOcarinaNetwork(u64 program_id, u64 native_key) {
+         render_w = *w + 1;
+         render_h = *h + 1;
+     }
+-    const Candidate* input = nullptr;
+-    for (const auto& c : candidates) {
+-        if (c.tic.Address() == out_tic->Address() || c.tic.Width() > out_tic->Width() ||
+-            c.tic.Height() > out_tic->Height()) {
+-            continue;
+-        }
+-        const auto covers = [&](const TICEntry& tic) {
+-            return render_w != 0 && tic.Width() >= render_w && tic.Height() >= render_h;
+-        };
+-        if (input == nullptr || (covers(c.tic) && !covers(input->tic)) ||
+-            (covers(c.tic) == covers(input->tic) &&
+-             c.tic.Width() * c.tic.Height() > input->tic.Width() * input->tic.Height())) {
+-            input = &c;
+-        }
++    // cb0+0xc0 holds the network's input: the scene colour at the rendered size (E5B9G9R9,
++    // 1440x810 on the title screen, 854x480 in Kokiri Forest).
++    std::optional<TICEntry> input_tic;
++    if (const auto tic = ComputeImageHandle(0xc0); tic && shaped(*tic) &&
++        tic->Address() != out_tic->Address() && tic->Width() <= out_tic->Width() &&
++        tic->Height() <= out_tic->Height() &&
++        (render_w == 0 || (tic->Width() >= render_w && tic->Height() >= render_h))) {
++        input_tic = *tic;
+     }
+-    std::optional<TICEntry> in_tic = input ? std::optional{input->tic} : last_input[key_index];
++    std::optional<TICEntry> in_tic = input_tic ? input_tic : last_input[key_index];
+     static std::array<u64, 2> replaced{};
+     static std::array<u64, 2> native{};
+     const auto count = [&](bool was_replaced) {
+@@ -1500,12 +1493,15 @@ bool KeplerCompute::ProcessOcarinaNetwork(u64 program_id, u64 native_key) {
+         .src_x1 = static_cast<s32>(crop ? render_w : in_tic->Width()),
+         .src_y1 = static_cast<s32>(crop ? render_h : in_tic->Height()),
+     };
+-    if (!rasterizer->AccelerateSurfaceCopy(surface(*in_tic), surface(*out_tic), config)) {
+-        failed = true;
+-        LOG_WARNING(HW_GPU, "AriseOS Ocarina network: blit {:#x} {}x{} -> {:#x} {}x{} refused; "
+-                            "the network runs natively",
+-                    in_tic->Address(), in_tic->Width(), in_tic->Height(), out_tic->Address(),
+-                    out_tic->Width(), out_tic->Height());
++    if (!rasterizer->AriseBlitSampled(*in_tic, surface(*out_tic), config)) {
++        static u32 refused = 0;
++        if (refused++ < 8) {
++            LOG_WARNING(HW_GPU, "AriseOS Ocarina network: blit {:#x} {}x{} -> {:#x} {}x{} refused; "
++                                "this dispatch runs natively",
++                        in_tic->Address(), in_tic->Width(), in_tic->Height(), out_tic->Address(),
++                        out_tic->Width(), out_tic->Height());
++        }
++        count(false);
+         return false;
+     }
+     last_output[key_index] = out_tic;
+diff --git a/src/video_core/rasterizer_interface.h b/src/video_core/rasterizer_interface.h
+index 454e2ddb18..a4bb546b2d 100644
+--- a/src/video_core/rasterizer_interface.h
++++ b/src/video_core/rasterizer_interface.h
+@@ -219,6 +219,13 @@ public:
+         return false;
+     }
+ 
++    /// AriseOS: bilinear blit of a sampled image (src TIC, any colour format) into dst.
++    [[nodiscard]] virtual bool AriseBlitSampled(const Tegra::Texture::TICEntry& src,
++                                                const Tegra::Engines::Fermi2D::Surface& dst,
++                                                const Tegra::Engines::Fermi2D::Config& copy_config) {
++        return false;
++    }
++
+     /// Stand-in for a DLSS evaluation: temporal upscale of src into dst along motion_vectors
+     /// (jitter in src pixels; motion_scale turns a motion vector into a UV offset to the previous
+     /// frame), with depth for NVIDIA DLSS or FSR 3.1. With use_history=false, only de-jitter src.
+diff --git a/src/video_core/renderer_vulkan/vk_rasterizer.cpp b/src/video_core/renderer_vulkan/vk_rasterizer.cpp
+index be962655b7..be0c390531 100644
+--- a/src/video_core/renderer_vulkan/vk_rasterizer.cpp
++++ b/src/video_core/renderer_vulkan/vk_rasterizer.cpp
+@@ -2360,6 +2360,13 @@ bool RasterizerVulkan::HasDrawTransformFeedback() {
+     return device.IsTransformFeedbackDrawSupported();
+ }
+ 
++bool RasterizerVulkan::AriseBlitSampled(const Tegra::Texture::TICEntry& src,
++                                        const Tegra::Engines::Fermi2D::Surface& dst,
++                                        const Tegra::Engines::Fermi2D::Config& copy_config) {
++    std::scoped_lock lock{texture_cache.mutex};
++    return texture_cache.AriseBlitSampled(src, dst, copy_config);
++}
++
+ bool RasterizerVulkan::AccelerateSurfaceCopy(const Tegra::Engines::Fermi2D::Surface& src,
+                                              const Tegra::Engines::Fermi2D::Surface& dst,
+                                              const Tegra::Engines::Fermi2D::Config& copy_config) {
+diff --git a/src/video_core/renderer_vulkan/vk_rasterizer.h b/src/video_core/renderer_vulkan/vk_rasterizer.h
+index 66d0c9604e..881b209ff6 100644
+--- a/src/video_core/renderer_vulkan/vk_rasterizer.h
++++ b/src/video_core/renderer_vulkan/vk_rasterizer.h
+@@ -139,6 +139,9 @@ public:
+     void TickFrame() override;
+     bool AccelerateConditionalRendering() override;
+     bool HasDrawTransformFeedback() override;
++    bool AriseBlitSampled(const Tegra::Texture::TICEntry& src,
++                          const Tegra::Engines::Fermi2D::Surface& dst,
++                          const Tegra::Engines::Fermi2D::Config& copy_config) override;
+     bool AccelerateSurfaceCopy(const Tegra::Engines::Fermi2D::Surface& src,
+                                const Tegra::Engines::Fermi2D::Surface& dst,
+                                const Tegra::Engines::Fermi2D::Config& copy_config) override;
+diff --git a/src/video_core/texture_cache/texture_cache.h b/src/video_core/texture_cache/texture_cache.h
+index edac671652..4312e1ab71 100644
+--- a/src/video_core/texture_cache/texture_cache.h
++++ b/src/video_core/texture_cache/texture_cache.h
+@@ -1216,6 +1216,81 @@ bool TextureCache<P>::BlitImage(const Tegra::Engines::Fermi2D::Surface& dst,
+     return true;
+ }
+ 
++template <class P>
++bool TextureCache<P>::AriseBlitSampled(const TICEntry& src,
++                                       const Tegra::Engines::Fermi2D::Surface& dst,
++                                       const Tegra::Engines::Fermi2D::Config& copy) {
++    if constexpr (FRAMEBUFFER_BLITS) {
++        return false;
++    } else {
++        const ImageInfo src_info(src);
++        const ImageInfo dst_info(dst);
++        if (GetFormatType(src_info.format) != SurfaceType::ColorTexture ||
++            GetFormatType(dst_info.format) != SurfaceType::ColorTexture) {
++            return false;
++        }
++        const GPUVAddr src_addr = src.Address();
++        const GPUVAddr dst_addr = dst.Address();
++        const ImageId src_id = FindImage(src_info, src_addr, RelaxedOptions::Samples);
++        if (!src_id) {
++            return false;
++        }
++        const ImageId dst_id = FindOrInsertImage(dst_info, dst_addr, RelaxedOptions::Samples);
++        if (!dst_id || !slot_images[src_id].TryFindBase(src_addr) ||
++            !slot_images[dst_id].TryFindBase(dst_addr) ||
++            slot_images[src_id].info.num_samples != 1 || slot_images[dst_id].info.num_samples != 1) {
++            return false;
++        }
++        PrepareImage(src_id, false, false);
++        PrepareImage(dst_id, true, false);
++        Image& src_image = slot_images[src_id];
++        Image& dst_image = slot_images[dst_id];
++        bool is_src_rescaled = True(src_image.flags & ImageFlagBits::Rescaled);
++        bool is_dst_rescaled = True(dst_image.flags & ImageFlagBits::Rescaled);
++        if (is_src_rescaled != is_dst_rescaled) {
++            if (ImageCanRescale(src_image)) {
++                ScaleUp(src_image);
++                is_src_rescaled = True(src_image.flags & ImageFlagBits::Rescaled);
++            }
++            if (ImageCanRescale(dst_image)) {
++                ScaleUp(dst_image);
++                is_dst_rescaled = True(dst_image.flags & ImageFlagBits::Rescaled);
++            }
++        }
++        const auto& resolution = Settings::values.resolution_info;
++        const auto scale_region = [&](Region2D& region) {
++            region.start.x = resolution.ScaleUp(region.start.x);
++            region.start.y = resolution.ScaleUp(region.start.y);
++            region.end.x = resolution.ScaleUp(region.end.x);
++            region.end.y = resolution.ScaleUp(region.end.y);
++        };
++        const SubresourceRange src_range{.base = *src_image.TryFindBase(src_addr),
++                                         .extent = {1, 1}};
++        const ImageViewInfo src_view_info(ImageViewType::e2D, src_info.format, src_range);
++        const ImageViewId src_view_id = FindOrEmplaceImageView(src_id, src_view_info);
++        Region2D src_region{Offset2D{.x = copy.src_x0, .y = copy.src_y0},
++                            Offset2D{.x = copy.src_x1, .y = copy.src_y1}};
++        if (is_src_rescaled) {
++            scale_region(src_region);
++        }
++        const SubresourceRange dst_range{.base = *slot_images[dst_id].TryFindBase(dst_addr),
++                                         .extent = {1, 1}};
++        const ImageViewInfo dst_view_info(ImageViewType::e2D, dst_info.format, dst_range);
++        const auto [dst_framebuffer_id, dst_view_id] = RenderTargetFromImage(dst_id, dst_view_info);
++        Region2D dst_region{Offset2D{.x = copy.dst_x0, .y = copy.dst_y0},
++                            Offset2D{.x = copy.dst_x1, .y = copy.dst_y1}};
++        if (is_dst_rescaled) {
++            scale_region(dst_region);
++        }
++        Framebuffer* const dst_framebuffer = &slot_framebuffers[dst_framebuffer_id];
++        ImageView& dst_view = slot_image_views[dst_view_id];
++        ImageView& src_view = slot_image_views[src_view_id];
++        runtime.BlitImage(dst_framebuffer, dst_view, src_view, dst_region, src_region, copy.filter,
++                          copy.operation);
++        return true;
++    }
++}
++
+ template <class P>
+ std::optional<VideoCore::GameDlssProbe> TextureCache<P>::ProbeGameDlssOutput(
+     const Tegra::Engines::Fermi2D::Surface& dst, const Tegra::Engines::Fermi2D::Surface& src) {
+diff --git a/src/video_core/texture_cache/texture_cache_base.h b/src/video_core/texture_cache/texture_cache_base.h
+index 87d0d7971f..b9ed7e6cd6 100644
+--- a/src/video_core/texture_cache/texture_cache_base.h
++++ b/src/video_core/texture_cache/texture_cache_base.h
+@@ -293,6 +293,11 @@ public:
+                    const Tegra::Engines::Fermi2D::Surface& src,
+                    const Tegra::Engines::Fermi2D::Config& copy);
+ 
++    /// AriseOS: bilinear blit of a sampled image (any colour format, e.g. E5B9G9R9) already in
++    /// the cache into a colour render target. False when src is not cached.
++    bool AriseBlitSampled(const TICEntry& src, const Tegra::Engines::Fermi2D::Surface& dst,
++                          const Tegra::Engines::Fermi2D::Config& copy);
++
+     /// Stand-in for a DLSS evaluation: temporal upscale of src into dst (see the runtime's
+     /// TemporalUpscale). False when unsupported; the caller retains its native dispatch.
+     bool TemporalUpscale(const Tegra::Engines::Fermi2D::Surface& dst,
+-- 
+2.43.0
+

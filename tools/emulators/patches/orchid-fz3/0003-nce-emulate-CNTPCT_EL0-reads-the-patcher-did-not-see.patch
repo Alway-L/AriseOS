@@ -1,0 +1,58 @@
+From 874b8c9b3891d3757a00052aebf970ccdaa229c3 Mon Sep 17 00:00:00 2001
+From: Alway-L <felipemoura2015078@gmail.com>
+Date: Fri, 6 Nov 2026 23:14:33 -0300
+Subject: [PATCH 03/26] nce: emulate CNTPCT_EL0 reads the patcher did not see
+ (Dynamic FPS's routine after the text), which the kernel traps
+
+(cherry picked from commit 99bcca4e3a878e0bedf4ef62ff1a2931f5ac77c2)
+---
+ src/core/arm/nce/arm_nce.cpp | 24 ++++++++++++++++++++----
+ 1 file changed, 20 insertions(+), 4 deletions(-)
+
+diff --git a/src/core/arm/nce/arm_nce.cpp b/src/core/arm/nce/arm_nce.cpp
+index 6e4d302f95..23411f0dd9 100644
+--- a/src/core/arm/nce/arm_nce.cpp
++++ b/src/core/arm/nce/arm_nce.cpp
+@@ -60,7 +60,20 @@ void AriseIllegalInstructionHandler(int sig, siginfo_t* info, void* raw_context)
+     const u64 pc = mc.pc;
+     const u32 insn = *reinterpret_cast<const u32*>(pc);
+     bool handled = true;
+-    if (insn == 0xD65F0BFF || insn == 0xD65F0FFF) { // retaa, retab
++    bool quiet = false;
++    if ((insn & 0xFFFFFFE0) == 0xD53BE020 || (insn & 0xFFFFFFE0) == 0xD53BE0A0) {
++        // mrs Xt, CNTPCT_EL0 / CNTPCTSS_EL0 in code the patcher did not see (Dynamic FPS's routine,
++        // placed after the module's text): the kernel traps it. Read the virtual counter instead,
++        // unscaled, so it agrees with a CNTFRQ_EL0 read in the same code (also not patched there).
++        const u32 rt = insn & 31;
++        u64 ticks;
++        asm volatile("mrs %0, cntvct_el0" : "=r"(ticks));
++        if (rt != 31) {
++            mc.regs[rt] = ticks;
++        }
++        mc.pc = pc + 4;
++        quiet = true;
++    } else if (insn == 0xD65F0BFF || insn == 0xD65F0FFF) { // retaa, retab
+         mc.pc = AriseStripPac(mc.regs[30]);
+     } else if (insn == 0xD503219F || insn == 0xD50321DF) { // autia1716, autib1716
+         mc.regs[17] = AriseStripPac(mc.regs[17]);
+@@ -85,11 +98,14 @@ void AriseIllegalInstructionHandler(int sig, siginfo_t* info, void* raw_context)
+     } else {
+         handled = false;
+     }
+-    if (logs.fetch_add(1, std::memory_order_relaxed) < 16) {
++    static std::atomic<int> counter_logs{0};
++    if (quiet ? counter_logs.fetch_add(1, std::memory_order_relaxed) < 1
++              : logs.fetch_add(1, std::memory_order_relaxed) < 16) {
+         char line[160];
+         char* out = line;
+-        const char* head = handled ? "AriseOS: NCE took a failed PAC check as passing at pc "
+-                                   : "AriseOS: NCE illegal instruction (not handled) at pc ";
++        const char* head = quiet     ? "AriseOS: NCE emulates counter reads outside patched code, first at pc "
++                           : handled ? "AriseOS: NCE took a failed PAC check as passing at pc "
++                                     : "AriseOS: NCE illegal instruction (not handled) at pc ";
+         while (*head) {
+             *out++ = *head++;
+         }
+-- 
+2.43.0
+

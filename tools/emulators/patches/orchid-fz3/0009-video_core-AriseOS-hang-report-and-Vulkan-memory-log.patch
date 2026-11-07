@@ -1,0 +1,229 @@
+From c8a492a2d7d0e7c8e853040e0089ef1f777e6862 Mon Sep 17 00:00:00 2001
+From: Alway-L <felipemoura2015078@gmail.com>
+Date: Sat, 7 Nov 2026 07:58:01 -0300
+Subject: [PATCH 09/26] video_core: AriseOS hang report and Vulkan memory log
+ (port to the Frizti base)
+
+(cherry picked from commit b39a09fbf4416c47046ef4306d5e28b133c7e9c6)
+---
+ src/video_core/gpu_split.cpp                  |   7 ++
+ src/video_core/gpu_split.h                    |   2 +
+ src/video_core/gpu_thread.cpp                 | 114 +++++++++++++++++-
+ .../renderer_vulkan/vk_rasterizer.cpp         |  10 ++
+ .../vulkan_common/vulkan_memory_allocator.cpp |   2 +-
+ 5 files changed, 133 insertions(+), 2 deletions(-)
+
+diff --git a/src/video_core/gpu_split.cpp b/src/video_core/gpu_split.cpp
+index 106622658b..b7594d5d0a 100644
+--- a/src/video_core/gpu_split.cpp
++++ b/src/video_core/gpu_split.cpp
+@@ -213,6 +213,13 @@ void GpuSplit::WaitForSpace(size_t words) {
+     }
+ }
+ 
++void GpuSplit::LogState() const {
++    LOG_WARNING(HW_GPU,
++                "AriseOS hang report: GPU split active {}, written {}, published {}, consumed {}, back {}",
++                active, write_position, published.load(), consumed.load(),
++                back_waiting.load() ? "parked" : "running");
++}
++
+ void GpuSplit::Publish() {
+     // The back may read what is published: the open Pairs block is final from here on.
+     pairs_header = nullptr;
+diff --git a/src/video_core/gpu_split.h b/src/video_core/gpu_split.h
+index a5d67c250e..c1e3fdbe47 100644
+--- a/src/video_core/gpu_split.h
++++ b/src/video_core/gpu_split.h
+@@ -253,6 +253,8 @@ public:
+ 
+     /// Makes what was sent visible to the back.
+     void Publish();
++    /// AriseOS hang report: ring positions and whether the back thread is parked (front thread).
++    void LogState() const;
+     /// Waits until the back executed everything sent so far.
+     void Drain(DrainSite site = DrainSite::Other);
+ 
+diff --git a/src/video_core/gpu_thread.cpp b/src/video_core/gpu_thread.cpp
+index 0af6c4cea5..2b676a3c3a 100644
+--- a/src/video_core/gpu_thread.cpp
++++ b/src/video_core/gpu_thread.cpp
+@@ -13,6 +13,13 @@
+ #include "common/settings.h"
+ #include "common/thread.h"
+ #include "core/core.h"
++#include <string>
++#include <fmt/format.h>
++#include "common/logging.h"
++#include "core/memory.h"
++#include "core/hle/kernel/kernel.h"
++#include "core/hle/kernel/k_thread.h"
++#include "core/hle/kernel/k_process.h"
+ #include "core/frontend/graphics_context.h"
+ #include "video_core/control/scheduler.h"
+ #include "video_core/dma_pusher.h"
+@@ -21,6 +28,7 @@
+ #include "video_core/gpu_split.h"
+ #include "video_core/nx2_profile.h"
+ #include "video_core/host1x/host1x.h"
++#include "video_core/host1x/syncpoint_manager.h"
+ #include "video_core/renderer_base.h"
+ 
+ namespace VideoCommon::GPUThread {
+@@ -38,6 +46,103 @@ void SignalCommand(SynchState& state, u64 fence, bool block) {
+     }
+ }
+ 
++// AriseOS: no new frame for 20 s while the GPU thread waits for work. Logs every guest thread of
++// the game (state, registers at its last interrupt) and, for runnable ones, the code around the PC
++// and the memory its registers point at, so a guest loop waiting on something can be read back.
++void AriseHangCheck(Core::System& system, const GpuSplit& split, bool pending_channels) {
++    static u64 last_presents = ~u64{0};
++    static auto last_change = std::chrono::steady_clock::now();
++    static auto last_report = std::chrono::steady_clock::time_point{};
++    static int reports = 0;
++    const u64 presents = Core::g_nx2_present_count.load(std::memory_order_relaxed);
++    const auto now = std::chrono::steady_clock::now();
++    if (presents != last_presents) {
++        last_presents = presents;
++        last_change = now;
++        return;
++    }
++    if (now - last_change < std::chrono::seconds{20} || now - last_report < std::chrono::seconds{60} ||
++        reports >= 3) {
++        return;
++    }
++    last_report = now;
++    ++reports;
++    auto* const process = system.Kernel().ApplicationProcess();
++    LOG_WARNING(HW_GPU, "AriseOS hang report {}: no new frame for {} s after {} presents; GPU idle, "
++                "channels waiting on a semaphore: {}",
++                reports, std::chrono::duration_cast<std::chrono::seconds>(now - last_change).count(),
++                presents, pending_channels);
++    split.LogState();
++    {
++        // Guest value = signalled by the command lists; host value = its fence passed on the host GPU.
++        // A host value behind the guest one names a fence that never completed.
++        const auto& syncpoints = system.Host1x().GetSyncpointManager();
++        std::string text;
++        for (u32 id = 0; id < Tegra::Host1x::SyncpointManager::NUM_MAX_SYNCPOINTS; ++id) {
++            const u32 guest = syncpoints.GetGuestSyncpointValue(id);
++            const u32 host = syncpoints.GetHostSyncpointValue(id);
++            if (guest != 0 || host != 0) {
++                text += fmt::format(" {}={}/{}", id, guest, host);
++            }
++        }
++        LOG_WARNING(HW_GPU, "AriseOS hang report: syncpoints (id=guest/host):{}", text);
++    }
++    if (process == nullptr) {
++        return;
++    }
++    auto& memory = system.ApplicationMemory();
++    for (const auto& thread : process->GetThreadList()) {
++        const auto& ctx = thread.GetContext();
++        const auto state = static_cast<u32>(thread.GetState());
++        LOG_WARNING(HW_GPU, "AriseOS hang report: thread {} state {:#x} core {} prio {} wait {} pc {:#x} "
++                    "lr {:#x} sp {:#x} fp {:#x}",
++                    thread.GetThreadId(), state, thread.GetActiveCore(), thread.GetPriority(),
++                    static_cast<u32>(thread.GetWaitReasonForDebugging()), ctx.pc, ctx.lr, ctx.sp, ctx.fp);
++        if ((state & static_cast<u32>(Kernel::ThreadState::Mask)) !=
++            static_cast<u32>(Kernel::ThreadState::Runnable)) {
++            continue;
++        }
++        std::string regs;
++        for (size_t i = 0; i < ctx.r.size(); ++i) {
++            regs += fmt::format(" x{}={:x}", i, ctx.r[i]);
++        }
++        LOG_WARNING(HW_GPU, "AriseOS hang report: thread {} regs{}", thread.GetThreadId(), regs);
++        std::string code;
++        for (s64 i = -16; i < 16; ++i) {
++            const u64 at = ctx.pc + i * 4;
++            code += memory.IsValidVirtualAddressRange(at, 4) ? fmt::format(" {:08x}", memory.Read32(at)) : " ????????";
++        }
++        LOG_WARNING(HW_GPU, "AriseOS hang report: thread {} code from {:#x}:{}", thread.GetThreadId(),
++                    ctx.pc - 64, code);
++        // Callers: walk the frame-pointer chain, with the code before each return address.
++        u64 frame = ctx.fp;
++        u64 ret = ctx.lr;
++        for (int depth = 0; depth < 6 && ret != 0; ++depth) {
++            std::string around;
++            for (s64 i = -24; i < 4; ++i) {
++                const u64 at = ret + i * 4;
++                around += memory.IsValidVirtualAddressRange(at, 4) ? fmt::format(" {:08x}", memory.Read32(at)) : " ????????";
++            }
++            LOG_WARNING(HW_GPU, "AriseOS hang report: thread {} caller {} returns to {:#x}, code from {:#x}:{}",
++                        thread.GetThreadId(), depth, ret, ret - 96, around);
++            if (frame < 0x10000 || !memory.IsValidVirtualAddressRange(frame, 16)) {
++                break;
++            }
++            ret = memory.Read64(frame + 8);
++            frame = memory.Read64(frame);
++        }
++        for (size_t i = 0; i < ctx.r.size(); ++i) {
++            const u64 at = ctx.r[i] & ~u64{3};
++            if (at < 0x10000 || !memory.IsValidVirtualAddressRange(at, 16)) {
++                continue;
++            }
++            LOG_WARNING(HW_GPU, "AriseOS hang report: thread {} [x{} {:#x}] = {:08x} {:08x} {:08x} {:08x}",
++                        thread.GetThreadId(), i, at, memory.Read32(at), memory.Read32(at + 4),
++                        memory.Read32(at + 8), memory.Read32(at + 12));
++        }
++    }
++}
++
+ } // Anonymous namespace
+ 
+ ThreadManager::ThreadManager(Core::System& system_)
+@@ -88,7 +193,14 @@ void ThreadManager::StartThread(VideoCore::RendererBase& renderer, Core::Fronten
+                 }
+             } else {
+                 Profile::Scope scope{Profile::Zone::Idle};
+-                state.queue.PopWait(next, stop_token);
++                // AriseOS: wait in 1 s slices, so a game that stops producing frames while the GPU
++                // has nothing to do is reported (what each guest thread is doing) in the log.
++                while (!state.queue.PopWaitFor(next, std::chrono::seconds{1})) {
++                    if (stop_token.stop_requested()) {
++                        break;
++                    }
++                    AriseHangCheck(system, split, scheduler.HasPendingChannels());
++                }
+             }
+             if (stop_token.stop_requested()) {
+                 break;
+diff --git a/src/video_core/renderer_vulkan/vk_rasterizer.cpp b/src/video_core/renderer_vulkan/vk_rasterizer.cpp
+index 39be307ceb..e891ed487b 100644
+--- a/src/video_core/renderer_vulkan/vk_rasterizer.cpp
++++ b/src/video_core/renderer_vulkan/vk_rasterizer.cpp
+@@ -2212,6 +2212,16 @@ void NoteDrawReuseProbeFrame(); // vk_graphics_pipeline.cpp
+ 
+ void RasterizerVulkan::TickFrame() {
+     NoteDrawReuseProbeFrame();
++    {
++        // AriseOS: on the phone the GPU's memory is RAM Android counts against the app; log where
++        // it goes (memory types, heap budget) every 15 s so a LOW_MEMORY end can be traced.
++        static auto last_memory_log = std::chrono::steady_clock::time_point{};
++        const auto now = std::chrono::steady_clock::now();
++        if (now - last_memory_log >= std::chrono::seconds{15}) {
++            last_memory_log = now;
++            LogMemoryStatistics(device);
++        }
++    }
+     if (VideoCore::Nx2Debug::HasRequests()) {
+         if (auto capture = VideoCore::Nx2Debug::TakeCapture()) {
+             // This build keeps the EDEN_NX2_FRAME_DUMP capture (file or time trigger) only.
+diff --git a/src/video_core/vulkan_common/vulkan_memory_allocator.cpp b/src/video_core/vulkan_common/vulkan_memory_allocator.cpp
+index a0a39abe39..a3dc0dcc94 100644
+--- a/src/video_core/vulkan_common/vulkan_memory_allocator.cpp
++++ b/src/video_core/vulkan_common/vulkan_memory_allocator.cpp
+@@ -583,7 +583,7 @@ void LogMemoryStatistics(const Device& device) {
+         if (s.blockCount == 0) {
+             continue;
+         }
+-        LOG_DEBUG(Render_Vulkan, "VMA type {} (heap {}, flags {:#x}): {} blocks {} MiB, {} allocations {} MiB",
++        LOG_INFO(Render_Vulkan, "VMA type {} (heap {}, flags {:#x}): {} blocks {} MiB, {} allocations {} MiB",
+                  type, properties->memoryTypes[type].heapIndex,
+                  static_cast<u32>(properties->memoryTypes[type].propertyFlags), s.blockCount,
+                  s.blockBytes >> 20, s.allocationCount, s.allocationBytes >> 20);
+-- 
+2.43.0
+

@@ -1,0 +1,113 @@
+From b59ce4b454fdc0fc0735730c8587b76a25a50db3 Mon Sep 17 00:00:00 2001
+From: Alway-L <felipemoura2015078@gmail.com>
+Date: Sat, 7 Nov 2026 11:02:55 -0300
+Subject: [PATCH 22/26] video_core: AriseOS log of each compute pass (native
+ key, grid, images read and written) and GPU time per pass on phones, to
+ replace Ocarina's per-frame network
+
+(cherry picked from commit 01995193c007ef44bfad41a4d6d9951ac39b6a34)
+---
+ src/common/host_memory.cpp                    | 10 ++++++-
+ .../renderer_vulkan/vk_rasterizer.cpp         | 27 +++++++++++++++++++
+ src/video_core/shader_cache.cpp               | 12 +++++++++
+ 3 files changed, 48 insertions(+), 1 deletion(-)
+
+diff --git a/src/common/host_memory.cpp b/src/common/host_memory.cpp
+index 8bd16c8055..ef5763aa26 100644
+--- a/src/common/host_memory.cpp
++++ b/src/common/host_memory.cpp
+@@ -552,7 +552,7 @@ static size_t AriseAvailableMiB() {
+ 
+ // AriseOS: settings for tests without a new build: KEY=VALUE lines in ~/.config/arise/orchid.env
+ // (# comments) become environment variables when the emulator starts, unless already set.
+-__attribute__((constructor)) static void AriseLoadEnvFile() {
++__attribute__((constructor(101))) static void AriseLoadEnvFile() {
+     const char* home = std::getenv("HOME");
+     if (home == nullptr) {
+         return;
+@@ -579,6 +579,14 @@ __attribute__((constructor)) static void AriseLoadEnvFile() {
+     std::fclose(file);
+ }
+ 
++#ifdef ARCHITECTURE_arm64
++// AriseOS: GPU time of each pass logged once a second (DKB gpu_work), to find what holds the
++// frame on phones. EDEN_DKB_FRAME_TRACE=0 in orchid.env turns it off.
++__attribute__((constructor(102))) static void AriseDiagnosticDefaults() {
++    setenv("EDEN_DKB_FRAME_TRACE", "1", 0);
++}
++#endif
++
+ static int AriseOpenGuestMemoryFile(size_t size) {
+     const char* toggle = std::getenv("ARISE_GUEST_MEMORY_FILE");
+     if (toggle != nullptr && toggle[0] == '0') {
+diff --git a/src/video_core/renderer_vulkan/vk_rasterizer.cpp b/src/video_core/renderer_vulkan/vk_rasterizer.cpp
+index e891ed487b..be962655b7 100644
+--- a/src/video_core/renderer_vulkan/vk_rasterizer.cpp
++++ b/src/video_core/renderer_vulkan/vk_rasterizer.cpp
+@@ -5,6 +5,7 @@
+ // SPDX-License-Identifier: GPL-2.0-or-later
+ 
+ #include <algorithm>
++#include <unordered_set>
+ #include <array>
+ #include <chrono>
+ #include <memory>
+@@ -1584,6 +1585,32 @@ void RasterizerVulkan::DispatchCompute() {
+         }
+     };
+     TracePendingCpuWrites(true, std::array{pipeline->ShaderHash()});
++    {
++        static std::unordered_set<u64> seen;
++        if (seen.size() < 256 && seen.insert(pipeline->ShaderHash()).second) {
++            const auto describe = [this](VideoCommon::ImageViewId id) {
++                const auto& view = texture_cache.GetImageView(id);
++                return fmt::format(" {:#x} {}x{}x{} fmt {}", view.gpu_addr, view.size.width,
++                                   view.size.height, view.size.depth,
++                                   static_cast<u32>(view.format));
++            };
++            std::string written;
++            for (const VideoCommon::ImageViewId id : pipeline->WrittenImages()) {
++                written += describe(id);
++            }
++            std::string sampled;
++            for (const auto& image : pipeline->SampledImages()) {
++                sampled += describe(image.id);
++            }
++            const auto& launch = kepler_compute->launch_description;
++            LOG_INFO(Render_Vulkan,
++                     "AriseOS dispatch: shader {:016x} grid {}x{}x{} block {}x{}x{} writes{} reads{}",
++                     pipeline->ShaderHash(), launch.grid_dim_x, launch.grid_dim_y,
++                     launch.grid_dim_z, launch.block_dim_x, launch.block_dim_y,
++                     launch.block_dim_z, written.empty() ? " -" : written,
++                     sampled.empty() ? " -" : sampled);
++        }
++    }
+     if (frame_dump.CapturingSampled()) {
+         boost::container::small_vector<FrameDump::Sampled, 16> sampled;
+         for (const auto& image : pipeline->SampledImages()) {
+diff --git a/src/video_core/shader_cache.cpp b/src/video_core/shader_cache.cpp
+index 6c42c9ce15..c217dc88a5 100644
+--- a/src/video_core/shader_cache.cpp
++++ b/src/video_core/shader_cache.cpp
+@@ -299,6 +299,18 @@ const ShaderInfo* ShaderCache::ComputeShader() {
+         kepler_compute->ProcessGameDlss(program_id, shader->lowered_native->native_program_key)) {
+         throw FireEmblemUpscale::DispatchReplaced{};
+     }
++    if (shader->lowered_native) {
++        static std::mutex seen_mutex;
++        static std::unordered_set<u64> seen;
++        std::scoped_lock seen_lock{seen_mutex};
++        if (seen.size() < 256 && seen.insert(shader->lowered_native->native_program_key).second) {
++            const auto& qmd = kepler_compute->launch_description;
++            LOG_INFO(HW_GPU, "AriseOS pass: native {:#018x} shader {:016x} grid {}x{}x{} block {}x{}x{}",
++                     shader->lowered_native->native_program_key, shader->unique_hash,
++                     qmd.grid_dim_x, qmd.grid_dim_y, qmd.grid_dim_z, qmd.block_dim_x,
++                     qmd.block_dim_y, qmd.block_dim_z);
++        }
++    }
+     if (kepler_compute->IsNativeMode() && shader->lowered_native &&
+         kepler_compute->ProcessOcarinaMovie(program_id,
+                                             shader->lowered_native->native_program_key)) {
+-- 
+2.43.0
+
