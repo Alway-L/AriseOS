@@ -148,6 +148,9 @@ public:
     void TickFrame() override;
     bool AccelerateConditionalRendering() override;
     bool HasDrawTransformFeedback() override;
+    bool AriseBlitSampled(const Tegra::Texture::TICEntry& src,
+                          const Tegra::Engines::Fermi2D::Surface& dst,
+                          const Tegra::Engines::Fermi2D::Config& copy_config) override;
     bool AccelerateSurfaceCopy(const Tegra::Engines::Fermi2D::Surface& src,
                                const Tegra::Engines::Fermi2D::Surface& dst,
                                const Tegra::Engines::Fermi2D::Config& copy_config) override;

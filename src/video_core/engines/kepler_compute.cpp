@@ -2140,9 +2140,8 @@ bool KeplerCompute::ProcessOcarinaNetwork(u64 program_id, u64 native_key) {
         return value != nullptr && std::string_view{value} == "blit";
     }();
 #endif
-    static bool failed = false;
     const auto key_it = std::ranges::find(NetworkKeys, native_key);
-    if (!enabled || failed || program_id != VideoCommon::OcarinaMovie::ProgramId ||
+    if (!enabled || program_id != VideoCommon::OcarinaMovie::ProgramId ||
         key_it == NetworkKeys.end()) {
         return false;
     }
@@ -2276,22 +2275,16 @@ bool KeplerCompute::ProcessOcarinaNetwork(u64 program_id, u64 native_key) {
         render_w = *w + 1;
         render_h = *h + 1;
     }
-    const Candidate* input = nullptr;
-    for (const auto& c : candidates) {
-        if (c.tic.Address() == out_tic->Address() || c.tic.Width() > out_tic->Width() ||
-            c.tic.Height() > out_tic->Height()) {
-            continue;
-        }
-        const auto covers = [&](const TICEntry& tic) {
-            return render_w != 0 && tic.Width() >= render_w && tic.Height() >= render_h;
-        };
-        if (input == nullptr || (covers(c.tic) && !covers(input->tic)) ||
-            (covers(c.tic) == covers(input->tic) &&
-             c.tic.Width() * c.tic.Height() > input->tic.Width() * input->tic.Height())) {
-            input = &c;
-        }
+    // cb0+0xc0 holds the network's input: the scene colour at the rendered size (E5B9G9R9,
+    // 1440x810 on the title screen, 854x480 in Kokiri Forest).
+    std::optional<TICEntry> input_tic;
+    if (const auto tic = ComputeImageHandle(0xc0); tic && shaped(*tic) &&
+        tic->Address() != out_tic->Address() && tic->Width() <= out_tic->Width() &&
+        tic->Height() <= out_tic->Height() &&
+        (render_w == 0 || (tic->Width() >= render_w && tic->Height() >= render_h))) {
+        input_tic = *tic;
     }
-    std::optional<TICEntry> in_tic = input ? std::optional{input->tic} : last_input[key_index];
+    std::optional<TICEntry> in_tic = input_tic ? input_tic : last_input[key_index];
     static std::array<u64, 2> replaced{};
     static std::array<u64, 2> native{};
     const auto count = [&](bool was_replaced) {
@@ -2334,12 +2327,15 @@ bool KeplerCompute::ProcessOcarinaNetwork(u64 program_id, u64 native_key) {
         .src_x1 = static_cast<s32>(crop ? render_w : in_tic->Width()),
         .src_y1 = static_cast<s32>(crop ? render_h : in_tic->Height()),
     };
-    if (!rasterizer->AccelerateSurfaceCopy(surface(*in_tic), surface(*out_tic), config)) {
-        failed = true;
-        LOG_WARNING(HW_GPU, "AriseOS Ocarina network: blit {:#x} {}x{} -> {:#x} {}x{} refused; "
-                            "the network runs natively",
-                    in_tic->Address(), in_tic->Width(), in_tic->Height(), out_tic->Address(),
-                    out_tic->Width(), out_tic->Height());
+    if (!rasterizer->AriseBlitSampled(*in_tic, surface(*out_tic), config)) {
+        static u32 refused = 0;
+        if (refused++ < 8) {
+            LOG_WARNING(HW_GPU, "AriseOS Ocarina network: blit {:#x} {}x{} -> {:#x} {}x{} refused; "
+                                "this dispatch runs natively",
+                        in_tic->Address(), in_tic->Width(), in_tic->Height(), out_tic->Address(),
+                        out_tic->Width(), out_tic->Height());
+        }
+        count(false);
         return false;
     }
     last_output[key_index] = out_tic;

@@ -322,6 +322,11 @@ public:
                    const Tegra::Engines::Fermi2D::Surface& src,
                    const Tegra::Engines::Fermi2D::Config& copy);
 
+    /// AriseOS: bilinear blit of a sampled image (any colour format, e.g. E5B9G9R9) already in
+    /// the cache into a colour render target. False when src is not cached.
+    bool AriseBlitSampled(const TICEntry& src, const Tegra::Engines::Fermi2D::Surface& dst,
+                          const Tegra::Engines::Fermi2D::Config& copy);
+
     /// Stand-in for a DLSS evaluation: temporal upscale of src into dst (see the runtime's
     /// TemporalUpscale). False when unsupported; the caller retains its native dispatch.
     bool TemporalUpscale(const Tegra::Engines::Fermi2D::Surface& dst,

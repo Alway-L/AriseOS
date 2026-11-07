@@ -3594,6 +3594,13 @@ bool RasterizerVulkan::HasDrawTransformFeedback() {
     return device.IsTransformFeedbackDrawSupported();
 }
 
+bool RasterizerVulkan::AriseBlitSampled(const Tegra::Texture::TICEntry& src,
+                                        const Tegra::Engines::Fermi2D::Surface& dst,
+                                        const Tegra::Engines::Fermi2D::Config& copy_config) {
+    std::scoped_lock lock{texture_cache.mutex};
+    return texture_cache.AriseBlitSampled(src, dst, copy_config);
+}
+
 bool RasterizerVulkan::AccelerateSurfaceCopy(const Tegra::Engines::Fermi2D::Surface& src,
                                              const Tegra::Engines::Fermi2D::Surface& dst,
                                              const Tegra::Engines::Fermi2D::Config& copy_config) {

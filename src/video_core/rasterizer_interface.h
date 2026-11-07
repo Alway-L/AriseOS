@@ -256,6 +256,13 @@ public:
         return false;
     }
 
+    /// AriseOS: bilinear blit of a sampled image (src TIC, any colour format) into dst.
+    [[nodiscard]] virtual bool AriseBlitSampled(const Tegra::Texture::TICEntry& src,
+                                                const Tegra::Engines::Fermi2D::Surface& dst,
+                                                const Tegra::Engines::Fermi2D::Config& copy_config) {
+        return false;
+    }
+
     /// Stand-in for a DLSS evaluation: temporal upscale of src into dst along motion_vectors
     /// (jitter in src pixels; motion_scale turns a motion vector into a UV offset to the previous
     /// frame), with depth for NVIDIA DLSS or FSR 3.1. With use_history=false, only de-jitter src.

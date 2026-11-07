@@ -2209,6 +2209,81 @@ bool TextureCache<P>::BlitImage(const Tegra::Engines::Fermi2D::Surface& dst,
 }
 
 template <class P>
+bool TextureCache<P>::AriseBlitSampled(const TICEntry& src,
+                                       const Tegra::Engines::Fermi2D::Surface& dst,
+                                       const Tegra::Engines::Fermi2D::Config& copy) {
+    if constexpr (FRAMEBUFFER_BLITS) {
+        return false;
+    } else {
+        const ImageInfo src_info(src);
+        const ImageInfo dst_info(dst);
+        if (GetFormatType(src_info.format) != SurfaceType::ColorTexture ||
+            GetFormatType(dst_info.format) != SurfaceType::ColorTexture) {
+            return false;
+        }
+        const GPUVAddr src_addr = src.Address();
+        const GPUVAddr dst_addr = dst.Address();
+        const ImageId src_id = FindImage(src_info, src_addr, RelaxedOptions::Samples);
+        if (!src_id) {
+            return false;
+        }
+        const ImageId dst_id = FindOrInsertImage(dst_info, dst_addr, RelaxedOptions::Samples);
+        if (!dst_id || !slot_images[src_id].TryFindBase(src_addr) ||
+            !slot_images[dst_id].TryFindBase(dst_addr) ||
+            slot_images[src_id].info.num_samples != 1 || slot_images[dst_id].info.num_samples != 1) {
+            return false;
+        }
+        PrepareImage(src_id, false, false);
+        PrepareImage(dst_id, true, false);
+        Image& src_image = slot_images[src_id];
+        Image& dst_image = slot_images[dst_id];
+        bool is_src_rescaled = True(src_image.flags & ImageFlagBits::Rescaled);
+        bool is_dst_rescaled = True(dst_image.flags & ImageFlagBits::Rescaled);
+        if (is_src_rescaled != is_dst_rescaled) {
+            if (ImageCanRescale(src_image)) {
+                ScaleUp(src_image);
+                is_src_rescaled = True(src_image.flags & ImageFlagBits::Rescaled);
+            }
+            if (ImageCanRescale(dst_image)) {
+                ScaleUp(dst_image);
+                is_dst_rescaled = True(dst_image.flags & ImageFlagBits::Rescaled);
+            }
+        }
+        const auto& resolution = Settings::values.resolution_info;
+        const auto scale_region = [&](Region2D& region) {
+            region.start.x = resolution.ScaleUp(region.start.x);
+            region.start.y = resolution.ScaleUp(region.start.y);
+            region.end.x = resolution.ScaleUp(region.end.x);
+            region.end.y = resolution.ScaleUp(region.end.y);
+        };
+        const SubresourceRange src_range{.base = *src_image.TryFindBase(src_addr),
+                                         .extent = {1, 1}};
+        const ImageViewInfo src_view_info(ImageViewType::e2D, src_info.format, src_range);
+        const ImageViewId src_view_id = FindOrEmplaceImageView(src_id, src_view_info);
+        Region2D src_region{Offset2D{.x = copy.src_x0, .y = copy.src_y0},
+                            Offset2D{.x = copy.src_x1, .y = copy.src_y1}};
+        if (is_src_rescaled) {
+            scale_region(src_region);
+        }
+        const SubresourceRange dst_range{.base = *slot_images[dst_id].TryFindBase(dst_addr),
+                                         .extent = {1, 1}};
+        const ImageViewInfo dst_view_info(ImageViewType::e2D, dst_info.format, dst_range);
+        const auto [dst_framebuffer_id, dst_view_id] = RenderTargetFromImage(dst_id, dst_view_info);
+        Region2D dst_region{Offset2D{.x = copy.dst_x0, .y = copy.dst_y0},
+                            Offset2D{.x = copy.dst_x1, .y = copy.dst_y1}};
+        if (is_dst_rescaled) {
+            scale_region(dst_region);
+        }
+        Framebuffer* const dst_framebuffer = &slot_framebuffers[dst_framebuffer_id];
+        ImageView& dst_view = slot_image_views[dst_view_id];
+        ImageView& src_view = slot_image_views[src_view_id];
+        runtime.BlitImage(dst_framebuffer, dst_view, src_view, dst_region, src_region, copy.filter,
+                          copy.operation);
+        return true;
+    }
+}
+
+template <class P>
 std::optional<VideoCore::GameDlssProbe> TextureCache<P>::ProbeGameDlssOutput(
     const Tegra::Engines::Fermi2D::Surface& dst, const Tegra::Engines::Fermi2D::Surface& src) {
     if constexpr (FRAMEBUFFER_BLITS) {
