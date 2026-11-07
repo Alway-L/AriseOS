@@ -1,0 +1,62 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Alway-L <felipemoura2015078@gmail.com>
+Date: Sat, 7 Nov 2026 08:43:01 -0300
+Subject: [PATCH] shader: tensor (HMMA) programs rejected by default on ARM64
+ (Turnip took minutes on Ocarina's neural movie enhancement); Max Resolution
+ built-in patch left out on phones
+
+---
+ src/core/file_sys/patch_manager.cpp                       | 5 ++++-
+ .../frontend/maxwell/translate/impl/tensor_mul_add.cpp    | 8 ++++++++
+ 2 files changed, 12 insertions(+), 1 deletion(-)
+
+diff --git a/src/core/file_sys/patch_manager.cpp b/src/core/file_sys/patch_manager.cpp
+index 2fe1c657b3..21a0943a5e 100644
+--- a/src/core/file_sys/patch_manager.cpp
++++ b/src/core/file_sys/patch_manager.cpp
+@@ -66,7 +66,7 @@ struct BuiltinPatch {
+ // Ocarina of Time takes its "dynamic resolution disabled" path, so the 3D renders at full scale
+ // instead of following the GPU-time controller down to its 480p floor.
+ constexpr std::array<u8, 4> MAX_RESOLUTION_BRANCH{0x0F, 0x02, 0x00, 0x14}; // b 0x80640c
+-constexpr std::array MAX_RESOLUTION_RECORDS{
++[[maybe_unused]] constexpr std::array MAX_RESOLUTION_RECORDS{
+     BuiltinPatchRecord{.module_offset = 0x805BD0,
+                        .bytes = MAX_RESOLUTION_BRANCH,
+                        .checked = true,
+@@ -95,6 +95,8 @@ constexpr std::array DYNAMIC_FPS_RECORDS{
+ };
+ 
+ constexpr std::array BUILTIN_PATCHES{
++#ifndef ARCHITECTURE_arm64
++    // AriseOS: left out on phones, where the 3D at full resolution costs more than the GPU has.
+     BuiltinPatch{
+         .name = "Max Resolution (built-in)",
+         .title_id = 0x0400486024DEC000,
+@@ -102,6 +104,7 @@ constexpr std::array BUILTIN_PATCHES{
+         .build_id = "E0F3CCFAF50065AE4EA01EB5AEB13B1A45DA3348",
+         .records = MAX_RESOLUTION_RECORDS,
+     },
++#endif
+     BuiltinPatch{
+         .name = "Dynamic FPS by Dark (built-in)",
+         .title_id = 0x0400486024DEC000,
+diff --git a/src/shader_recompiler/frontend/maxwell/translate/impl/tensor_mul_add.cpp b/src/shader_recompiler/frontend/maxwell/translate/impl/tensor_mul_add.cpp
+index 220c07ccc5..9916817a98 100644
+--- a/src/shader_recompiler/frontend/maxwell/translate/impl/tensor_mul_add.cpp
++++ b/src/shader_recompiler/frontend/maxwell/translate/impl/tensor_mul_add.cpp
+@@ -26,7 +26,15 @@ void TranslatorVisitor::TENSOR_MUL_ADD(u64 insn) {
+     const u64 ci = static_cast<u64>(cr);
+     const u64 di = static_cast<u64>(dr);
+     const bool has_c = ci != 255;
++    // AriseOS: off by default on ARM64. Emulated in software, the tensor (HMMA) programs of Ocarina
++    // of Time's neural movie enhancement are so large that Turnip compiled three of them for
++    // minutes and the game sat at "loading shaders 11/14" (Lichii for Android skips them too).
++    // Rejected, those dispatches are dropped; EDEN_NX2_TENSOR_ON=1 brings them back.
++#ifdef ARCHITECTURE_arm64
++    static const bool disabled{std::getenv("EDEN_NX2_TENSOR_ON") == nullptr};
++#else
+     static const bool disabled{std::getenv("EDEN_NX2_NO_TENSOR") != nullptr};
++#endif
+     if (disabled || ((insn >> 48) & 1) == 0) {
+         throw NotImplementedException("Unsupported matrix multiply encoding");
+     }
