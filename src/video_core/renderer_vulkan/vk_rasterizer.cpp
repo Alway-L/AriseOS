@@ -3443,6 +3443,16 @@ void RasterizerVulkan::TickFrame() {
             LogMemoryOwners(device, pipeline_cache, staging_pool);
         }
     }
+    {
+        // AriseOS: on the phone the GPU's memory is RAM Android counts against the app; log where
+        // it goes (memory types, heap budget) every 15 s so a LOW_MEMORY end can be traced.
+        static auto last_memory_log = std::chrono::steady_clock::time_point{};
+        const auto now = std::chrono::steady_clock::now();
+        if (now - last_memory_log >= std::chrono::seconds{15}) {
+            last_memory_log = now;
+            LogMemoryStatistics(device);
+        }
+    }
     if (VideoCore::Nx2Debug::HasRequests()) {
         if (auto capture = VideoCore::Nx2Debug::TakeCapture()) {
             // Mid-game through the frame dump (no boot switch needed); "buffers" records every

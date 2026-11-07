@@ -327,6 +327,13 @@ void GpuSplit::WaitForSpace(size_t words) {
     }
 }
 
+void GpuSplit::LogState() const {
+    LOG_WARNING(HW_GPU,
+                "AriseOS hang report: GPU split active {}, written {}, published {}, consumed {}, back {}",
+                active, write_position, published.load(), consumed.load(),
+                back_waiting.load() ? "parked" : "running");
+}
+
 void GpuSplit::Publish() {
     RunPendingFlush();
     // The back may read what is published: the open blocks are final from here on.

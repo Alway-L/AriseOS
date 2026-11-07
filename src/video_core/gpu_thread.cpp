@@ -14,6 +14,13 @@
 #include "common/settings.h"
 #include "common/thread.h"
 #include "core/core.h"
+#include <string>
+#include <fmt/format.h>
+#include "common/logging.h"
+#include "core/memory.h"
+#include "core/hle/kernel/kernel.h"
+#include "core/hle/kernel/k_thread.h"
+#include "core/hle/kernel/k_process.h"
 #include "core/frontend/graphics_context.h"
 #include "video_core/nx2_debug_control.h"
 #include "video_core/control/scheduler.h"
@@ -23,6 +30,7 @@
 #include "video_core/gpu_split.h"
 #include "video_core/nx2_profile.h"
 #include "video_core/host1x/host1x.h"
+#include "video_core/host1x/syncpoint_manager.h"
 #include "video_core/renderer_base.h"
 
 namespace VideoCommon::GPUThread {
@@ -37,6 +45,103 @@ void SignalCommand(SynchState& state, u64 fence, bool block) {
         // race between the check and the lock itself.
         std::scoped_lock lk{state.write_lock};
         state.cv.notify_all();
+    }
+}
+
+// AriseOS: no new frame for 20 s while the GPU thread waits for work. Logs every guest thread of
+// the game (state, registers at its last interrupt) and, for runnable ones, the code around the PC
+// and the memory its registers point at, so a guest loop waiting on something can be read back.
+void AriseHangCheck(Core::System& system, const GpuSplit& split, bool pending_channels) {
+    static u64 last_presents = ~u64{0};
+    static auto last_change = std::chrono::steady_clock::now();
+    static auto last_report = std::chrono::steady_clock::time_point{};
+    static int reports = 0;
+    const u64 presents = Core::g_nx2_present_count.load(std::memory_order_relaxed);
+    const auto now = std::chrono::steady_clock::now();
+    if (presents != last_presents) {
+        last_presents = presents;
+        last_change = now;
+        return;
+    }
+    if (now - last_change < std::chrono::seconds{20} || now - last_report < std::chrono::seconds{60} ||
+        reports >= 3) {
+        return;
+    }
+    last_report = now;
+    ++reports;
+    auto* const process = system.Kernel().ApplicationProcess();
+    LOG_WARNING(HW_GPU, "AriseOS hang report {}: no new frame for {} s after {} presents; GPU idle, "
+                "channels waiting on a semaphore: {}",
+                reports, std::chrono::duration_cast<std::chrono::seconds>(now - last_change).count(),
+                presents, pending_channels);
+    split.LogState();
+    {
+        // Guest value = signalled by the command lists; host value = its fence passed on the host GPU.
+        // A host value behind the guest one names a fence that never completed.
+        const auto& syncpoints = system.Host1x().GetSyncpointManager();
+        std::string text;
+        for (u32 id = 0; id < Tegra::Host1x::SyncpointManager::NUM_MAX_SYNCPOINTS; ++id) {
+            const u32 guest = syncpoints.GetGuestSyncpointValue(id);
+            const u32 host = syncpoints.GetHostSyncpointValue(id);
+            if (guest != 0 || host != 0) {
+                text += fmt::format(" {}={}/{}", id, guest, host);
+            }
+        }
+        LOG_WARNING(HW_GPU, "AriseOS hang report: syncpoints (id=guest/host):{}", text);
+    }
+    if (process == nullptr) {
+        return;
+    }
+    auto& memory = system.ApplicationMemory();
+    for (const auto& thread : process->GetThreadList()) {
+        const auto& ctx = thread.GetContext();
+        const auto state = static_cast<u32>(thread.GetState());
+        LOG_WARNING(HW_GPU, "AriseOS hang report: thread {} state {:#x} core {} prio {} wait {} pc {:#x} "
+                    "lr {:#x} sp {:#x} fp {:#x}",
+                    thread.GetThreadId(), state, thread.GetActiveCore(), thread.GetPriority(),
+                    static_cast<u32>(thread.GetWaitReasonForDebugging()), ctx.pc, ctx.lr, ctx.sp, ctx.fp);
+        if ((state & static_cast<u32>(Kernel::ThreadState::Mask)) !=
+            static_cast<u32>(Kernel::ThreadState::Runnable)) {
+            continue;
+        }
+        std::string regs;
+        for (size_t i = 0; i < ctx.r.size(); ++i) {
+            regs += fmt::format(" x{}={:x}", i, ctx.r[i]);
+        }
+        LOG_WARNING(HW_GPU, "AriseOS hang report: thread {} regs{}", thread.GetThreadId(), regs);
+        std::string code;
+        for (s64 i = -16; i < 16; ++i) {
+            const u64 at = ctx.pc + i * 4;
+            code += memory.IsValidVirtualAddressRange(at, 4) ? fmt::format(" {:08x}", memory.Read32(at)) : " ????????";
+        }
+        LOG_WARNING(HW_GPU, "AriseOS hang report: thread {} code from {:#x}:{}", thread.GetThreadId(),
+                    ctx.pc - 64, code);
+        // Callers: walk the frame-pointer chain, with the code before each return address.
+        u64 frame = ctx.fp;
+        u64 ret = ctx.lr;
+        for (int depth = 0; depth < 6 && ret != 0; ++depth) {
+            std::string around;
+            for (s64 i = -24; i < 4; ++i) {
+                const u64 at = ret + i * 4;
+                around += memory.IsValidVirtualAddressRange(at, 4) ? fmt::format(" {:08x}", memory.Read32(at)) : " ????????";
+            }
+            LOG_WARNING(HW_GPU, "AriseOS hang report: thread {} caller {} returns to {:#x}, code from {:#x}:{}",
+                        thread.GetThreadId(), depth, ret, ret - 96, around);
+            if (frame < 0x10000 || !memory.IsValidVirtualAddressRange(frame, 16)) {
+                break;
+            }
+            ret = memory.Read64(frame + 8);
+            frame = memory.Read64(frame);
+        }
+        for (size_t i = 0; i < ctx.r.size(); ++i) {
+            const u64 at = ctx.r[i] & ~u64{3};
+            if (at < 0x10000 || !memory.IsValidVirtualAddressRange(at, 16)) {
+                continue;
+            }
+            LOG_WARNING(HW_GPU, "AriseOS hang report: thread {} [x{} {:#x}] = {:08x} {:08x} {:08x} {:08x}",
+                        thread.GetThreadId(), i, at, memory.Read32(at), memory.Read32(at + 4),
+                        memory.Read32(at + 8), memory.Read32(at + 12));
+        }
     }
 }
 
@@ -101,7 +206,14 @@ void ThreadManager::StartThread(VideoCore::RendererBase& renderer, Core::Fronten
                 }
             } else {
                 Profile::Scope scope{Profile::Zone::Idle};
-                state.queue.PopWait(next, stop_token);
+                // AriseOS: wait in 1 s slices, so a game that stops producing frames while the GPU
+                // has nothing to do is reported (what each guest thread is doing) in the log.
+                while (!state.queue.PopWaitFor(next, std::chrono::seconds{1})) {
+                    if (stop_token.stop_requested()) {
+                        break;
+                    }
+                    AriseHangCheck(system, split, scheduler.HasPendingChannels());
+                }
             }
             if (stop_token.stop_requested()) {
                 break;

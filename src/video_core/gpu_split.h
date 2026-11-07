@@ -390,6 +390,8 @@ public:
     /// or sleeps polling suspended channels, it publishes what they sent (held-back work too),
     /// so the back doesn't idle on work the front already decoded.
     void PublishBeforeWait();
+    /// AriseOS hang report: ring positions and whether the back thread is parked (front thread).
+    void LogState() const;
     /// Waits until the back executed everything sent so far.
     void Drain(DrainSite site = DrainSite::Other);
 
