@@ -177,8 +177,11 @@ GpuSplit GpuSplit::instance;
 
 void GpuSplit::MaybeStart(Core::System& system_) {
     static const char mode = [] {
+        // AriseOS: off unless asked for (EDEN_NX2_SPLIT=1/2). On the phone, Switch 2 boots hung at
+        // "Launching..." waiting for GPU completions that the second thread published late or
+        // never signalled (lost wake-ups, events never set); the GPU thread runs the engines itself.
         const char* value = std::getenv("EDEN_NX2_SPLIT");
-        return value != nullptr ? value[0] : '2';
+        return value != nullptr ? value[0] : '0';
     }();
     const bool wanted = mode == '1' || mode == '2';
     if (!wanted || !Tegra::g_nx2_ampere.load(std::memory_order_relaxed)) {
