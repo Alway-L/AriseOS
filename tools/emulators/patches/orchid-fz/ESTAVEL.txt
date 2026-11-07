@@ -1,0 +1,1 @@
+Orchid fz-b5 = primeira versão com imagem no Ocarina (2026-11-07). Patches desta versão: commit 2a00ab74 do main; release orchid-arise-fz-frizti-v2-b5.
