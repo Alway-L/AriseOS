@@ -342,6 +342,18 @@ const ShaderInfo* ShaderCache::ComputeShader() {
         kepler_compute->ProcessGameDlss(program_id, shader->lowered_native->native_program_key)) {
         throw FireEmblemUpscale::DispatchReplaced{};
     }
+    if (shader->lowered_native) {
+        static std::mutex seen_mutex;
+        static std::unordered_set<u64> seen;
+        std::scoped_lock seen_lock{seen_mutex};
+        if (seen.size() < 256 && seen.insert(shader->lowered_native->native_program_key).second) {
+            const auto& qmd = kepler_compute->launch_description;
+            LOG_INFO(HW_GPU, "AriseOS pass: native {:#018x} shader {:016x} grid {}x{}x{} block {}x{}x{}",
+                     shader->lowered_native->native_program_key, shader->unique_hash,
+                     qmd.grid_dim_x, qmd.grid_dim_y, qmd.grid_dim_z, qmd.block_dim_x,
+                     qmd.block_dim_y, qmd.block_dim_z);
+        }
+    }
     if (kepler_compute->IsNativeMode() && shader->lowered_native &&
         kepler_compute->ProcessOcarinaMovie(program_id,
                                             shader->lowered_native->native_program_key)) {

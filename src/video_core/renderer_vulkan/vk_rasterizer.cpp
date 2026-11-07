@@ -5,6 +5,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 #include <algorithm>
+#include <unordered_set>
 #include <array>
 #include <bit>
 #include <chrono>
@@ -2176,6 +2177,32 @@ void RasterizerVulkan::DispatchCompute() {
         }
     };
     TracePendingCpuWrites(true, std::array{pipeline->ShaderHash()});
+    {
+        static std::unordered_set<u64> seen;
+        if (seen.size() < 256 && seen.insert(pipeline->ShaderHash()).second) {
+            const auto describe = [this](VideoCommon::ImageViewId id) {
+                const auto& view = texture_cache.GetImageView(id);
+                return fmt::format(" {:#x} {}x{}x{} fmt {}", view.gpu_addr, view.size.width,
+                                   view.size.height, view.size.depth,
+                                   static_cast<u32>(view.format));
+            };
+            std::string written;
+            for (const VideoCommon::ImageViewId id : pipeline->WrittenImages()) {
+                written += describe(id);
+            }
+            std::string sampled;
+            for (const auto& image : pipeline->SampledImages()) {
+                sampled += describe(image.id);
+            }
+            const auto& launch = kepler_compute->launch_description;
+            LOG_INFO(Render_Vulkan,
+                     "AriseOS dispatch: shader {:016x} grid {}x{}x{} block {}x{}x{} writes{} reads{}",
+                     pipeline->ShaderHash(), launch.grid_dim_x, launch.grid_dim_y,
+                     launch.grid_dim_z, launch.block_dim_x, launch.block_dim_y,
+                     launch.block_dim_z, written.empty() ? " -" : written,
+                     sampled.empty() ? " -" : sampled);
+        }
+    }
     if (frame_dump.CapturingSampled()) {
         boost::container::small_vector<FrameDump::Sampled, 16> sampled;
         for (const auto& image : pipeline->SampledImages()) {

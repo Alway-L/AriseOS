@@ -720,7 +720,7 @@ static size_t AriseAvailableMiB() {
 
 // AriseOS: settings for tests without a new build: KEY=VALUE lines in ~/.config/arise/orchid.env
 // (# comments) become environment variables when the emulator starts, unless already set.
-__attribute__((constructor)) static void AriseLoadEnvFile() {
+__attribute__((constructor(101))) static void AriseLoadEnvFile() {
     const char* home = std::getenv("HOME");
     if (home == nullptr) {
         return;
@@ -746,6 +746,14 @@ __attribute__((constructor)) static void AriseLoadEnvFile() {
     }
     std::fclose(file);
 }
+
+#ifdef ARCHITECTURE_arm64
+// AriseOS: GPU time of each pass logged once a second (DKB gpu_work), to find what holds the
+// frame on phones. EDEN_DKB_FRAME_TRACE=0 in orchid.env turns it off.
+__attribute__((constructor(102))) static void AriseDiagnosticDefaults() {
+    setenv("EDEN_DKB_FRAME_TRACE", "1", 0);
+}
+#endif
 
 static int AriseOpenGuestMemoryFile(size_t size) {
     const char* toggle = std::getenv("ARISE_GUEST_MEMORY_FILE");
