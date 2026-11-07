@@ -39,6 +39,9 @@ class SteamTouchControls(
     private var autoFade = prefs.getBoolean("autoFade", true)
     private var gyroOn = prefs.getBoolean("gyro", true).also { device.motionEnabled = it }
     private var shakeToHide = prefs.getBoolean("shake", false)
+    // Button labels only: each face button keeps its position (and the signal it sends), so a
+    // Switch layout shows B at the bottom and A on the right, as on a Switch controller.
+    private var style = prefs.getInt("style", STYLE_DECK).coerceIn(0, STYLES.size - 1)
     private var shakenAway = false
     private val sensors by lazy { context.getSystemService(Context.SENSOR_SERVICE) as android.hardware.SensorManager }
     private var lastJolt = 0L
@@ -403,7 +406,7 @@ class SteamTouchControls(
         }
         text.color = when {
             pressed -> Color.argb(alpha, 23, 26, 33)
-            shown == own -> LABEL_COLORS[type]?.let { Color.argb(alpha, Color.red(it), Color.green(it), Color.blue(it)) } ?: text.color
+            shown == own -> STYLE_COLORS[style][type]?.let { Color.argb(alpha, Color.red(it), Color.green(it), Color.blue(it)) } ?: text.color
             else -> text.color
         }
         val line = if (shown.length > 10) shown.take(9) + "…" else shown
@@ -521,22 +524,22 @@ class SteamTouchControls(
     }
 
     private fun label(type: Int) = when (type) {
-        SteamTouchConfig.A -> "A"
-        SteamTouchConfig.B -> "B"
-        SteamTouchConfig.X -> "X"
-        SteamTouchConfig.Y -> "Y"
+        SteamTouchConfig.A -> STYLE_FACE[style][0]
+        SteamTouchConfig.B -> STYLE_FACE[style][1]
+        SteamTouchConfig.X -> STYLE_FACE[style][2]
+        SteamTouchConfig.Y -> STYLE_FACE[style][3]
         SteamTouchConfig.STEAM -> "STEAM"
         SteamTouchConfig.THUMB -> "…"
         SteamTouchConfig.KEYBOARD -> "⌨"
         SteamTouchConfig.PASTE -> context.getString(R.string.touch_paste)
-        SteamTouchConfig.SELECT -> "⧉"
-        SteamTouchConfig.START -> "☰"
-        SteamTouchConfig.BUMPER_LEFT -> "LB"
-        SteamTouchConfig.BUMPER_RIGHT -> "RB"
-        SteamTouchConfig.TRIGGER_LEFT -> "LT"
-        SteamTouchConfig.TRIGGER_RIGHT -> "RT"
-        SteamTouchConfig.JOYSTICK_LEFT_BUTTON -> "LS"
-        SteamTouchConfig.JOYSTICK_RIGHT_BUTTON -> "RS"
+        SteamTouchConfig.SELECT -> STYLE_SYSTEM[style][0]
+        SteamTouchConfig.START -> STYLE_SYSTEM[style][1]
+        SteamTouchConfig.BUMPER_LEFT -> STYLE_SHOULDER[style][0]
+        SteamTouchConfig.BUMPER_RIGHT -> STYLE_SHOULDER[style][1]
+        SteamTouchConfig.TRIGGER_LEFT -> STYLE_SHOULDER[style][2]
+        SteamTouchConfig.TRIGGER_RIGHT -> STYLE_SHOULDER[style][3]
+        SteamTouchConfig.JOYSTICK_LEFT_BUTTON -> STYLE_STICK[style][0]
+        SteamTouchConfig.JOYSTICK_RIGHT_BUTTON -> STYLE_STICK[style][1]
         SteamTouchConfig.MACRO_1_FINGER -> "1F"
         SteamTouchConfig.MACRO_2_FINGER -> "2F"
         in SteamTouchConfig.MACRO_0..SteamTouchConfig.MACRO_0 + 7 -> "M${type - SteamTouchConfig.MACRO_0 + 1}"
@@ -1065,6 +1068,11 @@ class SteamTouchControls(
             text(c, name, r.centerX(), r.centerY(), r.height() * 0.32f, col, maxWidth = r.width() - 6f * s)
         }
         drawVolume(canvas, f, s)
+        blueButton(canvas, ref(f, s, 300f, 22f, 480f, 52f),
+            context.getString(R.string.touch_style, context.getString(STYLES[style])), s) {
+            style = (style + 1) % STYLES.size
+            prefs.edit().putInt("style", style).apply()
+        }
         blueButton(canvas, ref(f, s, 45f, 329f, 249f, 372f), context.getString(R.string.touch_edit_layout), s, primary = true) { menuOpen = false; startEditing() }
         blueButton(canvas, ref(f, s, 271f, 329f, 475f, 372f), context.getString(R.string.touch_droiddeck_menu), s) { menuOpen = false; onMenu() }
     }
@@ -1533,11 +1541,54 @@ class SteamTouchControls(
             put(SteamTouchConfig.PASTE, 0L)
         }
 
-        private val LABEL_COLORS = mapOf(
+        const val STYLE_DECK = 0
+        const val STYLE_XBOX = 1
+        const val STYLE_SWITCH = 2
+        const val STYLE_PLAYSTATION = 3
+        private val STYLES = listOf(R.string.touch_style_deck, R.string.touch_style_xbox,
+            R.string.touch_style_switch, R.string.touch_style_playstation)
+        // South, east, west, north.
+        private val STYLE_FACE = listOf(
+            listOf("A", "B", "X", "Y"),
+            listOf("A", "B", "X", "Y"),
+            listOf("B", "A", "Y", "X"),
+            listOf("✕", "○", "□", "△"),
+        )
+        // Left bumper, right bumper, left trigger, right trigger.
+        private val STYLE_SHOULDER = listOf(
+            listOf("L1", "R1", "L2", "R2"),
+            listOf("LB", "RB", "LT", "RT"),
+            listOf("L", "R", "ZL", "ZR"),
+            listOf("L1", "R1", "L2", "R2"),
+        )
+        private val STYLE_SYSTEM = listOf(
+            listOf("⧉", "☰"),
+            listOf("⧉", "☰"),
+            listOf("−", "+"),
+            listOf("⧉", "☰"),
+        )
+        private val STYLE_STICK = listOf(
+            listOf("L3", "R3"),
+            listOf("LS", "RS"),
+            listOf("LS", "RS"),
+            listOf("L3", "R3"),
+        )
+        private val XBOX_COLORS = mapOf(
             SteamTouchConfig.A to Color.rgb(72, 133, 48),
             SteamTouchConfig.B to Color.rgb(211, 68, 37),
             SteamTouchConfig.X to Color.rgb(23, 60, 184),
             SteamTouchConfig.Y to Color.rgb(235, 200, 70),
+        )
+        private val STYLE_COLORS = listOf(
+            XBOX_COLORS,
+            XBOX_COLORS,
+            emptyMap(),
+            mapOf(
+                SteamTouchConfig.A to Color.rgb(110, 150, 235),
+                SteamTouchConfig.B to Color.rgb(232, 86, 92),
+                SteamTouchConfig.X to Color.rgb(222, 128, 196),
+                SteamTouchConfig.Y to Color.rgb(64, 196, 160),
+            ),
         )
     }
 }

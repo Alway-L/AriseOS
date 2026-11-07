@@ -3463,4 +3463,9 @@
     <string name="logupload_sent">Logs sent: %1$s</string>
     <string name="logupload_failed">Could not send the logs: %1$s</string>
     <string name="logupload_saved">Logs saved in %1$s</string>
+    <string name="touch_style">Buttons: %1$s</string>
+    <string name="touch_style_deck">Steam Deck</string>
+    <string name="touch_style_xbox">Xbox</string>
+    <string name="touch_style_switch">Switch</string>
+    <string name="touch_style_playstation">PlayStation</string>
 </resources>
