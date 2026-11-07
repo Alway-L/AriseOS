@@ -1,0 +1,108 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Alway-L <felipemoura2015078@gmail.com>
+Date: Sat, 7 Nov 2026 07:42:45 -0300
+Subject: [PATCH] host_memory: back guest memory with an unlinked file in the
+ app's storage on ARM64 phones, so the kernel can write it back and Android
+ counts it as reclaimable
+
+---
+ src/common/host_memory.cpp | 57 +++++++++++++++++++++++++++++++++++---
+ 1 file changed, 53 insertions(+), 4 deletions(-)
+
+diff --git a/src/common/host_memory.cpp b/src/common/host_memory.cpp
+index 8d23c9e73b..b1de02ac2e 100644
+--- a/src/common/host_memory.cpp
++++ b/src/common/host_memory.cpp
+@@ -11,6 +11,9 @@
+ #include <cstring>
+ #include <mutex>
+ #include <thread>
++#include <sys/statvfs.h>
++#include <sys/stat.h>
++#include <string>
+ 
+ #ifdef _WIN32
+ 
+@@ -583,6 +586,41 @@ static size_t AriseAvailableMiB() {
+     return kib == ~size_t{0} ? kib : kib / 1024;
+ }
+ 
++static int AriseOpenGuestMemoryFile(size_t size) {
++    const char* toggle = std::getenv("ARISE_GUEST_MEMORY_FILE");
++    if (toggle != nullptr && toggle[0] == '0') {
++        return -1;
++    }
++    std::string dir;
++    if (const char* custom = std::getenv("ARISE_GUEST_MEMORY_DIR")) {
++        dir = custom;
++    } else if (const char* home = std::getenv("HOME")) {
++        dir = std::string{home} + "/.cache/arise";
++    } else {
++        dir = "/tmp";
++    }
++    mkdir(dir.c_str(), 0700);
++    struct statvfs fs {};
++    if (statvfs(dir.c_str(), &fs) == 0) {
++        const u64 free_bytes = u64{fs.f_bavail} * fs.f_frsize;
++        if (free_bytes < (6ULL << 30)) {
++            LOG_WARNING(HW_Memory, "AriseOS: only {} MiB free in {}: guest memory stays in RAM (memfd)",
++                        free_bytes >> 20, dir);
++            return -1;
++        }
++    }
++    std::string path = dir + "/guest-memory-XXXXXX";
++    const int file = mkstemp(path.data());
++    if (file < 0) {
++        LOG_WARNING(HW_Memory, "AriseOS: could not create {}: {}", path, std::strerror(errno));
++        return -1;
++    }
++    unlink(path.c_str()); // gone with the process, nothing left behind
++    LOG_INFO(HW_Memory, "AriseOS: guest memory ({} MiB) backed by a file in {}, so Android can reclaim it",
++             size >> 20, dir);
++    return file;
++}
++
+ static void AriseWatchMemory(u8* base, size_t size) {
+     g_arise_backing_base.store(base);
+     g_arise_backing_size.store(size);
+@@ -590,18 +628,18 @@ static void AriseWatchMemory(u8* base, size_t size) {
+     std::call_once(started, [] {
+         std::thread([] {
+             // MADV_COLD alone did not get guest pages swapped before Android ended the app (swap use
+-            // barely moved while 4.5 GiB of guest memory stayed in RAM). Below the threshold, compress
+-            // a 512 MiB window of guest memory into swap every half second, walking through all of it:
++            // barely moved while 4.5 GiB of guest memory stayed in RAM). Below the threshold, page out
++            // a 256 MiB window of guest memory every half second, walking through all of it:
+             // pages the game is not using stay out, those it uses come back on their next touch.
+             const char* value = std::getenv("ARISE_PAGEOUT_BELOW_MIB");
+-            const size_t threshold = value != nullptr ? std::strtoull(value, nullptr, 10) : 2048;
++            const size_t threshold = value != nullptr ? std::strtoull(value, nullptr, 10) : 1536;
+             if (threshold == 0) {
+                 return;
+             }
+ #ifndef MADV_PAGEOUT
+ #define MADV_PAGEOUT 21
+ #endif
+-            constexpr size_t Window = 512ULL << 20;
++            constexpr size_t Window = 256ULL << 20;
+             size_t cursor = 0;
+             size_t passes = 0;
+             int notes = 0;
+@@ -667,6 +705,17 @@ public:
+         if (fd >= 0) {
+             unlink(template_path);
+         }
++#elif defined(__linux__) && defined(ARCHITECTURE_arm64)
++        // AriseOS: back the guest's memory with a file in the app's storage instead of memfd. memfd
++        // pages are shmem: on a phone they leave RAM only through zram swap, and Android ended the
++        // app (LOW_MEMORY) when a Switch 2 game loading an area pushed guest memory past the free
++        // RAM. A file's pages are page cache, which the kernel writes back and drops under pressure
++        // and Android counts as available (as nxnative keeps Mario Kart World under 6.5 GB on
++        // iPhone with file-backed memory). ARISE_GUEST_MEMORY_FILE=0 goes back to memfd.
++        fd = AriseOpenGuestMemoryFile(backing_size);
++        if (fd < 0) {
++            fd = memfd_create("HostMemory", 0);
++        }
+ #else
+         fd = memfd_create("HostMemory", 0);
+ #endif
