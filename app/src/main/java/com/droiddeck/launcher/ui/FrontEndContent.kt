@@ -543,13 +543,25 @@ private fun RemoveAppButton(app: UserApps.App, enabled: Boolean, onRemove: () ->
     }
 }
 
+/**
+ * The new tag without the part it shares with the installed one, so it fits the button: a long tag such as
+ * "orchid-arise-fz-frizti-v2-b3" wrapped onto a line the button cut off, and only "Update to" showed.
+ */
+internal fun shortTag(tag: String, installed: String?): String {
+    if (installed.isNullOrEmpty() || installed == tag) return tag
+    var common = tag.commonPrefixWith(installed).length
+    while (common > 0 && tag[common - 1] != '-' && tag[common - 1] != '_') common--
+    val rest = tag.substring(common)
+    return rest.ifEmpty { tag }
+}
+
 @Composable
 private fun UpdateButton(app: UserApps.App, s: FrontEndState) {
     val ctx = LocalContext.current
     val idle = UserAppsState.working == null && UserAppsState.checking == null
     when (val found = UserAppsState.updates[app.key]) {
         is UserApps.UpdateCheck.Available -> SecondaryButton(
-            stringResource(R.string.user_apps_update_to, found.release.tag), enabled = !s.busy && idle && !s.sessionRunning,
+            stringResource(R.string.user_apps_update_to, shortTag(found.release.tag, app.version)), enabled = !s.busy && idle && !s.sessionRunning,
         ) { UserAppsState.update(ctx, app, found.release) }
         else -> {
             SecondaryButton(
