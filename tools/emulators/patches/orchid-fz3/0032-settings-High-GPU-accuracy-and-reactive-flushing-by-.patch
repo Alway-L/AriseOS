@@ -1,0 +1,45 @@
+From 4ee4349714f8ff0a6179de9ae1ab809d0b3e8e08 Mon Sep 17 00:00:00 2001
+From: Alway-L <felipemoura2015078@gmail.com>
+Date: Sat, 7 Nov 2026 15:37:21 -0300
+Subject: [PATCH] settings: High GPU accuracy and reactive flushing by default
+ on AriseOS phones (Ocarina's forest was washed out white without them)
+
+---
+ src/common/settings.h | 12 ++++++++++--
+ 1 file changed, 10 insertions(+), 2 deletions(-)
+
+diff --git a/src/common/settings.h b/src/common/settings.h
+index fea153bc18..404334a3df 100644
+--- a/src/common/settings.h
++++ b/src/common/settings.h
+@@ -529,8 +529,14 @@ struct Values {
+ 
+     SwitchableSetting<GpuAccuracy, true> gpu_accuracy{linkage,
+                                                       // Low on desktop too: the Frizti builds are
+-                                                      // tuned for Ocarina of Time there.
++                                                      // tuned for Ocarina of Time there. High on
++                                                      // AriseOS phones (with reactive flushing): the
++                                                      // forest fog was washed out white at Low.
++#ifdef ARCHITECTURE_arm64
++                                                      GpuAccuracy::High,
++#else
+                                                       GpuAccuracy::Low,
++#endif
+                                                       "gpu_accuracy",
+                                                       Category::RendererAdvanced,
+                                                       Specialization::Default,
+@@ -632,8 +638,10 @@ struct Values {
+     SwitchableSetting<bool> mkw_dynamic_fps{linkage, false, "mkw_dynamic_fps",
+                                             Category::RendererAdvanced};
+ 
++    // AriseOS: on for phones too: without it, and at Low accuracy, Ocarina of Time's auto
++    // exposure read nothing back from the GPU and its forest was washed out white.
+     SwitchableSetting<bool> use_reactive_flushing{linkage,
+-#if defined(__ANDROID__) || defined(ARCHITECTURE_arm64)
++#if defined(__ANDROID__)
+                                                   false,
+ #else
+                                                   true,
+-- 
+2.43.0
+
