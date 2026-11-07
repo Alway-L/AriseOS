@@ -1242,7 +1242,7 @@ class FrontEndActivity : ComponentActivity() {
                         onShareLogs = {
                             SessionLogShare.prepare(this, { SessionLogShare.latest(this) }) { zip ->
                                 if (zip == null) android.widget.Toast.makeText(this, R.string.main_no_logs_yet, android.widget.Toast.LENGTH_LONG).show()
-                                else startActivity(SessionLogShare.shareIntent(this, zip))
+                                else com.droiddeck.launcher.session.LogUpload.choose(this, zip)
                             }
                         },
                         onClearLogs = {

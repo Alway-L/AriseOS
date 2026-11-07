@@ -1825,7 +1825,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             if (zip == null) {
                 Toast.makeText(this, R.string.session_logs_archive_failed, Toast.LENGTH_LONG).show()
             } else {
-                runCatching { startActivity(SessionLogShare.shareIntent(this, zip)) }
+                runCatching { com.droiddeck.launcher.session.LogUpload.choose(this, zip) }
                     .onFailure {
                         Log.w(TAG, "could not share current session logs", it)
                         Toast.makeText(this, R.string.session_logs_share_failed, Toast.LENGTH_LONG).show()

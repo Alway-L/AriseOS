@@ -3452,4 +3452,15 @@
     <string name="gog_repair_action">Reparar ficheiros</string>
     <string name="gog_refresh_action">Renovar instalação</string>
     <string name="gog_select_patch">Selecionar</string>
+    <string name="logupload_title">Logs da sessão</string>
+    <string name="logupload_github">Enviar para o GitHub</string>
+    <string name="logupload_phone">Salvar no telefone</string>
+    <string name="logupload_both">Enviar para o GitHub e salvar no telefone</string>
+    <string name="logupload_settings">Configurar GitHub</string>
+    <string name="logupload_settings_help">Repositório (dono/nome, deixe privado) e um token fine-grained com Contents leitura e escrita só nesse repositório.</string>
+    <string name="logupload_token_hint">Token do GitHub (github_pat_…)</string>
+    <string name="logupload_sending">Enviando logs para o GitHub…</string>
+    <string name="logupload_sent">Logs enviados: %1$s</string>
+    <string name="logupload_failed">Não foi possível enviar os logs: %1$s</string>
+    <string name="logupload_saved">Logs salvos em %1$s</string>
 </resources>
