@@ -377,6 +377,8 @@ object UserApps {
     private fun latestArchive(context: Context, repo: String, pattern: Regex, previews: Boolean = false, tag: Regex? = null): Release? {
         val body = Downloader.downloadString("https://api.github.com/repos/$repo/releases?per_page=100") ?: return null
         val releases = runCatching { JSONArray(body) }.getOrNull() ?: return null
+        // The newest by publication, not the first listed: GitHub's order put AriseOS's Orchid build b10 after b9..b5.
+        var best: Release? = null
         for (i in 0 until releases.length()) {
             val r = releases.getJSONObject(i)
             if (r.optBoolean("draft") || (!previews && r.optBoolean("prerelease"))) continue
@@ -385,13 +387,16 @@ object UserApps {
             for (j in 0 until assets.length()) {
                 val a = assets.getJSONObject(j)
                 val name = a.getString("name")
-                if (pattern.containsMatchIn(name)) return Release(
-                    r.optString("tag_name", name), r.optString("published_at"), name, a.getString("browser_download_url"),
+                if (!pattern.containsMatchIn(name)) continue
+                val published = r.optString("published_at")
+                if (best == null || published > best.published) best = Release(
+                    r.optString("tag_name", name), published, name, a.getString("browser_download_url"),
                     Hashes.githubSha256(a.optString("digest")),
                 )
+                break
             }
         }
-        return null
+        return best
     }
 
     private fun addArchiveFromGitHub(
