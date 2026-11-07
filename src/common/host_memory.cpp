@@ -752,6 +752,12 @@ __attribute__((constructor(101))) static void AriseLoadEnvFile() {
 // frame on phones. EDEN_DKB_FRAME_TRACE=0 in orchid.env turns it off.
 __attribute__((constructor(102))) static void AriseDiagnosticDefaults() {
     setenv("EDEN_DKB_FRAME_TRACE", "1", 0);
+    // GPU thread time by zone every 10 s (fences, flushes, waits).
+    setenv("EDEN_NX2_GPU_PROFILE", "1", 0);
+    // The split GPU thread back on (the Frizti base's own default): with it off, Ocarina made ~265
+    // queue submissions a frame from one thread and the GPU sat idle between them (291 ms frame
+    // span, 105 ms of GPU work). EDEN_NX2_SPLIT=0 in orchid.env turns it off again.
+    setenv("EDEN_NX2_SPLIT", "2", 0);
 }
 #endif
 
