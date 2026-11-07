@@ -135,13 +135,22 @@ class SteamTouchControls(
         }
     }
 
+    private val styleListener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { p, key ->
+        if (key == "buttonStyle") {
+            buttonStyle = p.getInt("buttonStyle", STYLE_DECK).coerceIn(0, STYLES.size - 1)
+            invalidate()
+        }
+    }
+
     override fun onAttachedToWindow() {
         super.onAttachedToWindow()
         handler.post(poll)
         updateShake()
+        prefs.registerOnSharedPreferenceChangeListener(styleListener)
     }
 
     override fun onDetachedFromWindow() {
+        prefs.unregisterOnSharedPreferenceChangeListener(styleListener)
         handler.removeCallbacks(poll)
         sensors.unregisterListener(shakeListener)
         releaseAll()
@@ -1545,7 +1554,7 @@ class SteamTouchControls(
         const val STYLE_XBOX = 1
         const val STYLE_SWITCH = 2
         const val STYLE_PLAYSTATION = 3
-        private val STYLES = listOf(R.string.touch_style_deck, R.string.touch_style_xbox,
+        val STYLES = listOf(R.string.touch_style_deck, R.string.touch_style_xbox,
             R.string.touch_style_switch, R.string.touch_style_playstation)
         // South, east, west, north.
         private val STYLE_FACE = listOf(

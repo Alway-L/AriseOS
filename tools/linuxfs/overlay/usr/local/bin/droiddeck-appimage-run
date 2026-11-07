@@ -182,13 +182,16 @@ while True:
                         comm = f[f.index("(") + 1:f.rindex(")")]
                         rest = f.rsplit(")", 1)[1].split()
                         cpu = (int(rest[11]) + int(rest[12])) / ticks
+                        majflt = int(rest[9])
                     except (OSError, ValueError, IndexError):
                         continue
                     key = "t" + tid
                     busy = int(100 * (cpu - last.get(key, cpu)) / 15)
                     last[key] = cpu
-                    if busy >= 10:
-                        hot.append((busy, comm, rest[0]))
+                    faults = majflt - last.get("f" + tid, majflt)
+                    last["f" + tid] = majflt
+                    if busy >= 10 or faults >= 150:
+                        hot.append((busy, comm, rest[0] + (", %d disk faults" % faults if faults else "")))
             except OSError:
                 pass
             if hot:
@@ -196,6 +199,18 @@ while True:
                 print("      busy threads: " + ", ".join("%s %d%% (%s)" % (c, b, st) for b, c, st in hot[:8]))
         top = ", ".join("%s %d MiB (anon %d, shm %d, swap %d, cpu %d%%, %d threads)" % (n, r >> 10, a >> 10, sh >> 10,
                         sw >> 10, b, t) for r, n, a, sh, sw, b, t, _ in procs[:5])
+        # Major faults (pages read back from storage or swap) every 15 s: guest memory lives in a
+        # file, and a working set Android evicted shows up here as stalls of the emulated cores.
+        try:
+            vm = dict(line.split() for line in open("/proc/vmstat").read().splitlines() if len(line.split()) == 2)
+            majors = int(vm.get("pgmajfault", 0))
+            swapins = int(vm.get("pswpin", 0))
+            print("      disk reads: %d major faults, %d pages from swap in 15 s" % (
+                majors - last.get("vm_maj", majors), swapins - last.get("vm_swin", swapins)))
+            last["vm_maj"] = majors
+            last["vm_swin"] = swapins
+        except (OSError, ValueError):
+            pass
         try:
             gpu = "%d MiB" % (int(open("/sys/class/kgsl/kgsl/page_alloc").read().split()[0]) >> 20)
         except (OSError, ValueError, IndexError):

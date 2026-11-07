@@ -624,6 +624,16 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                                     else listOf(SessionPrefs.OSC_AUTO to stringResource(R.string.common_auto), SessionPrefs.OSC_ALWAYS to stringResource(R.string.common_always), SessionPrefs.OSC_NEVER to stringResource(R.string.common_never)),
                                     if (!a.steam && a.oscMode == SessionPrefs.OSC_STEAM_TOUCH) SessionPrefs.OSC_AUTO else a.oscMode,
                                     chipModifier = focus.track(page, "osc"), onPick = a.onOsc)
+                                run {
+                                    val touchPrefs = LocalContext.current.getSharedPreferences("steam_touch", android.content.Context.MODE_PRIVATE)
+                                    var buttonStyle by remember { mutableStateOf(touchPrefs.getInt("buttonStyle", com.droiddeck.launcher.input.SteamTouchControls.STYLE_DECK)) }
+                                    ChoiceRow(host, "button-style", stringResource(R.string.touch_style_title), null,
+                                        com.droiddeck.launcher.input.SteamTouchControls.STYLES.mapIndexed { index, name -> index to stringResource(name) },
+                                        buttonStyle, chipModifier = focus.track(page, "button-style")) { picked ->
+                                        buttonStyle = picked
+                                        touchPrefs.edit().putInt("buttonStyle", picked).apply()
+                                    }
+                                }
                                 a.onEditSteamTouch?.let { edit ->
                                     ActionRow(stringResource(R.string.osc_steam_layout), stringResource(R.string.osc_steam_layout_hint), stringResource(R.string.ctrl_edit), edit)
                                 }

@@ -3468,4 +3468,5 @@
     <string name="touch_style_xbox">Xbox</string>
     <string name="touch_style_switch">Switch</string>
     <string name="touch_style_playstation">PlayStation</string>
+    <string name="touch_style_title">Estilo dos botões</string>
 </resources>
