@@ -86,7 +86,7 @@ struct BuiltinPatch {
 // Ocarina of Time takes its "dynamic resolution disabled" path, so the 3D renders at full scale
 // instead of following the GPU-time controller down to its 480p floor.
 constexpr std::array<u8, 4> MAX_RESOLUTION_BRANCH{0x0F, 0x02, 0x00, 0x14}; // b 0x80640c
-constexpr std::array MAX_RESOLUTION_RECORDS{
+[[maybe_unused]] constexpr std::array MAX_RESOLUTION_RECORDS{
     BuiltinPatchRecord{.module_offset = 0x805BD0,
                        .bytes = MAX_RESOLUTION_BRANCH,
                        .checked = true,
@@ -279,6 +279,8 @@ constexpr std::array POLL_BACKOFF_RECORDS{
 };
 
 constexpr std::array BUILTIN_PATCHES{
+#ifndef ARCHITECTURE_arm64
+    // AriseOS: left out on phones, where the 3D at full resolution costs more than the GPU has.
     BuiltinPatch{
         .name = "Max Resolution (built-in)",
         .title_id = 0x0400486024DEC000,
@@ -300,6 +302,7 @@ constexpr std::array BUILTIN_PATCHES{
         .state_offset = HIGH_REFRESH_STATE_OFFSET,
         .state_size = HIGH_REFRESH_STATE_SIZE,
     },
+#endif
     BuiltinPatch{
         .name = DYNAMIC_FPS_NAME,
         .title_id = 0x0400486024DEC000,

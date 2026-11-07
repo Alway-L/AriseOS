@@ -26,7 +26,15 @@ void TranslatorVisitor::TENSOR_MUL_ADD(u64 insn) {
     const u64 ci = static_cast<u64>(cr);
     const u64 di = static_cast<u64>(dr);
     const bool has_c = ci != 255;
+    // AriseOS: off by default on ARM64. Emulated in software, the tensor (HMMA) programs of Ocarina
+    // of Time's neural movie enhancement are so large that Turnip compiled three of them for
+    // minutes and the game sat at "loading shaders 11/14" (Lichii for Android skips them too).
+    // Rejected, those dispatches are dropped; EDEN_NX2_TENSOR_ON=1 brings them back.
+#ifdef ARCHITECTURE_arm64
+    static const bool disabled{std::getenv("EDEN_NX2_TENSOR_ON") == nullptr};
+#else
     static const bool disabled{std::getenv("EDEN_NX2_NO_TENSOR") != nullptr};
+#endif
     if (disabled || ((insn >> 48) & 1) == 0) {
         throw NotImplementedException("Unsupported matrix multiply encoding");
     }
