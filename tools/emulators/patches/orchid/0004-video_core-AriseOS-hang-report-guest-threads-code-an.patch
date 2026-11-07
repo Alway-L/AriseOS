@@ -1,7 +1,7 @@
 From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: Alway-L <felipemoura2015078@gmail.com>
 Date: Fri, 6 Nov 2026 22:17:45 -0300
-Subject: [PATCH] video_core: AriseOS hang report (guest threads, code and
+Subject: [PATCH 4/5] video_core: AriseOS hang report (guest threads, code and
  memory at their PCs, GPU split state) when no frame comes for 20 s; the
  split's back thread never sleeps without a time limit
 

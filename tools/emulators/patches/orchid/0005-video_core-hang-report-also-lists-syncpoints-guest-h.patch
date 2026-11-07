@@ -1,0 +1,67 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Alway-L <felipemoura2015078@gmail.com>
+Date: Fri, 6 Nov 2026 22:37:58 -0300
+Subject: [PATCH 5/5] video_core: hang report also lists syncpoints
+ (guest/host) and walks the stuck thread's callers
+
+---
+ src/video_core/gpu_thread.cpp | 32 ++++++++++++++++++++++++++++++++
+ 1 file changed, 32 insertions(+)
+
+diff --git a/src/video_core/gpu_thread.cpp b/src/video_core/gpu_thread.cpp
+index dddbadb4ae..23c2244a75 100644
+--- a/src/video_core/gpu_thread.cpp
++++ b/src/video_core/gpu_thread.cpp
+@@ -28,6 +28,7 @@
+ #include "video_core/nx2_profile.h"
+ #include "video_core/readback_diagnostics.h"
+ #include "video_core/host1x/host1x.h"
++#include "video_core/host1x/syncpoint_manager.h"
+ #include "video_core/renderer_base.h"
+ 
+ namespace VideoCommon::GPUThread {
+@@ -104,6 +105,20 @@ void AriseHangCheck(Core::System& system, const GpuSplit& split, bool pending_ch
+                 reports, std::chrono::duration_cast<std::chrono::seconds>(now - last_change).count(),
+                 presents, pending_channels);
+     split.LogState();
++    {
++        // Guest value = signalled by the command lists; host value = its fence passed on the host GPU.
++        // A host value behind the guest one names a fence that never completed.
++        const auto& syncpoints = system.Host1x().GetSyncpointManager();
++        std::string text;
++        for (u32 id = 0; id < Tegra::Host1x::SyncpointManager::NUM_MAX_SYNCPOINTS; ++id) {
++            const u32 guest = syncpoints.GetGuestSyncpointValue(id);
++            const u32 host = syncpoints.GetHostSyncpointValue(id);
++            if (guest != 0 || host != 0) {
++                text += fmt::format(" {}={}/{}", id, guest, host);
++            }
++        }
++        LOG_WARNING(HW_GPU, "AriseOS hang report: syncpoints (id=guest/host):{}", text);
++    }
+     if (process == nullptr) {
+         return;
+     }
+@@ -131,6 +146,23 @@ void AriseHangCheck(Core::System& system, const GpuSplit& split, bool pending_ch
+         }
+         LOG_WARNING(HW_GPU, "AriseOS hang report: thread {} code from {:#x}:{}", thread.GetThreadId(),
+                     ctx.pc - 64, code);
++        // Callers: walk the frame-pointer chain, with the code before each return address.
++        u64 frame = ctx.fp;
++        u64 ret = ctx.lr;
++        for (int depth = 0; depth < 6 && ret != 0; ++depth) {
++            std::string around;
++            for (s64 i = -24; i < 4; ++i) {
++                const u64 at = ret + i * 4;
++                around += memory.IsValidVirtualAddressRange(at, 4) ? fmt::format(" {:08x}", memory.Read32(at)) : " ????????";
++            }
++            LOG_WARNING(HW_GPU, "AriseOS hang report: thread {} caller {} returns to {:#x}, code from {:#x}:{}",
++                        thread.GetThreadId(), depth, ret, ret - 96, around);
++            if (frame < 0x10000 || !memory.IsValidVirtualAddressRange(frame, 16)) {
++                break;
++            }
++            ret = memory.Read64(frame + 8);
++            frame = memory.Read64(frame);
++        }
+         for (size_t i = 0; i < ctx.r.size(); ++i) {
+             const u64 at = ctx.r[i] & ~u64{3};
+             if (at < 0x10000 || !memory.IsValidVirtualAddressRange(at, 16)) {
