@@ -211,6 +211,7 @@ class OnScreenControls(
     }
 
     override fun onDetachedFromWindow() {
+        ButtonStyle.prefs(context).unregisterOnSharedPreferenceChangeListener(styleListener)
         releaseAll()
         super.onDetachedFromWindow()
     }
@@ -373,7 +374,21 @@ class OnScreenControls(
         relayout()
     }
 
-    private fun label(control: Control): String = when (control.target) {
+    private var buttonStyle = ButtonStyle.current(context)
+    private val styleListener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
+        if (key == ButtonStyle.KEY) {
+            buttonStyle = ButtonStyle.current(context)
+            invalidate()
+        }
+    }
+
+    override fun onAttachedToWindow() {
+        super.onAttachedToWindow()
+        buttonStyle = ButtonStyle.current(context)
+        ButtonStyle.prefs(context).registerOnSharedPreferenceChangeListener(styleListener)
+    }
+
+    private fun label(control: Control): String = ButtonStyle.name(buttonStyle, control.target) ?: when (control.target) {
         "ls" -> "L"
         "rs" -> "R"
         "select" -> "⧉"
