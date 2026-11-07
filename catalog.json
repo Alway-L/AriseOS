@@ -1,0 +1,51 @@
+{
+  "schema": 1,
+  "sourceRepo": "Alway-L/AriseOS",
+  "ciRepo": "Alway-L/AriseOS",
+  "stable": {
+    "tag": "v1.3.46",
+    "title": "AriseOS 1.3.46",
+    "summary": "Log de frequ\u00eancias e tetos de CPU/GPU e temperatura",
+    "commit": "4b2c6ccb002f878657a0e195a3e4b653001437e5",
+    "pr": 0,
+    "version": "1.3.46",
+    "versionCode": 155,
+    "publishedAt": 1794074548408,
+    "url": "https://github.com/Alway-L/AriseOS/releases/tag/v1.3.46",
+    "apks": {
+      "com.droiddeck.launcher": {
+        "name": "AriseOS-1.3.46.apk",
+        "url": "https://github.com/Alway-L/AriseOS/releases/download/v1.3.46/AriseOS-1.3.46.apk",
+        "size": 77125203,
+        "sha256": "3664a2b5c88aa089edd698bfa9f622aa0aacfaab31bb0466a99a5d8457c01b7b",
+        "packageName": "com.droiddeck.launcher",
+        "versionCode": 155,
+        "signerSha256": "3cc7fda49dc8183daff683d62d194ed48d718a555d2e446664aab999645c3e5b"
+      }
+    }
+  },
+  "preview": {
+    "tag": "v1.3.46",
+    "title": "AriseOS 1.3.46",
+    "summary": "Log de frequ\u00eancias e tetos de CPU/GPU e temperatura",
+    "commit": "4b2c6ccb002f878657a0e195a3e4b653001437e5",
+    "pr": 0,
+    "version": "1.3.46",
+    "versionCode": 155,
+    "publishedAt": 1794074548408,
+    "url": "https://github.com/Alway-L/AriseOS/releases/tag/v1.3.46",
+    "apks": {
+      "com.droiddeck.launcher": {
+        "name": "AriseOS-1.3.46.apk",
+        "url": "https://github.com/Alway-L/AriseOS/releases/download/v1.3.46/AriseOS-1.3.46.apk",
+        "size": 77125203,
+        "sha256": "3664a2b5c88aa089edd698bfa9f622aa0aacfaab31bb0466a99a5d8457c01b7b",
+        "packageName": "com.droiddeck.launcher",
+        "versionCode": 155,
+        "signerSha256": "3cc7fda49dc8183daff683d62d194ed48d718a555d2e446664aab999645c3e5b"
+      }
+    }
+  },
+  "tests": [],
+  "recentPreviews": []
+}
