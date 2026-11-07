@@ -1,0 +1,85 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Alway-L <felipemoura2015078@gmail.com>
+Date: Sat, 7 Nov 2026 07:03:28 -0300
+Subject: [PATCH] core: Switch 2 games keep an 8/10 GiB layout chosen in the
+ settings (with the graphics server memory); Vulkan memory logged every 15 s
+
+---
+ src/core/core.cpp                                      |  7 +++++++
+ .../hle/kernel/board/nintendo/nx/k_system_control.cpp  |  6 ++++--
+ src/video_core/renderer_vulkan/vk_rasterizer.cpp       | 10 ++++++++++
+ .../vulkan_common/vulkan_memory_allocator.cpp          |  2 +-
+ 4 files changed, 22 insertions(+), 3 deletions(-)
+
+diff --git a/src/core/core.cpp b/src/core/core.cpp
+index 9c93ea144c..84cf828815 100644
+--- a/src/core/core.cpp
++++ b/src/core/core.cpp
+@@ -369,7 +369,14 @@ struct System::Impl {
+ 
+         // Switch 2 titles size their heap from the total memory and need the 12 GiB layout. Set it
+         // as a per-game value, so RestoreGlobalState brings back the configured layout afterwards.
++        // AriseOS: 8 and 10 GiB chosen in the settings are kept (a phone with 12 GiB of RAM cannot
++        // give a game all 12); only 4 and 6 GiB are raised to 12.
+         if (switch2_program &&
++            Settings::values.memory_layout_mode.GetValue() >= Settings::MemoryLayout::Memory_8Gb &&
++            Settings::values.memory_layout_mode.GetValue() != Settings::MemoryLayout::Memory_12Gb) {
++            LOG_WARNING(Core, "AriseOS: Switch 2 program on the smaller memory layout chosen in the settings ({})",
++                        Settings::values.memory_layout_mode.GetValue() == Settings::MemoryLayout::Memory_10Gb ? "10 GiB" : "8 GiB");
++        } else if (switch2_program &&
+             Settings::values.memory_layout_mode.GetValue() != Settings::MemoryLayout::Memory_12Gb) {
+             LOG_INFO(Core, "Switch 2 program: using the 12 GiB memory layout");
+             Settings::values.memory_layout_mode.SetGlobal(false);
+diff --git a/src/core/hle/kernel/board/nintendo/nx/k_system_control.cpp b/src/core/hle/kernel/board/nintendo/nx/k_system_control.cpp
+index ba4737e25f..c15acae094 100644
+--- a/src/core/hle/kernel/board/nintendo/nx/k_system_control.cpp
++++ b/src/core/hle/kernel/board/nintendo/nx/k_system_control.cpp
+@@ -89,10 +89,12 @@ size_t KSystemControl::Init::GetIntendedMemorySize() {
+         return 4_GiB;
+     case Smc::MemorySize_6GB:
+         return 6_GiB;
++    // AriseOS: a Switch 2 game on the smaller 8/10 GiB layout keeps the graphics server's memory
++    // (GPU-only regions, render targets), which comes on top of the 12 GiB on the console.
+     case Smc::MemorySize_8GB:
+-        return 8_GiB;
++        return 8_GiB + (Settings::CurrentProgramIsSwitch2() ? KSystemControl::Nx2GraphicsServerMemorySize : 0);
+     case Smc::MemorySize_10GB:
+-        return 10_GiB;
++        return 10_GiB + (Settings::CurrentProgramIsSwitch2() ? KSystemControl::Nx2GraphicsServerMemorySize : 0);
+     case Smc::MemorySize_12GB:
+         return 12_GiB + KSystemControl::Nx2GraphicsServerMemorySize;
+     }
+diff --git a/src/video_core/renderer_vulkan/vk_rasterizer.cpp b/src/video_core/renderer_vulkan/vk_rasterizer.cpp
+index a6e660e8a2..d19b3f0602 100644
+--- a/src/video_core/renderer_vulkan/vk_rasterizer.cpp
++++ b/src/video_core/renderer_vulkan/vk_rasterizer.cpp
+@@ -1552,6 +1552,16 @@ void RasterizerVulkan::FlushCommands() {
+ 
+ void RasterizerVulkan::TickFrame() {
+     draw_counter = 0;
++    {
++        // AriseOS: on the phone the GPU's memory is RAM Android counts against the app; log where
++        // it goes (memory types, heap budget) every 15 s so a LOW_MEMORY end can be traced.
++        static auto last_memory_log = std::chrono::steady_clock::time_point{};
++        const auto now = std::chrono::steady_clock::now();
++        if (now - last_memory_log >= std::chrono::seconds{15}) {
++            last_memory_log = now;
++            LogMemoryStatistics(device);
++        }
++    }
+     pipeline_cache.TickFrame();
+     guest_descriptor_queue.TickFrame();
+     compute_pass_descriptor_queue.TickFrame();
+diff --git a/src/video_core/vulkan_common/vulkan_memory_allocator.cpp b/src/video_core/vulkan_common/vulkan_memory_allocator.cpp
+index 5b1d829302..ef1de1cb8d 100644
+--- a/src/video_core/vulkan_common/vulkan_memory_allocator.cpp
++++ b/src/video_core/vulkan_common/vulkan_memory_allocator.cpp
+@@ -645,7 +645,7 @@ void LogMemoryStatistics(const Device& device) {
+         if (s.blockCount == 0) {
+             continue;
+         }
+-        LOG_DEBUG(Render_Vulkan, "VMA type {} (heap {}, flags {:#x}): {} blocks {} MiB, {} allocations {} MiB",
++        LOG_INFO(Render_Vulkan, "VMA type {} (heap {}, flags {:#x}): {} blocks {} MiB, {} allocations {} MiB",
+                  type, properties->memoryTypes[type].heapIndex,
+                  static_cast<u32>(properties->memoryTypes[type].propertyFlags), s.blockCount,
+                  s.blockBytes >> 20, s.allocationCount, s.allocationBytes >> 20);
