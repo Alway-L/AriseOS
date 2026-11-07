@@ -1,0 +1,223 @@
+From 625607218471726c1034ae5cc518765daaa6f4db Mon Sep 17 00:00:00 2001
+From: pavelgajdo <pavel.gajdo@gmail.com>
+Date: Sat, 7 Nov 2026 01:49:27 +0100
+Subject: [PATCH 19/21] vulkan: cap staging in a scene load and trim transcoded
+ ASTC on Android
+
+Ocarina of Time loads its first scene's textures in one frame, so the
+per-frame release could not bound them:
+
+- Past 256 MiB of pooled upload or device-local staging, wait for the
+  GPU and reuse or free what it is done with (~400 MiB pooled before).
+- On Android, GPU-transcoded ASTC keeps only its mip levels from the
+  first one at most 1024 px wide on: each is 2-4x its ASTC size as
+  BC1/BC3, and a phone renders well under 1080p. TranscodeAstcToBcn
+  now decodes from host_level_offset on (TrimmedHostInfo already
+  served the desktop's huge arrays). EDEN_NX2_ASTC_MAX_DIM=<px> sets the
+  size, 0 keeps all levels.
+- EDEN_NX2_GPU_PROFILE logs images with 8 MiB or more of device memory
+  as the driver sized them.
+
+Tested on a Galaxy S26: graphics memory after the first scene loads
+~2.9 GB (was 3.3-3.7 GB); textures render correctly.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+(cherry picked from commit 5497a8fe3f2f7565950e5e924f0f9fa0a2571112)
+---
+ .../vk_staging_buffer_pool.cpp                | 31 +++++++
+ .../renderer_vulkan/vk_texture_cache.cpp      | 84 ++++++++++++++-----
+ .../vulkan_common/vulkan_memory_allocator.cpp | 11 +++
+ 3 files changed, 104 insertions(+), 22 deletions(-)
+
+diff --git a/src/video_core/renderer_vulkan/vk_staging_buffer_pool.cpp b/src/video_core/renderer_vulkan/vk_staging_buffer_pool.cpp
+index 4480458c4e..29568d9030 100644
+--- a/src/video_core/renderer_vulkan/vk_staging_buffer_pool.cpp
++++ b/src/video_core/renderer_vulkan/vk_staging_buffer_pool.cpp
+@@ -198,6 +198,37 @@ StagingBufferRef StagingBufferPool::GetStagingBuffer(size_t size, MemoryUsage us
+     if (const std::optional<StagingBufferRef> ref = TryGetReservedBuffer(size, usage, deferred)) {
+         return *ref;
+     }
++    // Ocarina of Time loads a scene's textures in one frame: its uploads pooled ~400 MiB of
++    // staging before any frame could free them, pushing a 12 GB phone's app over its memory.
++    // Past the cap, wait for the GPU and reuse or free what it is done with.
++    // (Download buffers are kept: the copy-back reuses them fence after fence.)
++    static constexpr u64 MaxPooledBytes = u64{256} << 20;
++    if (usage != MemoryUsage::Download && !deferred) {
++        StagingBuffersCache& cache = GetCache(usage);
++        u64 pooled = 0;
++        for (size_t level = 0; level < NUM_LEVELS; ++level) {
++            pooled += u64{cache[level].entries.size()} << level;
++        }
++        if (pooled + size > MaxPooledBytes) {
++            scheduler.Finish();
++            if (const std::optional<StagingBufferRef> ref =
++                    TryGetReservedBuffer(size, usage, deferred)) {
++                return *ref;
++            }
++            for (size_t level = 0; level < NUM_LEVELS; ++level) {
++                auto& entries = cache[level].entries;
++                const size_t old_size = entries.size();
++                std::erase_if(entries, [this](const StagingBuffer& entry) {
++                    return !entry.deferred && scheduler.IsFree(entry.tick);
++                });
++                if (VideoCommon::Nx2Profile::Enabled() && entries.size() < old_size) {
++                    g_staging_bytes.fetch_sub(u64{old_size - entries.size()} << level);
++                }
++                cache[level].delete_index = 0;
++                cache[level].iterate_index = 0;
++            }
++        }
++    }
+     return CreateStagingBuffer(size, usage, deferred);
+ }
+ 
+diff --git a/src/video_core/renderer_vulkan/vk_texture_cache.cpp b/src/video_core/renderer_vulkan/vk_texture_cache.cpp
+index 0875fd0355..900e623d1c 100644
+--- a/src/video_core/renderer_vulkan/vk_texture_cache.cpp
++++ b/src/video_core/renderer_vulkan/vk_texture_cache.cpp
+@@ -356,38 +356,72 @@ constexpr std::array<VkFormat, 2> OpaqueAstcViewFormats{VK_FORMAT_BC1_RGBA_UNORM
+     return device.GetDeviceLocalMemory() < (u64{7} << 30) ? (u64{256} << 20) : (u64{512} << 20);
+ }
+ 
++// The largest mip a GPU-transcoded ASTC texture keeps on Android (EDEN_NX2_ASTC_MAX_DIM=<px>, 0
++// keeps all): transcoded to BC1/BC3 each is 2-4x its ASTC size, and on Ocarina of Time's first
++// scene ~1 GB of them on top of the rest had a 12 GB phone's app killed for memory. A phone
++// renders at well under 1080p, so their top levels are rarely sampled anyway.
++[[nodiscard]] u32 TranscodedAstcMaxDimension() {
++    static const u32 value = [] {
++        if (const char* text = std::getenv("EDEN_NX2_ASTC_MAX_DIM")) {
++            return static_cast<u32>(std::strtoul(text, nullptr, 10));
++        }
++#if defined(__ANDROID__) || defined(ARCHITECTURE_arm64)
++        return 1024U;
++#else
++        return 0U;
++#endif
++    }();
++    return value;
++}
++
+ // The host shape of an image whose decoded copy would not fit in VRAM: a GPU-decoded ASTC array
+ // over 1 GiB as RGBA8 (title 1's 8192x8192x68 ASTC 8x8 virtual textures are 24 GB each) keeps only
+ // its mip levels from `level_offset` on, so host mip 0 is guest mip `level_offset`. Normalized
+ // coordinates and derivative LOD still address it correctly; explicit LODs sample one level lower.
++// GPU-transcoded ASTC (TranscodeAstcToBcn) is trimmed to TranscodedAstcMaxDimension instead.
+ [[nodiscard]] ImageInfo TrimmedHostInfo(const Device& device, const ImageInfo& info, u32& level_offset) {
+     level_offset = 0;
+-    if (!WillUseAcceleratedAstcDecode(device, info) || info.type != ImageType::e2D) {
++    const bool transcoded = WillUseGpuBcnTranscode(device, info);
++    if ((!transcoded && !WillUseAcceleratedAstcDecode(device, info)) ||
++        info.type != ImageType::e2D) {
+         return info;
+     }
+-    const auto decoded_bytes = [&](u32 skip) {
+-        u64 bytes = 0;
+-        for (s32 level = static_cast<s32>(skip); level < info.resources.levels; ++level) {
+-            bytes += u64{(std::max)(info.size.width >> level, 1U)} *
+-                     (std::max)(info.size.height >> level, 1U) * 4;
++    const u32 levels = static_cast<u32>(info.resources.levels);
++    if (transcoded) {
++        const u32 max_dim = TranscodedAstcMaxDimension();
++        while (max_dim != 0 && level_offset + 1 < levels &&
++               (std::max)(info.size.width >> level_offset, info.size.height >> level_offset) >
++                   max_dim) {
++            ++level_offset;
+         }
+-        return bytes * info.resources.layers;
+-    };
+-    if (decoded_bytes(0) <= (u64{1} << 30)) {
+-        return info;
++    } else {
++        const auto decoded_bytes = [&](u32 skip) {
++            u64 bytes = 0;
++            for (s32 level = static_cast<s32>(skip); level < info.resources.levels; ++level) {
++                bytes += u64{(std::max)(info.size.width >> level, 1U)} *
++                         (std::max)(info.size.height >> level, 1U) * 4;
++            }
++            return bytes * info.resources.layers;
++        };
++        if (decoded_bytes(0) <= (u64{1} << 30)) {
++            return info;
++        }
++        const u64 limit = TrimmedAstcArrayLimit(device);
++        while (level_offset + 1 < levels && decoded_bytes(level_offset) > limit) {
++            ++level_offset;
++        }
++        LOG_WARNING(Render_Vulkan,
++                    "{}x{}x{} ASTC image would be {} MiB decoded; keeping mip levels {}+",
++                    info.size.width, info.size.height, info.resources.layers,
++                    decoded_bytes(0) >> 20, level_offset);
+     }
+-    const u64 limit = TrimmedAstcArrayLimit(device);
+-    while (level_offset + 1 < static_cast<u32>(info.resources.levels) &&
+-           decoded_bytes(level_offset) > limit) {
+-        ++level_offset;
++    if (level_offset == 0) {
++        return info;
+     }
+     ImageInfo host = info;
+     host.size.width = (std::max)(info.size.width >> level_offset, 1U);
+     host.size.height = (std::max)(info.size.height >> level_offset, 1U);
+     host.resources.levels -= static_cast<s32>(level_offset);
+-    LOG_WARNING(Render_Vulkan, "{}x{}x{} ASTC image would be {} MiB decoded; keeping mip levels {}+ ({}x{})",
+-                info.size.width, info.size.height, info.resources.layers, decoded_bytes(0) >> 20,
+-                level_offset, host.size.width, host.size.height);
+     return host;
+ }
+ 
+@@ -4923,9 +4957,15 @@ void TextureCacheRuntime::TranscodeAstcToBcn(
+     Image& image, const StagingBufferRef& map,
+     std::span<const VideoCommon::SwizzleParameters> swizzles) {
+     const ImageInfo& info = image.info;
+-    const u32 width = info.size.width;
+-    const u32 height = info.size.height;
+-    const u32 levels = static_cast<u32>(info.resources.levels);
++    // Host levels: with TrimmedLevels host mip 0 is guest mip `skip`, and `map` holds each layer's
++    // mip chain from there on (TextureCache::UploadImageContents).
++    const u32 skip = image.host_level_offset;
++    const u32 width = (std::max)(info.size.width >> skip, 1U);
++    const u32 height = (std::max)(info.size.height >> skip, 1U);
++    const u32 levels = static_cast<u32>(info.resources.levels) - skip;
++    const u64 input_layer_stride =
++        skip != 0 ? info.layer_stride - VideoCommon::FullUploadSwizzles(info)[skip].buffer_offset
++                  : info.layer_stride;
+     const u32 layers = static_cast<u32>(info.resources.layers);
+     // The BC encoder declares layout(rgba8). Identical byte layout is not enough:
+     // its storage image view must have the matching R8G8B8A8_UNORM format.
+@@ -4991,9 +5031,9 @@ void TextureCacheRuntime::TranscodeAstcToBcn(
+         ImageInfo chunk_info = info;
+         chunk_info.resources.layers = static_cast<s32>(count);
+         StagingBufferRef chunk_map = map;
+-        chunk_map.offset += u64{first} * info.layer_stride;
++        chunk_map.offset += u64{first} * input_layer_stride;
+         astc_decoder_pass->AssembleInto(
+-            chunk_info, 0,
++            chunk_info, skip,
+             count == layers ? image.guest_size_bytes : size_t{count} * info.layer_stride,
+             ASTCDecoderPass::Target{
+                 .image = *pending.image,
+diff --git a/src/video_core/vulkan_common/vulkan_memory_allocator.cpp b/src/video_core/vulkan_common/vulkan_memory_allocator.cpp
+index a3dc0dcc94..fab0589931 100644
+--- a/src/video_core/vulkan_common/vulkan_memory_allocator.cpp
++++ b/src/video_core/vulkan_common/vulkan_memory_allocator.cpp
+@@ -290,6 +290,17 @@ vk::Image MemoryAllocator::CreateImage(const VkImageCreateInfo &ci, bool dedicat
+     }
+     vk::Check(result);
+ 
++    // EDEN_NX2_GPU_PROFILE: images with 8 MiB or more of device memory, as the driver sized them.
++    static const bool profile = std::getenv("EDEN_NX2_GPU_PROFILE") != nullptr;
++    if (profile && alloc_info.size >= (u64{8} << 20)) {
++        static std::atomic<u32> logged{};
++        if (logged.fetch_add(1, std::memory_order_relaxed) < 200) {
++            LOG_INFO(Render_Vulkan, "Image memory: {}x{}x{} levels {} layers {} format {}: {} MiB",
++                     ci.extent.width, ci.extent.height, ci.extent.depth, ci.mipLevels,
++                     ci.arrayLayers, static_cast<u32>(ci.format), alloc_info.size >> 20);
++        }
++    }
++
+     // Log GPU memory allocation for images
+     if (GPU::Logging::IsActive() &&
+         Settings::values.gpu_log_memory_tracking.GetValue()) {
+-- 
+2.43.0
+

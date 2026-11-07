@@ -1,0 +1,873 @@
+From 866a8d665c3501536056625da435c63a7899149f Mon Sep 17 00:00:00 2001
+From: zortos293 <65777760+zortos293@users.noreply.github.com>
+Date: Fri, 6 Nov 2026 14:01:55 +0000
+Subject: [PATCH 16/21] shader: fix AMD shader typing, atomic retries and
+ compiler stalls
+
+Co-authored-by: capy-ai[bot] <230910855+capy-ai[bot]@users.noreply.github.com>
+(cherry picked from commit 68caa6c75ea6c4db7be2a5988cdbcacf5418d3ed)
+---
+ .../backend/spirv/emit_spirv_warp.cpp         |   9 +-
+ .../backend/spirv/spirv_emit_context.cpp      | 102 +++++-----
+ src/shader_recompiler/ir_opt/texture_pass.cpp |   4 +-
+ src/shader_recompiler/profile.h               |   1 +
+ src/tests/CMakeLists.txt                      |   3 +
+ .../video_core/ampere_logged_textures.cpp     | 103 ++++++++++-
+ .../video_core/pipeline_optimization.cpp      |  27 +++
+ src/tests/video_core/spirv_atomic_retry.cpp   | 132 +++++++++++++
+ .../video_core/spirv_fragment_shuffle.cpp     | 175 ++++++++++++++++++
+ src/video_core/CMakeLists.txt                 |   1 +
+ .../renderer_vulkan/pipeline_optimization.h   |  23 +++
+ .../renderer_vulkan/vk_compute_pipeline.cpp   |   4 +
+ .../renderer_vulkan/vk_pipeline_cache.cpp     |   1 +
+ 13 files changed, 535 insertions(+), 50 deletions(-)
+ create mode 100644 src/tests/video_core/pipeline_optimization.cpp
+ create mode 100644 src/tests/video_core/spirv_atomic_retry.cpp
+ create mode 100644 src/tests/video_core/spirv_fragment_shuffle.cpp
+ create mode 100644 src/video_core/renderer_vulkan/pipeline_optimization.h
+
+diff --git a/src/shader_recompiler/backend/spirv/emit_spirv_warp.cpp b/src/shader_recompiler/backend/spirv/emit_spirv_warp.cpp
+index 8d83509961..c2fe0ee6f7 100644
+--- a/src/shader_recompiler/backend/spirv/emit_spirv_warp.cpp
++++ b/src/shader_recompiler/backend/spirv/emit_spirv_warp.cpp
+@@ -90,8 +90,13 @@ Id GuestLane(EmitContext& ctx, Id index) {
+     return ctx.OpBitwiseAnd(ctx.U32[1], index, ctx.Const(31U));
+ }
+ 
++bool UseShuffleFallback(EmitContext& ctx) {
++    return ctx.profile.has_broken_spirv_subgroup_shuffle ||
++           (ctx.profile.has_broken_spirv_fragment_shuffle && ctx.stage == Stage::Fragment);
++}
++
+ Id ShuffleAbsolute(EmitContext& ctx, Id value, Id src_thread_id) {
+-    if (!ctx.profile.has_broken_spirv_subgroup_shuffle) {
++    if (!UseShuffleFallback(ctx)) {
+         return ctx.OpGroupNonUniformShuffle(ctx.U32[1], SubgroupScope(ctx), value, src_thread_id);
+     }
+     Id result{ctx.u32_zero_value};
+@@ -105,7 +110,7 @@ Id ShuffleAbsolute(EmitContext& ctx, Id value, Id src_thread_id) {
+ }
+ 
+ Id ShuffleRelative(EmitContext& ctx, Id value, Id delta, Id src_thread_id, spv::Op op) {
+-    if (!ctx.profile.support_shuffle_relative) {
++    if (!ctx.profile.support_shuffle_relative || UseShuffleFallback(ctx)) {
+         return ShuffleAbsolute(ctx, value, HostThreadId(ctx, src_thread_id));
+     }
+     const Id result{ctx.OpGroupNonUniformShuffleXor(ctx.U32[1], SubgroupScope(ctx), value, delta)};
+diff --git a/src/shader_recompiler/backend/spirv/spirv_emit_context.cpp b/src/shader_recompiler/backend/spirv/spirv_emit_context.cpp
+index 9a5cf8d0d3..e2127aaea6 100644
+--- a/src/shader_recompiler/backend/spirv/spirv_emit_context.cpp
++++ b/src/shader_recompiler/backend/spirv/spirv_emit_context.cpp
+@@ -378,7 +378,7 @@ Id CasFunction(EmitContext& ctx, Operation operation, Id value_type) {
+ }
+ 
+ Id CasLoop(EmitContext& ctx, Operation operation, Id array_pointer, Id element_pointer,
+-           Id value_type, Id memory_type, spv::Scope scope) {
++           Id value_type, spv::Scope scope) {
+     const bool is_shared{scope == spv::Scope::Workgroup};
+     const bool is_struct{!is_shared || ctx.uses_explicit_workgroup_layout};
+     const Id cas_func{CasFunction(ctx, operation, value_type)};
+@@ -397,6 +397,13 @@ Id CasLoop(EmitContext& ctx, Operation operation, Id array_pointer, Id element_p
+     const Id op_b{ctx.OpFunctionParameter(value_type)};
+     const Id base{is_shared ? ctx.shared_memory_u32 : ctx.OpFunctionParameter(array_pointer)};
+     ctx.AddLabel();
++    // Each attempt expects the word the previous compare-exchange returned. A plain reload can
++    // keep returning a stale copy (AMD), and the invocations that lost would never match again.
++    const Id expected_var{ctx.AddLocalVariable(
++        ctx.TypePointer(spv::StorageClass::Function, ctx.U32[1]), spv::StorageClass::Function)};
++    const Id word_pointer{is_struct ? ctx.OpAccessChain(element_pointer, base, zero, index)
++                                    : ctx.OpAccessChain(element_pointer, base, index)};
++    ctx.OpStore(expected_var, ctx.OpLoad(ctx.U32[1], word_pointer));
+     ctx.OpBranch(loop_header);
+     ctx.AddLabel(loop_header);
+ 
+@@ -404,34 +411,28 @@ Id CasLoop(EmitContext& ctx, Operation operation, Id array_pointer, Id element_p
+     ctx.OpBranch(continue_block);
+ 
+     ctx.AddLabel(continue_block);
+-    const Id word_pointer{is_struct ? ctx.OpAccessChain(element_pointer, base, zero, index)
+-                                    : ctx.OpAccessChain(element_pointer, base, index)};
+-    if (value_type.value == ctx.F32[2].value) {
+-        const Id u32_value{ctx.OpLoad(ctx.U32[1], word_pointer)};
+-        const Id value{ctx.OpUnpackHalf2x16(ctx.F32[2], u32_value)};
+-        const Id new_value{ctx.OpFunctionCall(value_type, cas_func, value, op_b)};
+-        const Id u32_new_value{ctx.OpPackHalf2x16(ctx.U32[1], new_value)};
+-        const Id atomic_res{ctx.OpAtomicCompareExchange(ctx.U32[1], word_pointer, scope_id, zero,
+-                                                        zero, u32_new_value, u32_value)};
+-        const Id success{ctx.OpIEqual(ctx.U1, atomic_res, u32_value)};
+-        ctx.OpBranchConditional(success, merge_block, loop_header);
+-
+-        ctx.AddLabel(merge_block);
+-        ctx.OpReturnValue(ctx.OpUnpackHalf2x16(ctx.F32[2], atomic_res));
+-    } else {
+-        const Id value{ctx.OpLoad(memory_type, word_pointer)};
+-        const bool matching_type{value_type.value == memory_type.value};
+-        const Id bitcast_value{matching_type ? value : ctx.OpBitcast(value_type, value)};
+-        const Id cal_res{ctx.OpFunctionCall(value_type, cas_func, bitcast_value, op_b)};
+-        const Id new_value{matching_type ? cal_res : ctx.OpBitcast(memory_type, cal_res)};
+-        const Id atomic_res{ctx.OpAtomicCompareExchange(ctx.U32[1], word_pointer, scope_id, zero,
+-                                                        zero, new_value, value)};
+-        const Id success{ctx.OpIEqual(ctx.U1, atomic_res, value)};
+-        ctx.OpBranchConditional(success, merge_block, loop_header);
+-
+-        ctx.AddLabel(merge_block);
+-        ctx.OpReturnValue(ctx.OpBitcast(value_type, atomic_res));
+-    }
++    // The word holds a u32, an f32, an f16x2, or an f32x2 packed as two halves.
++    const bool packed_half{value_type.value == ctx.F32[2].value};
++    const bool is_u32{value_type.value == ctx.U32[1].value};
++    const auto from_word{[&](Id word) {
++        if (packed_half) {
++            return ctx.OpUnpackHalf2x16(ctx.F32[2], word);
++        }
++        return is_u32 ? word : ctx.OpBitcast(value_type, word);
++    }};
++    const Id expected{ctx.OpLoad(ctx.U32[1], expected_var)};
++    const Id new_value{ctx.OpFunctionCall(value_type, cas_func, from_word(expected), op_b)};
++    const Id new_word{packed_half ? ctx.OpPackHalf2x16(ctx.U32[1], new_value)
++                      : is_u32    ? new_value
++                                  : ctx.OpBitcast(ctx.U32[1], new_value)};
++    const Id atomic_res{ctx.OpAtomicCompareExchange(ctx.U32[1], word_pointer, scope_id, zero, zero,
++                                                    new_word, expected)};
++    ctx.OpStore(expected_var, atomic_res);
++    const Id success{ctx.OpIEqual(ctx.U1, atomic_res, expected)};
++    ctx.OpBranchConditional(success, merge_block, loop_header);
++
++    ctx.AddLabel(merge_block);
++    ctx.OpReturnValue(from_word(atomic_res));
+     ctx.OpFunctionEnd();
+     return func;
+ }
+@@ -675,22 +676,26 @@ void EmitContext::DefineSharedMemory(const IR::Program& program) {
+         const Id offset{OpFunctionParameter(U32[1])};
+         const Id insert_value{OpFunctionParameter(U32[1])};
+         AddLabel();
+-        OpBranch(loop_header);
+-
+-        AddLabel(loop_header);
++        const Id expected_var{AddLocalVariable(TypePointer(spv::StorageClass::Function, U32[1]),
++                                               spv::StorageClass::Function)};
+         const Id word_offset{OpShiftRightArithmetic(U32[1], offset, Const(2U))};
+         const Id shift_offset{OpShiftLeftLogical(U32[1], offset, Const(3U))};
+         const Id bit_offset{OpBitwiseAnd(U32[1], shift_offset, Const(mask))};
+         const Id count{Const(size)};
++        const Id word_pointer{OpAccessChain(shared_u32, shared_memory_u32, word_offset)};
++        OpStore(expected_var, OpLoad(U32[1], word_pointer));
++        OpBranch(loop_header);
++
++        AddLabel(loop_header);
+         OpLoopMerge(merge_block, continue_block, spv::LoopControlMask::MaskNone);
+         OpBranch(continue_block);
+ 
+         AddLabel(continue_block);
+-        const Id word_pointer{OpAccessChain(shared_u32, shared_memory_u32, word_offset)};
+-        const Id old_value{OpLoad(U32[1], word_pointer)};
++        const Id old_value{OpLoad(U32[1], expected_var)};
+         const Id new_value{OpBitFieldInsert(U32[1], old_value, insert_value, bit_offset, count)};
+         const Id atomic_res{OpAtomicCompareExchange(U32[1], word_pointer, Const(1U), u32_zero_value,
+                                                     u32_zero_value, new_value, old_value)};
++        OpStore(expected_var, atomic_res);
+         const Id success{OpIEqual(U1, atomic_res, old_value)};
+         OpBranchConditional(success, merge_block, loop_header);
+ 
+@@ -710,11 +715,11 @@ void EmitContext::DefineSharedMemory(const IR::Program& program) {
+ void EmitContext::DefineSharedMemoryFunctions(const IR::Program& program) {
+     if (program.info.uses_shared_increment) {
+         increment_cas_shared = CasLoop(*this, Operation::Increment, shared_memory_u32_type,
+-                                       shared_u32, U32[1], U32[1], spv::Scope::Workgroup);
++                                       shared_u32, U32[1], spv::Scope::Workgroup);
+     }
+     if (program.info.uses_shared_decrement) {
+         decrement_cas_shared = CasLoop(*this, Operation::Decrement, shared_memory_u32_type,
+-                                       shared_u32, U32[1], U32[1], spv::Scope::Workgroup);
++                                       shared_u32, U32[1], spv::Scope::Workgroup);
+     }
+ }
+ 
+@@ -924,6 +929,10 @@ void EmitContext::DefineWriteStorageCasLoopFunction(const Info& info) {
+     const Id bit_count{OpFunctionParameter(U32[1])};
+ 
+     AddLabel();
++    // Each attempt expects the word the previous compare-exchange returned (see CasLoop).
++    const Id expected_var{
++        AddLocalVariable(TypePointer(spv::StorageClass::Function, U32[1]), spv::StorageClass::Function)};
++    OpStore(expected_var, OpLoad(U32[1], pointer));
+     const Id scope_device{Const(1u)};
+     const Id ordering_relaxed{u32_zero_value};
+     const Id body_label{OpLabel()};
+@@ -937,10 +946,11 @@ void EmitContext::DefineWriteStorageCasLoopFunction(const Info& info) {
+     OpBranch(body_label);
+ 
+     AddLabel(body_label);
+-    const Id expected_value{OpLoad(U32[1], pointer)};
++    const Id expected_value{OpLoad(U32[1], expected_var)};
+     const Id desired_value{OpBitFieldInsert(U32[1], expected_value, value, bit_offset, bit_count)};
+     const Id actual_value{OpAtomicCompareExchange(U32[1], pointer, scope_device, ordering_relaxed,
+                                                   ordering_relaxed, desired_value, expected_value)};
++    OpStore(expected_var, actual_value);
+     const Id store_successful{OpIEqual(U1, expected_value, actual_value)};
+     OpBranchConditional(store_successful, endloop_label, continue_label);
+ 
+@@ -1472,39 +1482,39 @@ void EmitContext::DefineStorageBuffers(const Info& info, u32& binding) {
+     }
+     if (info.uses_global_increment) {
+         increment_cas_ssbo = CasLoop(*this, Operation::Increment, storage_types.U32.array,
+-                                     storage_types.U32.element, U32[1], U32[1], spv::Scope::Device);
++                                     storage_types.U32.element, U32[1], spv::Scope::Device);
+     }
+     if (info.uses_global_decrement) {
+         decrement_cas_ssbo = CasLoop(*this, Operation::Decrement, storage_types.U32.array,
+-                                     storage_types.U32.element, U32[1], U32[1], spv::Scope::Device);
++                                     storage_types.U32.element, U32[1], spv::Scope::Device);
+     }
+     if (info.uses_atomic_f32_add) {
+         f32_add_cas = CasLoop(*this, Operation::FPAdd, storage_types.U32.array,
+-                              storage_types.U32.element, F32[1], U32[1], spv::Scope::Device);
++                              storage_types.U32.element, F32[1], spv::Scope::Device);
+     }
+     if (info.uses_atomic_f16x2_add) {
+         f16x2_add_cas = CasLoop(*this, Operation::FPAdd, storage_types.U32.array,
+-                                storage_types.U32.element, F16[2], F16[2], spv::Scope::Device);
++                                storage_types.U32.element, F16[2], spv::Scope::Device);
+     }
+     if (info.uses_atomic_f16x2_min) {
+         f16x2_min_cas = CasLoop(*this, Operation::FPMin, storage_types.U32.array,
+-                                storage_types.U32.element, F16[2], F16[2], spv::Scope::Device);
++                                storage_types.U32.element, F16[2], spv::Scope::Device);
+     }
+     if (info.uses_atomic_f16x2_max) {
+         f16x2_max_cas = CasLoop(*this, Operation::FPMax, storage_types.U32.array,
+-                                storage_types.U32.element, F16[2], F16[2], spv::Scope::Device);
++                                storage_types.U32.element, F16[2], spv::Scope::Device);
+     }
+     if (info.uses_atomic_f32x2_add) {
+         f32x2_add_cas = CasLoop(*this, Operation::FPAdd, storage_types.U32.array,
+-                                storage_types.U32.element, F32[2], F32[2], spv::Scope::Device);
++                                storage_types.U32.element, F32[2], spv::Scope::Device);
+     }
+     if (info.uses_atomic_f32x2_min) {
+         f32x2_min_cas = CasLoop(*this, Operation::FPMin, storage_types.U32.array,
+-                                storage_types.U32.element, F32[2], F32[2], spv::Scope::Device);
++                                storage_types.U32.element, F32[2], spv::Scope::Device);
+     }
+     if (info.uses_atomic_f32x2_max) {
+         f32x2_max_cas = CasLoop(*this, Operation::FPMax, storage_types.U32.array,
+-                                storage_types.U32.element, F32[2], F32[2], spv::Scope::Device);
++                                storage_types.U32.element, F32[2], spv::Scope::Device);
+     }
+ }
+ 
+diff --git a/src/shader_recompiler/ir_opt/texture_pass.cpp b/src/shader_recompiler/ir_opt/texture_pass.cpp
+index 280d8cd19c..e8369a9fee 100644
+--- a/src/shader_recompiler/ir_opt/texture_pass.cpp
++++ b/src/shader_recompiler/ir_opt/texture_pass.cpp
+@@ -1366,7 +1366,9 @@ void TexturePass(Environment& env, IR::Program& program, const HostTranslateInfo
+                 });
+             } else {
+                 count = std::min(count, sampled_dynamic_cap);
+-                const bool is_integer{is_texture_pixel_format_integer(cbuf)};
++                // Depth-compare sampling returns a float in Vulkan, so its image must be float
++                // even when a garbage or unknown descriptor reads as an integer format.
++                const bool is_integer{flags.is_depth == 0 && is_texture_pixel_format_integer(cbuf)};
+                 index = descriptors.Add(TextureDescriptor{
+                     .type = flags.type,
+                     .is_depth = flags.is_depth != 0,
+diff --git a/src/shader_recompiler/profile.h b/src/shader_recompiler/profile.h
+index 8e9c83f888..86d4a76947 100644
+--- a/src/shader_recompiler/profile.h
++++ b/src/shader_recompiler/profile.h
+@@ -104,6 +104,7 @@ struct Profile {
+     /// Some drivers have broken support for OpVectorExtractDynamic on subgroup mask inputs
+     bool has_broken_spirv_subgroup_mask_vector_extract_dynamic{};
+     bool has_broken_spirv_subgroup_shuffle{};
++    bool has_broken_spirv_fragment_shuffle{};
+     u32 max_subgroup_size{};
+ 
+     u32 gl_max_compute_smem_size{};
+diff --git a/src/tests/CMakeLists.txt b/src/tests/CMakeLists.txt
+index 1287cb97be..bd9ffff87a 100644
+--- a/src/tests/CMakeLists.txt
++++ b/src/tests/CMakeLists.txt
+@@ -58,6 +58,9 @@ add_executable(tests
+     video_core/async_draw_policy.cpp
+     video_core/async_shader_emission.cpp
+     video_core/pipeline_build.cpp
++    video_core/pipeline_optimization.cpp
++    video_core/spirv_atomic_retry.cpp
++    video_core/spirv_fragment_shuffle.cpp
+     video_core/multi_range_refresh.cpp
+     video_core/command_fetch_order.cpp
+     video_core/command_snapshot_suspensions.cpp
+diff --git a/src/tests/video_core/ampere_logged_textures.cpp b/src/tests/video_core/ampere_logged_textures.cpp
+index fcfb3e0a2f..8f8bad90d0 100644
+--- a/src/tests/video_core/ampere_logged_textures.cpp
++++ b/src/tests/video_core/ampere_logged_textures.cpp
+@@ -2,7 +2,11 @@
+ 
+ #include <array>
+ #include <bit>
++#include <cstdlib>
++#include <filesystem>
++#include <fstream>
+ #include <span>
++#include <string>
+ #include <unordered_map>
+ #include <catch2/catch_test_macros.hpp>
+ 
+@@ -27,6 +31,7 @@ constexpr std::array<Instruction, 2> Gathers{{
+ class TextureEnvironment final : public Shader::Environment {
+ public:
+     u32 binding{15};
++    bool integer_format{false};
+     std::span<const u64> code;
+ 
+     TextureEnvironment() { stage = Shader::Stage::Compute; }
+@@ -45,7 +50,9 @@ public:
+     Shader::TexturePixelFormat ReadTexturePixelFormat(u32) override {
+         return Shader::TexturePixelFormat::A8B8G8R8_UNORM;
+     }
+-    bool IsTexturePixelFormatInteger(u32) override { return false; }
++    bool IsTexturePixelFormatInteger(u32) override {
++        return integer_format;
++    }
+     u32 ReadViewportTransformState() override { return 1; }
+     u32 TextureBoundBuffer() const override { return binding; }
+     u32 LocalMemorySize() const override { return 0; }
+@@ -245,6 +252,30 @@ TEST_CASE("Welcome Tour array depth samples preserve alternate descriptor banks"
+     }
+ }
+ 
++TEST_CASE("Depth-compare samples keep a float image when the descriptor reads as integer",
++          "[video_core][ampere][logged_textures]") {
++    // Ocarina of Time binds a garbage TIC (unknown format 33) to a TEX.DC; an integer sampled
++    // type made RADV's spirv_to_nir reject the module and crash.
++    const Instruction captured{{0x0a0d7b60, 0xb1012400, 0x041e41ff, 0x00114400}};
++    const auto lowered{Shader::Ampere::LowerToMaxwell(std::array{captured, Exit})};
++    INFO(lowered.error);
++    REQUIRE(lowered);
++    TextureTranslation translated;
++    translated.env.binding = 4;
++    translated.env.integer_format = true;
++    translated.Translate(lowered, 7);
++    IR::Program program;
++    program.blocks = {&translated.block};
++    program.post_order_blocks = {&translated.block};
++    Shader::Optimization::SsaRewritePass(program);
++    Shader::HostTranslateInfo host;
++    host.ApplyDescriptorLimitPolicy();
++    Shader::Optimization::TexturePass(translated.env, program, host);
++    REQUIRE(program.info.texture_descriptors.size() == 1);
++    CHECK(program.info.texture_descriptors.front().is_depth);
++    CHECK_FALSE(program.info.texture_descriptors.front().is_integer);
++}
++
+ TEST_CASE("Welcome Tour logged half fetch writes odd scalar destinations",
+           "[video_core][ampere][logged_textures]") {
+     for (const u32 guard : {1U, 7U, 9U}) {
+@@ -274,6 +305,76 @@ TEST_CASE("Welcome Tour logged half fetch writes odd scalar destinations",
+     }
+ }
+ 
++TEST_CASE("Depth sampling emits float image and result types for integer descriptors",
++          "[video_core][spirv][depth_compare]") {
++    for (const bool depth : {false, true}) {
++        for (const bool integer : {false, true}) {
++            CAPTURE(depth, integer);
++            TextureEnvironment env;
++            env.integer_format = integer;
++            Shader::ObjectPool<IR::Inst> pool;
++            IR::Block block{pool};
++            IR::Program program;
++            program.stage = Shader::Stage::Fragment;
++            program.blocks = {&block};
++            program.post_order_blocks = {&block};
++            program.syntax_list = {{{.block = &block}, IR::AbstractSyntaxNode::Type::Block},
++                                   {{}, IR::AbstractSyntaxNode::Type::Return}};
++            IR::IREmitter ir{block};
++            IR::TextureInstInfo flags{};
++            flags.type.Assign(Shader::TextureType::Color2D);
++            flags.is_depth.Assign(depth ? 1 : 0);
++            const auto coords = ir.CompositeConstruct(ir.Imm32(0.0f), ir.Imm32(0.0f));
++            const auto sample = depth
++                ? IR::Value{ir.ImageSampleDrefImplicitLod(ir.Imm32(0), coords, ir.Imm32(0.5f),
++                                                        {}, {}, {}, flags)}
++                : ir.ImageSampleExplicitLod(ir.Imm32(0), coords, ir.Imm32(0.0f), {}, flags);
++            Shader::HostTranslateInfo host;
++            host.ApplyDescriptorLimitPolicy();
++            Shader::Optimization::TexturePass(env, program, host);
++            REQUIRE(program.info.texture_descriptors.size() == 1);
++            CHECK(program.info.texture_descriptors[0].is_integer == (integer && !depth));
++            CHECK(sample.Inst()->Flags<IR::TextureInstInfo>().is_integer ==
++                  static_cast<u32>(integer && !depth));
++            Shader::Profile profile;
++            profile.supported_spirv = 0x00010500;
++            const auto code = Shader::Backend::SPIRV::EmitSPIRV(profile, program);
++            std::unordered_map<u32, u32> scalar_types;
++            u32 image_sampled_type{};
++            u32 dref_result_type{};
++            for (size_t offset = 5; offset < code.size();) {
++                const u32 size = code[offset] >> 16;
++                REQUIRE(size != 0);
++                REQUIRE(offset + size <= code.size());
++                const u32 opcode = code[offset] & 0xffffU;
++                if (opcode == 21 || opcode == 22) {
++                    scalar_types.emplace(code[offset + 1], opcode);
++                } else if (opcode == 25) {
++                    image_sampled_type = code[offset + 2];
++                    CHECK(code[offset + 4] == static_cast<u32>(depth));
++                } else if (opcode == 89) {
++                    dref_result_type = code[offset + 1];
++                }
++                offset += size;
++            }
++            REQUIRE(image_sampled_type != 0);
++            CHECK(scalar_types.at(image_sampled_type) == (integer && !depth ? 21 : 22));
++            if (depth) {
++                CHECK(dref_result_type == image_sampled_type);
++            }
++            if (const char* directory = std::getenv("EDEN_DEPTH_TEST_OUTPUT")) {
++                std::filesystem::create_directories(directory);
++                const auto name = std::string{depth ? "depth" : "color"} +
++                                  (integer ? "-integer" : "-float") + ".spv";
++                std::ofstream file{std::filesystem::path{directory} / name, std::ios::binary};
++                file.write(reinterpret_cast<const char*>(code.data()),
++                           static_cast<std::streamsize>(code.size() * sizeof(u32)));
++                REQUIRE(file.good());
++            }
++        }
++    }
++}
++
+ TEST_CASE("Welcome Tour logged half gathers round and pack both destination orders",
+           "[video_core][ampere][logged_textures]") {
+     for (const auto& capture : Gathers) {
+diff --git a/src/tests/video_core/pipeline_optimization.cpp b/src/tests/video_core/pipeline_optimization.cpp
+new file mode 100644
+index 0000000000..e1c355a7c1
+--- /dev/null
++++ b/src/tests/video_core/pipeline_optimization.cpp
+@@ -0,0 +1,27 @@
++// SPDX-License-Identifier: GPL-3.0-or-later
++
++#include <array>
++#include <catch2/catch_test_macros.hpp>
++
++#include "video_core/renderer_vulkan/pipeline_optimization.h"
++
++TEST_CASE("Only known AMD proprietary shaders disable pipeline optimization",
++          "[video_core][vulkan][pipeline_optimization]") {
++    constexpr std::array<u64, 2> hashes{0xeff3ccbe1438679dULL, 0xf9ea14a22394f5b1ULL};
++    for (const u64 hash : hashes) {
++        CHECK(Vulkan::BuildsUnoptimized(VK_DRIVER_ID_AMD_PROPRIETARY, hash));
++        for (const auto driver : {VK_DRIVER_ID_AMD_OPEN_SOURCE, VK_DRIVER_ID_MESA_RADV,
++                                  VK_DRIVER_ID_NVIDIA_PROPRIETARY,
++                                  VK_DRIVER_ID_INTEL_PROPRIETARY_WINDOWS,
++                                  VK_DRIVER_ID_QUALCOMM_PROPRIETARY, VK_DRIVER_ID_MESA_TURNIP}) {
++            CHECK_FALSE(Vulkan::BuildsUnoptimized(driver, hash));
++        }
++        CHECK_FALSE(Vulkan::BuildsUnoptimized(VK_DRIVER_ID_AMD_PROPRIETARY, hash ^ 1));
++    }
++    CHECK_FALSE(Vulkan::BuildsUnoptimized(VK_DRIVER_ID_AMD_PROPRIETARY, 0));
++    CHECK_FALSE(Vulkan::BuildsUnoptimized(VK_DRIVER_ID_AMD_PROPRIETARY, 0x3c2193d0166610b3ULL));
++    for (const u64 hash : {0x8c29514395041853ULL, 0xc332d87961d23b13ULL,
++                           0xb2f024003969e2dcULL}) {
++        CHECK_FALSE(Vulkan::BuildsUnoptimized(VK_DRIVER_ID_AMD_PROPRIETARY, hash));
++    }
++}
+diff --git a/src/tests/video_core/spirv_atomic_retry.cpp b/src/tests/video_core/spirv_atomic_retry.cpp
+new file mode 100644
+index 0000000000..3ac87e5e08
+--- /dev/null
++++ b/src/tests/video_core/spirv_atomic_retry.cpp
+@@ -0,0 +1,132 @@
++// SPDX-License-Identifier: GPL-3.0-or-later
++
++#include <algorithm>
++#include <array>
++#include <cstdlib>
++#include <filesystem>
++#include <fstream>
++#include <map>
++#include <span>
++#include <string>
++#include <vector>
++#include <catch2/catch_test_macros.hpp>
++#include <spirv/unified1/spirv.hpp11>
++
++#include "shader_recompiler/backend/spirv/emit_spirv.h"
++#include "shader_recompiler/frontend/ir/ir_emitter.h"
++
++namespace {
++using namespace Shader;
++
++std::vector<std::vector<u32>> Instructions(const std::vector<u32>& code, spv::Op opcode) {
++    std::vector<std::vector<u32>> result;
++    for (size_t offset = 5; offset < code.size();) {
++        const u32 size = code[offset] >> 16;
++        REQUIRE(size != 0);
++        REQUIRE(offset + size <= code.size());
++        if ((code[offset] & 0xffffU) == static_cast<u32>(opcode)) {
++            const auto words = std::span{code}.subspan(offset + 1, size - 1);
++            result.emplace_back(words.begin(), words.end());
++        }
++        offset += size;
++    }
++    return result;
++}
++
++std::vector<u32> EmitAtomicHelpers(bool native_half, bool explicit_shared) {
++    ObjectPool<IR::Inst> pool;
++    IR::Block block{pool};
++    IR::Program program;
++    program.stage = Stage::Compute;
++    program.workgroup_size = {256, 1, 1};
++    program.shared_memory_size = 16;
++    program.blocks = {&block};
++    program.post_order_blocks = {&block};
++    program.syntax_list = {{{.block = &block}, IR::AbstractSyntaxNode::Type::Block},
++                           {{}, IR::AbstractSyntaxNode::Type::Return}};
++    auto& info = program.info;
++    info.storage_buffers_descriptors = {{0, 0, 1, true}};
++    info.used_storage_buffer_types = IR::Type::U32;
++    info.uses_shared_increment = true;
++    info.uses_shared_decrement = true;
++    info.uses_global_increment = true;
++    info.uses_global_decrement = true;
++    info.uses_atomic_f32_add = true;
++    info.uses_fp16 = native_half;
++    info.uses_atomic_f16x2_add = native_half;
++    info.uses_atomic_f16x2_min = native_half;
++    info.uses_atomic_f16x2_max = native_half;
++    info.uses_atomic_f32x2_add = !native_half;
++    info.uses_atomic_f32x2_min = !native_half;
++    info.uses_atomic_f32x2_max = !native_half;
++    info.uses_int8 = true;
++    info.uses_int16 = true;
++    Profile profile;
++    profile.supported_spirv = 0x00010500;
++    profile.support_explicit_workgroup_layout = explicit_shared;
++    profile.support_workgroup_layout_8bit_access = explicit_shared;
++    profile.support_workgroup_layout_16bit_access = explicit_shared;
++    auto code = Backend::SPIRV::EmitSPIRV(profile, program);
++    if (const char* directory = std::getenv("EDEN_ATOMIC_TEST_OUTPUT")) {
++        std::filesystem::create_directories(directory);
++        const auto name = std::string{native_half ? "native-half" : "packed-half"} +
++                          (explicit_shared ? "-explicit" : "-implicit") + ".spv";
++        std::ofstream file{std::filesystem::path{directory} / name, std::ios::binary};
++        file.write(reinterpret_cast<const char*>(code.data()),
++                   static_cast<std::streamsize>(code.size() * sizeof(u32)));
++        REQUIRE(file.good());
++    }
++    return code;
++}
++}
++
++TEST_CASE("SPIR-V CAS retries use the exchange result as the next expected word",
++          "[video_core][spirv][atomic_retry]") {
++    for (const bool native_half : {true, false}) {
++        for (const bool explicit_shared : {false, true}) {
++            CAPTURE(native_half, explicit_shared);
++            const auto code = EmitAtomicHelpers(native_half, explicit_shared);
++            const auto exchanges = Instructions(code, spv::Op::OpAtomicCompareExchange);
++            const auto loads = Instructions(code, spv::Op::OpLoad);
++            const auto stores = Instructions(code, spv::Op::OpStore);
++            const auto variables = Instructions(code, spv::Op::OpVariable);
++            const auto integers = Instructions(code, spv::Op::OpTypeInt);
++            const auto comparisons = Instructions(code, spv::Op::OpIEqual);
++            REQUIRE(exchanges.size() == (explicit_shared ? 9 : 11));
++            for (const auto& exchange : exchanges) {
++                REQUIRE(exchange.size() == 8);
++                const u32 type = exchange[0];
++                const u32 result = exchange[1];
++                const u32 memory = exchange[2];
++                const u32 expected = exchange[7];
++                CHECK(std::ranges::find(integers, std::vector<u32>{type, 32, 0}) != integers.end());
++                const auto expected_load = std::ranges::find_if(
++                    loads, [=](const auto& load) { return load[1] == expected; });
++                REQUIRE(expected_load != loads.end());
++                CHECK((*expected_load)[0] == type);
++                const u32 retry = (*expected_load)[2];
++                CHECK(retry != memory);
++                const auto variable = std::ranges::find_if(
++                    variables, [=](const auto& var) { return var[1] == retry; });
++                REQUIRE(variable != variables.end());
++                CHECK((*variable)[2] == static_cast<u32>(spv::StorageClass::Function));
++                REQUIRE(std::ranges::count_if(stores, [=](const auto& store) {
++                    return store[0] == retry;
++                }) == 2);
++                CHECK(std::ranges::find(stores, std::vector<u32>{retry, result}) != stores.end());
++                const auto initial = std::ranges::find_if(
++                    loads, [=](const auto& load) { return load[2] == memory; });
++                REQUIRE(initial != loads.end());
++                CHECK((*initial)[0] == type);
++                CHECK(std::ranges::count_if(loads, [=](const auto& load) {
++                    return load[2] == memory;
++                }) == 1);
++                CHECK(std::ranges::find(stores, std::vector<u32>{retry, (*initial)[1]}) != stores.end());
++                CHECK(std::ranges::any_of(comparisons, [=](const auto& comparison) {
++                    return (comparison[2] == result && comparison[3] == expected) ||
++                           (comparison[3] == result && comparison[2] == expected);
++                }));
++            }
++        }
++    }
++}
+diff --git a/src/tests/video_core/spirv_fragment_shuffle.cpp b/src/tests/video_core/spirv_fragment_shuffle.cpp
+new file mode 100644
+index 0000000000..007d01fe17
+--- /dev/null
++++ b/src/tests/video_core/spirv_fragment_shuffle.cpp
+@@ -0,0 +1,175 @@
++// SPDX-License-Identifier: GPL-3.0-or-later
++
++#include <array>
++#include <bit>
++#include <cstdlib>
++#include <filesystem>
++#include <fstream>
++#include <map>
++#include <span>
++#include <string>
++#include <vector>
++#include <catch2/catch_test_macros.hpp>
++#define SPV_ENABLE_UTILITY_CODE
++#include <spirv/unified1/spirv.hpp11>
++
++#include "shader_recompiler/backend/spirv/emit_spirv.h"
++#include "shader_recompiler/frontend/ir/ir_emitter.h"
++
++namespace {
++using namespace Shader;
++
++struct ShuffleModule {
++    std::vector<u32> code;
++    std::array<u32, 3> results;
++};
++
++ShuffleModule EmitShuffles(Stage stage, u32 subgroup_size, bool fragment_fallback,
++                           bool general_fallback = false) {
++    ObjectPool<IR::Inst> pool;
++    IR::Block block{pool};
++    IR::Program program;
++    program.stage = stage;
++    program.workgroup_size = {64, 1, 1};
++    program.blocks = {&block};
++    program.post_order_blocks = {&block};
++    program.syntax_list = {{{.block = &block}, IR::AbstractSyntaxNode::Type::Block},
++                           {{}, IR::AbstractSyntaxNode::Type::Return}};
++    program.info.uses_subgroup_invocation_id = true;
++    program.info.uses_subgroup_shuffles = true;
++    IR::IREmitter ir{block};
++    const auto lane = ir.LaneId();
++    const auto value = ir.IAdd(lane, ir.Imm32(100));
++    const std::array<IR::U32, 3> results{
++        ir.ShuffleIndex(value, ir.BitwiseXor(lane, ir.Imm32(1)), ir.Imm32(31), ir.Imm32(0)),
++        ir.ShuffleUp(value, ir.Imm32(1), ir.Imm32(0), ir.Imm32(0)),
++        ir.ShuffleDown(value, ir.Imm32(1), ir.Imm32(31), ir.Imm32(0)),
++    };
++    Profile profile;
++    profile.supported_spirv = 0x00010500;
++    profile.support_vote = true;
++    profile.support_shuffle_relative = true;
++    profile.max_subgroup_size = subgroup_size;
++    profile.warp_size_potentially_larger_than_guest = subgroup_size > 32;
++    profile.has_broken_spirv_fragment_shuffle = fragment_fallback;
++    profile.has_broken_spirv_subgroup_shuffle = general_fallback;
++    auto code = Backend::SPIRV::EmitSPIRV(profile, program);
++    if (const char* directory = std::getenv("EDEN_SHUFFLE_TEST_OUTPUT")) {
++        std::filesystem::create_directories(directory);
++        const auto name = std::to_string(static_cast<u32>(stage)) + "-" +
++                          std::to_string(subgroup_size) + "-" +
++                          std::to_string(fragment_fallback) + "-" +
++                          std::to_string(general_fallback) + ".spv";
++        std::ofstream file{std::filesystem::path{directory} / name, std::ios::binary};
++        file.write(reinterpret_cast<const char*>(code.data()),
++                   static_cast<std::streamsize>(code.size() * sizeof(u32)));
++        REQUIRE(file.good());
++    }
++    return {std::move(code), {results[0].Inst()->Definition<u32>(),
++                              results[1].Inst()->Definition<u32>(),
++                              results[2].Inst()->Definition<u32>()}};
++}
++}
++
++TEST_CASE("Fragment shuffle fallback preserves host subgroup partitions",
++          "[video_core][spirv][fragment_shuffle]") {
++    for (const u32 subgroup_size : {32U, 64U}) {
++        const auto module = EmitShuffles(Stage::Fragment, subgroup_size, true);
++        std::map<u32, std::vector<u32>> definitions;
++        std::vector<u32> broadcast_lanes;
++        u32 invocation_variable{};
++        for (size_t offset = 5; offset < module.code.size();) {
++            const u32 size = module.code[offset] >> 16;
++            REQUIRE(size != 0);
++            REQUIRE(offset + size <= module.code.size());
++            const auto words = std::span{module.code}.subspan(offset, size);
++            const auto op = static_cast<spv::Op>(words[0] & 0xffffU);
++            CHECK(op != spv::Op::OpGroupNonUniformShuffle);
++            CHECK(op != spv::Op::OpGroupNonUniformShuffleUp);
++            CHECK(op != spv::Op::OpGroupNonUniformShuffleDown);
++            bool has_result{}, has_type{};
++            spv::HasResultAndType(op, &has_result, &has_type);
++            if (has_result && has_type) {
++                definitions.emplace(words[2], std::vector<u32>{words.begin(), words.end()});
++            }
++            if (op == spv::Op::OpGroupNonUniformBroadcast) {
++                broadcast_lanes.push_back(words[5]);
++            }
++            if (op == spv::Op::OpDecorate &&
++                words[2] == static_cast<u32>(spv::Decoration::BuiltIn) &&
++                words[3] == static_cast<u32>(spv::BuiltIn::SubgroupLocalInvocationId)) {
++                invocation_variable = words[1];
++            }
++            offset += size;
++        }
++        REQUIRE(broadcast_lanes.size() == 3 * subgroup_size);
++        REQUIRE(invocation_variable != 0);
++        for (u32 index = 0; index < broadcast_lanes.size(); ++index) {
++            CHECK(definitions.at(broadcast_lanes[index])[3] == index % subgroup_size);
++        }
++        const auto evaluate = [&](auto&& self, u32 id, u32 lane) -> u32 {
++            const auto& words = definitions.at(id);
++            const auto arg = [&](size_t index) { return self(self, words[index], lane); };
++            switch (static_cast<spv::Op>(words[0] & 0xffffU)) {
++            case spv::Op::OpConstant: return words[3];
++            case spv::Op::OpLoad:
++                REQUIRE(words[3] == invocation_variable);
++                return lane;
++            case spv::Op::OpIAdd: return arg(3) + arg(4);
++            case spv::Op::OpISub: return arg(3) - arg(4);
++            case spv::Op::OpBitwiseAnd: return arg(3) & arg(4);
++            case spv::Op::OpBitwiseOr: return arg(3) | arg(4);
++            case spv::Op::OpBitwiseXor: return arg(3) ^ arg(4);
++            case spv::Op::OpNot: return ~arg(3);
++            case spv::Op::OpShiftLeftLogical: return arg(3) << arg(4);
++            case spv::Op::OpShiftRightLogical: return arg(3) >> arg(4);
++            case spv::Op::OpIEqual: return arg(3) == arg(4);
++            case spv::Op::OpSLessThanEqual:
++                return std::bit_cast<s32>(arg(3)) <= std::bit_cast<s32>(arg(4));
++            case spv::Op::OpSGreaterThanEqual:
++                return std::bit_cast<s32>(arg(3)) >= std::bit_cast<s32>(arg(4));
++            case spv::Op::OpSelect: return arg(3) ? arg(4) : arg(5);
++            case spv::Op::OpGroupNonUniformBroadcast:
++                CHECK(arg(5) / 32 == lane / 32);
++                return self(self, words[4], arg(5));
++            default: FAIL("Unexpected shuffle opcode " << (words[0] & 0xffffU));
++            }
++            return 0;
++        };
++        for (u32 lane = 0; lane < subgroup_size; ++lane) {
++            CAPTURE(subgroup_size, lane);
++            const u32 guest_lane = lane % 32;
++            CHECK(evaluate(evaluate, module.results[0], lane) == 100 + (guest_lane ^ 1));
++            CHECK(evaluate(evaluate, module.results[1], lane) ==
++                  100 + (guest_lane == 0 ? 0 : guest_lane - 1));
++            CHECK(evaluate(evaluate, module.results[2], lane) ==
++                  100 + (guest_lane == 31 ? 31 : guest_lane + 1));
++        }
++    }
++}
++
++TEST_CASE("Fragment workaround leaves other stages on native shuffles",
++          "[video_core][spirv][fragment_shuffle]") {
++    for (const auto stage : {Stage::Fragment, Stage::Compute, Stage::VertexB}) {
++        for (const bool fragment_fallback : {false, true}) {
++            for (const bool general_fallback : {false, true}) {
++                const auto module = EmitShuffles(stage, 64, fragment_fallback, general_fallback);
++                size_t broadcasts{}, shuffles{};
++                for (size_t offset = 5; offset < module.code.size();) {
++                    const u32 size = module.code[offset] >> 16;
++                    REQUIRE(size != 0);
++                    const auto op = static_cast<spv::Op>(module.code[offset] & 0xffffU);
++                    broadcasts += op == spv::Op::OpGroupNonUniformBroadcast;
++                    shuffles += op == spv::Op::OpGroupNonUniformShuffle ||
++                                op == spv::Op::OpGroupNonUniformShuffleUp ||
++                                op == spv::Op::OpGroupNonUniformShuffleDown;
++                    offset += size;
++                }
++                const bool fallback = general_fallback ||
++                                      (fragment_fallback && stage == Stage::Fragment);
++                CHECK(broadcasts == (fallback ? 192 : 0));
++                CHECK(shuffles == (fallback ? 0 : 3));
++            }
++        }
++    }
++}
+diff --git a/src/video_core/CMakeLists.txt b/src/video_core/CMakeLists.txt
+index 8bee0a94f3..1db628e01e 100644
+--- a/src/video_core/CMakeLists.txt
++++ b/src/video_core/CMakeLists.txt
+@@ -170,6 +170,7 @@ add_library(video_core STATIC
+     renderer_vulkan/maxwell_to_vk.h
+     renderer_vulkan/pipeline_build.h
+     renderer_vulkan/pipeline_helper.h
++    renderer_vulkan/pipeline_optimization.h
+     renderer_vulkan/pipeline_shader_emission.h
+     renderer_vulkan/pipeline_statistics.cpp
+     renderer_vulkan/pipeline_statistics.h
+diff --git a/src/video_core/renderer_vulkan/pipeline_optimization.h b/src/video_core/renderer_vulkan/pipeline_optimization.h
+new file mode 100644
+index 0000000000..33a2fdd790
+--- /dev/null
++++ b/src/video_core/renderer_vulkan/pipeline_optimization.h
+@@ -0,0 +1,23 @@
++// SPDX-License-Identifier: GPL-3.0-or-later
++
++#pragma once
++
++#include <algorithm>
++#include <array>
++
++#include "common/common_types.h"
++#include "video_core/vulkan_common/vulkan.h"
++
++namespace Vulkan {
++
++inline bool BuildsUnoptimized(VkDriverId driver_id, u64 shader_hash) {
++    // The Legend of Zelda: Ocarina of Time (0400486024DEC000), driver 2.0.353 on an RX 6600 XT
++    static constexpr std::array<u64, 2> amd_proprietary{
++        0xeff3ccbe1438679dULL, // compute shader built as the AV1 intro starts: 6 min (#200)
++        0xf9ea14a22394f5b1ULL, // compute shader built as the AV1 intro starts: 18 min (#200)
++    };
++    return driver_id == VK_DRIVER_ID_AMD_PROPRIETARY &&
++           std::ranges::find(amd_proprietary, shader_hash) != amd_proprietary.end();
++}
++
++} // namespace Vulkan
+diff --git a/src/video_core/renderer_vulkan/vk_compute_pipeline.cpp b/src/video_core/renderer_vulkan/vk_compute_pipeline.cpp
+index e1876b8157..6833925091 100644
+--- a/src/video_core/renderer_vulkan/vk_compute_pipeline.cpp
++++ b/src/video_core/renderer_vulkan/vk_compute_pipeline.cpp
+@@ -14,6 +14,7 @@
+ #include <fmt/format.h>
+ 
+ #include "video_core/renderer_vulkan/pipeline_helper.h"
++#include "video_core/renderer_vulkan/pipeline_optimization.h"
+ #include "video_core/renderer_vulkan/pipeline_statistics.h"
+ #include "video_core/renderer_vulkan/vk_buffer_cache.h"
+ #include "video_core/renderer_vulkan/vk_compute_pipeline.h"
+@@ -263,6 +264,9 @@ ComputePipeline::ComputePipeline(const Device& device_, Scheduler& scheduler, vk
+         if (uses_descriptor_buffer) {
+             flags |= VK_PIPELINE_CREATE_DESCRIPTOR_BUFFER_BIT_EXT;
+         }
++        if (BuildsUnoptimized(device.GetDriverID(), shader_hash)) {
++            flags |= VK_PIPELINE_CREATE_DISABLE_OPTIMIZATION_BIT;
++        }
+         const VkComputePipelineCreateInfo compute_ci{
+             .sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO,
+             .pNext = nullptr,
+diff --git a/src/video_core/renderer_vulkan/vk_pipeline_cache.cpp b/src/video_core/renderer_vulkan/vk_pipeline_cache.cpp
+index 4dcdb4962a..9a2afd29c8 100644
+--- a/src/video_core/renderer_vulkan/vk_pipeline_cache.cpp
++++ b/src/video_core/renderer_vulkan/vk_pipeline_cache.cpp
+@@ -580,6 +580,7 @@ PipelineCache::PipelineCache(Tegra::MaxwellDeviceMemoryManager& device_memory_,
+             driver_id == VK_DRIVER_ID_QUALCOMM_PROPRIETARY &&
+             device.GetDriverVersion() < VK_MAKE_VERSION(512, 672, 0),
+         .has_broken_spirv_subgroup_shuffle = driver_id == VK_DRIVER_ID_QUALCOMM_PROPRIETARY,
++        .has_broken_spirv_fragment_shuffle = driver_id == VK_DRIVER_ID_AMD_PROPRIETARY,
+         .max_subgroup_size = device.GetMaxSubgroupSize(),
+         .has_broken_robust =
+             device.IsNvidia() && device.GetNvidiaArch() <= NvidiaArchitecture::Arch_Pascal,
+-- 
+2.43.0
+

@@ -1,0 +1,532 @@
+From f0b55f5bf01318a21d042c60a809a5509629c615 Mon Sep 17 00:00:00 2001
+From: Zortos <zortosdev@proton.me>
+Date: Fri, 6 Nov 2026 17:34:01 +0100
+Subject: [PATCH 20/21] common: prevent a lost wake when cancelling worker
+ tasks (#290)
+
+* common: synchronize stopped-worker notifications with waiters
+
+Co-authored-by: capy-ai[bot] <230910855+capy-ai[bot]@users.noreply.github.com>
+
+* tools/nx2: report thread_worker_wake setup failures as harness errors
+
+Co-authored-by: capy-ai[bot] <230910855+capy-ai[bot]@users.noreply.github.com>
+
+---------
+
+Co-authored-by: capy-ai[bot] <230910855+capy-ai[bot]@users.noreply.github.com>
+(cherry picked from commit c9bdbaa38ee522e3124ae05eb56c74be15cf780a)
+---
+ .github/workflows/build-check.yml    | 103 +++++++++++++++
+ src/common/thread_worker.h           |   5 +-
+ tools/nx2/test_thread_worker_wake.py |  83 ++++++++++++
+ tools/nx2/thread_worker_wake.cpp     | 181 +++++++++++++++++++++++++++
+ tools/nx2/thread_worker_wake.py      |  92 ++++++++++++++
+ 5 files changed, 463 insertions(+), 1 deletion(-)
+ create mode 100644 .github/workflows/build-check.yml
+ create mode 100755 tools/nx2/test_thread_worker_wake.py
+ create mode 100644 tools/nx2/thread_worker_wake.cpp
+ create mode 100755 tools/nx2/thread_worker_wake.py
+
+diff --git a/.github/workflows/build-check.yml b/.github/workflows/build-check.yml
+new file mode 100644
+index 0000000000..34ea64f6c4
+--- /dev/null
++++ b/.github/workflows/build-check.yml
+@@ -0,0 +1,103 @@
++name: build-check
++
++on:
++  pull_request:
++    branches: [nx2]
++  push:
++    branches: [nx2]
++  workflow_dispatch:
++
++permissions:
++  contents: read
++
++concurrency:
++  group: build-check-${{ github.ref }}
++  cancel-in-progress: true
++
++jobs:
++  linux-gcc:
++    name: Linux GCC 13 production build and tests
++    runs-on: ubuntu-24.04
++    timeout-minutes: 90
++    env:
++      CCACHE_DIR: ${{ github.workspace }}/.ccache
++      CCACHE_MAXSIZE: 3000M
++      CCACHE_COMPILERCHECK: content
++    steps:
++      - name: Check out source
++        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
++        with:
++          persist-credentials: false
++
++      - name: Install Linux dependencies
++        run: |
++          sudo apt-get update
++          sudo apt-get install -y --no-install-recommends \
++            autoconf gcc-13 g++-13 git glslang-tools libglu1-mesa-dev \
++            libpulse-dev libtool libudev-dev libxkbcommon-x11-0 \
++            mesa-common-dev nasm ninja-build qt6-base-private-dev \
++            qt6-charts-dev qt6-tools-dev libavfilter-dev libavcodec-dev \
++            libswscale-dev pkg-config zlib1g-dev libva-dev libvdpau-dev \
++            spirv-tools spirv-headers libusb-1.0-0-dev \
++            libboost-dev libboost-fiber-dev libboost-context-dev \
++            libopus-dev libasound2-dev ccache pipx \
++            libxcb-cursor0 libxcb-icccm4 libxcb-image0 libxcb-keysyms1 \
++            libxcb-randr0 libxcb-render-util0 libxcb-shape0 libxcb-xinerama0 libxcb-xkb1
++          pipx install cmake==4.4.4
++          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
++
++      - name: Install Qt
++        uses: jurplel/install-qt-action@b344308e4483fc892e0d27b3cd1b173ebdd95f06
++        with:
++          version: "6.8.3"
++          host: linux
++          target: desktop
++          arch: linux_gcc_64
++          modules: qtcharts
++          cache: true
++
++      - name: Cache dependencies and compiler objects
++        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25
++        with:
++          path: |
++            .cache/cpm
++            .ccache
++          key: gcc13-qt683-${{ runner.os }}-${{ hashFiles('cpmfile.json') }}-${{ github.sha }}
++          restore-keys: |
++            gcc13-qt683-${{ runner.os }}-${{ hashFiles('cpmfile.json') }}-
++
++      - name: Configure production and tests
++        run: |
++          cmake -S . -B build -G Ninja \
++            -DCMAKE_BUILD_TYPE=Release \
++            -DCMAKE_C_COMPILER=gcc-13 \
++            -DCMAKE_CXX_COMPILER=g++-13 \
++            -DENABLE_WERROR=ON \
++            -DBUILD_TESTING=ON \
++            -DYUZU_TESTS=ON \
++            -DENABLE_QT=ON \
++            -DYUZU_CMD=ON \
++            -DYUZU_ROOM=OFF \
++            -DYUZU_ROOM_STANDALONE=OFF \
++            -DYUZU_USE_BUNDLED_QT=OFF \
++            "-DCMAKE_PREFIX_PATH=$QT_ROOT_DIR" \
++            -DYUZU_USE_BUNDLED_SDL3=ON \
++            -DVulkanHeaders_FORCE_BUNDLED=ON \
++            -DVulkanUtilityLibraries_FORCE_BUNDLED=ON \
++            -DENABLE_UPDATE_CHECKER=ON \
++            -DUSE_DISCORD_PRESENCE=OFF \
++            -DUSE_CCACHE=ON
++
++      - name: Build production and tests
++        run: cmake --build build --parallel 4
++
++      - name: Run tests
++        run: ctest --test-dir build --output-on-failure --no-tests=error
++
++      - name: Test debug adapter
++        run: python3 tools/nx2/test_debug_mcp.py
++
++      - name: Test ThreadWorker wake-ups
++        run: |
++          python3 tools/nx2/test_thread_worker_wake.py
++          python3 -I tools/nx2/thread_worker_wake.py --cxx g++-13
+diff --git a/src/common/thread_worker.h b/src/common/thread_worker.h
+index fa908befa6..791586f2b6 100644
+--- a/src/common/thread_worker.h
++++ b/src/common/thread_worker.h
+@@ -81,7 +81,10 @@ public:
+                     ++work_done;
+                 }
+             }
+-            ++workers_stopped;
++            {
++                std::scoped_lock lock{queue_mutex};
++                ++workers_stopped;
++            }
+             wait_condition.notify_all();
+         };
+         threads.reserve(num_workers);
+diff --git a/tools/nx2/test_thread_worker_wake.py b/tools/nx2/test_thread_worker_wake.py
+new file mode 100755
+index 0000000000..67336de0c6
+--- /dev/null
++++ b/tools/nx2/test_thread_worker_wake.py
+@@ -0,0 +1,83 @@
++#!/usr/bin/env python3
++# SPDX-License-Identifier: GPL-3.0-or-later
++
++import os
++import stat
++import subprocess
++import sys
++import tempfile
++import unittest
++
++HERE = os.path.dirname(os.path.abspath(__file__))
++RUNNER = os.path.join(HERE, "thread_worker_wake.py")
++
++# Stands in for the compiler: writes a reproducer that ends as STUB_RESULT says, per mode.
++STUB_COMPILER = """#!/bin/sh
++[ -n "$STUB_BUILD_FAILS" ] && exit 1
++while [ $# -gt 0 ]; do
++    [ "$1" = -o ] && out=$2
++    shift
++done
++cat > "$out" <<'EOF'
++#!/bin/sh
++case "$STUB_RESULT:$1" in
++signal:cancel) kill -SEGV $$ ;;
++odd:cancel) exit 3 ;;
++lost:cancel) echo "lost wake"; exit 1 ;;
++unsupported:*) exit 77 ;;
++esac
++echo woke
++EOF
++chmod +x "$out"
++"""
++
++
++class RunnerExitCodes(unittest.TestCase):
++    def setUp(self):
++        self.work = tempfile.TemporaryDirectory()
++        self.compiler = os.path.join(self.work.name, "stub-cxx")
++        with open(self.compiler, "w") as file:
++            file.write(STUB_COMPILER)
++        os.chmod(self.compiler, os.stat(self.compiler).st_mode | stat.S_IEXEC)
++
++    def tearDown(self):
++        self.work.cleanup()
++
++    def run_runner(self, *arguments, **environment):
++        env = dict(os.environ, **environment)
++        return subprocess.run([sys.executable, "-I", RUNNER, "--cxx", self.compiler, *arguments],
++                              capture_output=True, text=True, env=env, timeout=120)
++
++    def test_both_cases_wake(self):
++        self.assertEqual(self.run_runner(STUB_RESULT="woke").returncode, 0)
++
++    def test_lost_wake(self):
++        self.assertEqual(self.run_runner(STUB_RESULT="lost").returncode, 1)
++
++    def test_signal_is_a_harness_failure(self):
++        run = self.run_runner(STUB_RESULT="signal")
++        self.assertEqual(run.returncode, 2)
++        self.assertIn("killed by signal", run.stdout)
++
++    def test_unexpected_exit_code_is_a_harness_failure(self):
++        run = self.run_runner(STUB_RESULT="odd")
++        self.assertEqual(run.returncode, 2)
++        self.assertIn("unexpected exit code 3", run.stdout)
++
++    def test_unsupported(self):
++        self.assertEqual(self.run_runner(STUB_RESULT="unsupported").returncode, 77)
++
++    def test_build_failure(self):
++        self.assertEqual(self.run_runner(STUB_BUILD_FAILS="1").returncode, 2)
++
++    def test_missing_compiler(self):
++        missing = os.path.join(self.work.name, "missing-cxx")
++        self.assertEqual(self.run_runner("--cxx", missing, STUB_RESULT="woke").returncode, 2)
++
++    def test_unknown_revision(self):
++        run = self.run_runner("--rev", "does-not-exist", STUB_RESULT="woke")
++        self.assertEqual(run.returncode, 2)
++
++
++if __name__ == "__main__":
++    unittest.main()
+diff --git a/tools/nx2/thread_worker_wake.cpp b/tools/nx2/thread_worker_wake.cpp
+new file mode 100644
+index 0000000000..fbbba2eeb1
+--- /dev/null
++++ b/tools/nx2/thread_worker_wake.cpp
+@@ -0,0 +1,181 @@
++// SPDX-License-Identifier: GPL-3.0-or-later
++
++// Drives Common::ThreadWorker::WaitForRequests through the interleaving where its waiter has
++// checked the predicate under the queue mutex but is not yet asleep. Built and run in its own
++// process by thread_worker_wake.py; Linux with a dynamically linked glibc only.
++//
++// The waiter is held at that point (inside pthread_cond_wait, before the real call) until every
++// worker has taken its last step: notify_all returned, or it is trying to take the queue mutex.
++// Then the waiter is let into the real wait. It returns only if that last step still wakes it.
++//
++// The main thread's waits for each handshake have deadlines. The held waiter and the worker tasks
++// spin until the main thread releases them, so if the harness stalls there, the runner's 60 s
++// process timeout ends it.
++//
++// Exit codes: 0 the waiter returned, 1 it never woke, 2 harness failure, 77 not supported.
++
++#include <atomic>
++#include <chrono>
++#include <cstdio>
++#include <cstring>
++#include <stop_token>
++#include <thread>
++
++#include <dlfcn.h>
++#include <pthread.h>
++#include <unistd.h>
++
++#include "common/thread_worker.h"
++
++namespace Common {
++void SetCurrentThreadPriority(ThreadPriority) {}
++void SetCurrentThreadName(const char*) {}
++void SetCurrentThreadToPerformanceCores() {}
++void SetCurrentThreadToEfficiencyCores() {}
++void SetCurrentThreadToBackgroundWork() {}
++void SetCurrentThreadToAllCores() {}
++} // namespace Common
++
++namespace {
++
++constexpr size_t NumWorkers = 2;
++
++using CondWait = int (*)(pthread_cond_t*, pthread_mutex_t*);
++using CondBroadcast = int (*)(pthread_cond_t*);
++using MutexLock = int (*)(pthread_mutex_t*);
++
++template <typename Fn>
++Fn Real(std::atomic<Fn>& cache, const char* name) {
++    Fn fn = cache.load(std::memory_order_acquire);
++    if (fn == nullptr) {
++        fn = reinterpret_cast<Fn>(dlsym(RTLD_NEXT, name));
++        cache.store(fn, std::memory_order_release);
++    }
++    return fn;
++}
++
++std::atomic<CondWait> real_cond_wait;
++std::atomic<CondBroadcast> real_cond_broadcast;
++std::atomic<MutexLock> real_mutex_lock;
++
++thread_local bool is_waiter{};
++thread_local bool waiter_held{};
++thread_local bool is_worker{};
++thread_local bool worker_counted{};
++
++std::atomic<pthread_mutex_t*> queue_mutex{};
++std::atomic<bool> waiter_in_window{};
++std::atomic<bool> release_waiter{};
++std::atomic<bool> last_steps{};
++std::atomic<size_t> workers_at_last_step{};
++std::atomic<size_t> workers_started{};
++std::atomic<bool> release_tasks{};
++std::atomic<bool> waiter_returned{};
++
++void CountLastStep() {
++    if (is_worker && !worker_counted && last_steps.load()) {
++        worker_counted = true;
++        ++workers_at_last_step;
++    }
++}
++
++template <typename Predicate>
++bool WaitUntil(Predicate&& predicate, std::chrono::seconds timeout) {
++    const auto deadline = std::chrono::steady_clock::now() + timeout;
++    while (!predicate()) {
++        if (std::chrono::steady_clock::now() > deadline) {
++            return false;
++        }
++        std::this_thread::yield();
++    }
++    return true;
++}
++
++[[noreturn]] void Finish(int code, const char* message) {
++    std::printf("%s\n", message);
++    std::fflush(stdout);
++    _exit(code);
++}
++
++} // Anonymous namespace
++
++extern "C" int pthread_cond_wait(pthread_cond_t* cond, pthread_mutex_t* mutex) {
++    if (is_waiter && !waiter_held) {
++        waiter_held = true;
++        queue_mutex.store(mutex);
++        waiter_in_window.store(true);
++        while (!release_waiter.load()) {
++            std::this_thread::yield();
++        }
++    }
++    return Real(real_cond_wait, "pthread_cond_wait")(cond, mutex);
++}
++
++extern "C" int pthread_cond_broadcast(pthread_cond_t* cond) {
++    const int result = Real(real_cond_broadcast, "pthread_cond_broadcast")(cond);
++    CountLastStep();
++    return result;
++}
++
++extern "C" int pthread_mutex_lock(pthread_mutex_t* mutex) {
++    if (mutex == queue_mutex.load()) {
++        CountLastStep();
++    }
++    return Real(real_mutex_lock, "pthread_mutex_lock")(mutex);
++}
++
++int main(int argc, char** argv) {
++    if (argc != 2 || (std::strcmp(argv[1], "cancel") != 0 && std::strcmp(argv[1], "complete") != 0)) {
++        Finish(2, "usage: thread_worker_wake cancel|complete");
++    }
++    const bool cancel = std::strcmp(argv[1], "cancel") == 0;
++    if (!Real(real_cond_wait, "pthread_cond_wait") ||
++        !Real(real_cond_broadcast, "pthread_cond_broadcast") ||
++        !Real(real_mutex_lock, "pthread_mutex_lock")) {
++        Finish(77, "unsupported: the pthread functions cannot be interposed");
++    }
++
++    auto* const worker = new Common::ThreadWorker(NumWorkers, "WakeRepro");
++    // Cancelling leaves queued tasks behind, so only the stopped-worker count can end the wait.
++    const size_t num_tasks = cancel ? NumWorkers + 2 : NumWorkers;
++    for (size_t i = 0; i < num_tasks; ++i) {
++        worker->QueueWork([] {
++            is_worker = true;
++            ++workers_started;
++            while (!release_tasks.load()) {
++                std::this_thread::yield();
++            }
++        });
++    }
++    if (!WaitUntil([] { return workers_started.load() == NumWorkers; }, std::chrono::seconds{10})) {
++        Finish(2, "harness: the workers did not start their tasks");
++    }
++
++    std::stop_source stop_source;
++    std::thread waiter([worker, cancel, token = stop_source.get_token()] {
++        is_waiter = true;
++        worker->WaitForRequests(cancel ? token : std::stop_token{});
++        waiter_returned.store(true);
++    });
++    if (!WaitUntil([] { return waiter_in_window.load(); }, std::chrono::seconds{10})) {
++        Finish(2, "harness: the waiter did not reach its wait");
++    }
++
++    last_steps.store(true);
++    if (cancel) {
++        stop_source.request_stop();
++    }
++    release_tasks.store(true);
++    if (!WaitUntil([] { return workers_at_last_step.load() == NumWorkers; },
++                   std::chrono::seconds{10})) {
++        Finish(2, "harness: the workers did not reach their last step");
++    }
++    release_waiter.store(true);
++
++    if (!WaitUntil([] { return waiter_returned.load(); }, std::chrono::seconds{3})) {
++        Finish(1, "lost wake: WaitForRequests never returned");
++    }
++    waiter.join();
++    delete worker;
++    Finish(0, "woke: WaitForRequests returned");
++}
+diff --git a/tools/nx2/thread_worker_wake.py b/tools/nx2/thread_worker_wake.py
+new file mode 100755
+index 0000000000..c6ab091bb4
+--- /dev/null
++++ b/tools/nx2/thread_worker_wake.py
+@@ -0,0 +1,92 @@
++#!/usr/bin/env python3
++# SPDX-License-Identifier: GPL-3.0-or-later
++
++"""Checks that Common::ThreadWorker::WaitForRequests cannot miss its wake-up.
++
++Compiles thread_worker_wake.cpp against src/common/thread_worker.h (from the working tree, or
++from --rev) and runs it once for cancellation and once for normal completion, each in its own
++process with a timeout. Linux with a dynamically linked glibc only.
++
++    python3 -I tools/nx2/thread_worker_wake.py               # working tree: both should wake
++    python3 -I tools/nx2/thread_worker_wake.py --rev <rev>   # a revision's header
++
++Exit codes: 0 both cases woke, 1 a lost wake, 2 harness or build failure, 77 not supported.
++"""
++
++import argparse
++import os
++import shutil
++import subprocess
++import sys
++import tempfile
++
++HERE = os.path.dirname(os.path.abspath(__file__))
++ROOT = os.path.dirname(os.path.dirname(HERE))
++SOURCE = os.path.join(HERE, "thread_worker_wake.cpp")
++HEADER = "src/common/thread_worker.h"
++WARNINGS = ["-Wall", "-Wextra", "-Wmissing-declarations", "-Wshadow", "-Werror"]
++RESULTS = {0, 1, 2, 77}
++
++
++def run_case(binary, mode):
++    try:
++        run = subprocess.run([binary, mode], capture_output=True, text=True, timeout=60)
++    except subprocess.TimeoutExpired:
++        return 2, "harness: timed out"
++    output = run.stdout.strip()
++    if run.returncode in RESULTS:
++        return run.returncode, output
++    reason = (f"killed by signal {-run.returncode}" if run.returncode < 0
++              else f"unexpected exit code {run.returncode}")
++    details = "\n".join(text for text in (output, run.stderr.strip()) if text)
++    return 2, f"harness: {reason}" + (f"\n{details}" if details else "")
++
++
++def main():
++    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
++    parser.add_argument("--rev", help="git revision whose thread_worker.h to test")
++    parser.add_argument("--cxx", default=os.environ.get("CXX") or shutil.which("clang++") or "g++")
++    args = parser.parse_args()
++    if not sys.platform.startswith("linux"):
++        print("unsupported: Linux only")
++        return 77
++
++    with tempfile.TemporaryDirectory() as work:
++        includes = []
++        binary = os.path.join(work, "thread_worker_wake")
++        try:
++            if args.rev:
++                show = subprocess.run(["git", "-C", ROOT, "show", f"{args.rev}:{HEADER}"],
++                                      capture_output=True)
++                if show.returncode != 0:
++                    print(show.stderr.decode(errors="replace").strip())
++                    return 2
++                os.makedirs(os.path.join(work, "include", "common"))
++                with open(os.path.join(work, "include", "common", "thread_worker.h"), "wb") as file:
++                    file.write(show.stdout)
++                includes.append("-I" + os.path.join(work, "include"))
++            build = subprocess.run([args.cxx, "-std=c++20", "-O2", "-pthread", *WARNINGS,
++                                    *includes, "-I" + os.path.join(ROOT, "src"), SOURCE, "-ldl",
++                                    "-o", binary],
++                                   capture_output=True, text=True)
++        except OSError as error:
++            print(f"harness: {error}")
++            return 2
++        if build.returncode != 0:
++            print(build.stdout + build.stderr)
++            return 2
++
++        results = []
++        for mode in ("cancel", "complete"):
++            code, output = run_case(binary, mode)
++            print(f"{mode}: {output}")
++            results.append(code)
++        if 77 in results:
++            return 77
++        if 2 in results:
++            return 2
++        return max(results)
++
++
++if __name__ == "__main__":
++    sys.exit(main())
+-- 
+2.43.0
+
