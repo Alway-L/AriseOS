@@ -33,7 +33,7 @@ diff --git a/src/video_core/renderer_vulkan/vk_staging_buffer_pool.cpp b/src/vid
 index 4480458c4e..29568d9030 100644
 --- a/src/video_core/renderer_vulkan/vk_staging_buffer_pool.cpp
 +++ b/src/video_core/renderer_vulkan/vk_staging_buffer_pool.cpp
-@@ -198,6 +198,37 @@ StagingBufferRef StagingBufferPool::GetStagingBuffer(size_t size, MemoryUsage us
+@@ -198,6 +198,33 @@ StagingBufferRef StagingBufferPool::GetStagingBuffer(size_t size, MemoryUsage us
      if (const std::optional<StagingBufferRef> ref = TryGetReservedBuffer(size, usage, deferred)) {
          return *ref;
      }
@@ -56,13 +56,9 @@ index 4480458c4e..29568d9030 100644
 +            }
 +            for (size_t level = 0; level < NUM_LEVELS; ++level) {
 +                auto& entries = cache[level].entries;
-+                const size_t old_size = entries.size();
 +                std::erase_if(entries, [this](const StagingBuffer& entry) {
 +                    return !entry.deferred && scheduler.IsFree(entry.tick);
 +                });
-+                if (VideoCommon::Nx2Profile::Enabled() && entries.size() < old_size) {
-+                    g_staging_bytes.fetch_sub(u64{old_size - entries.size()} << level);
-+                }
 +                cache[level].delete_index = 0;
 +                cache[level].iterate_index = 0;
 +            }
