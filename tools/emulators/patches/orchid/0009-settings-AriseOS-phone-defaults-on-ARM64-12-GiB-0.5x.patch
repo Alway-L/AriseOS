@@ -1,0 +1,99 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Alway-L <felipemoura2015078@gmail.com>
+Date: Fri, 6 Nov 2026 23:46:02 -0300
+Subject: [PATCH 09/10] settings: AriseOS phone defaults on ARM64 (12 GiB,
+ 0.5x, Mailbox, low accuracy, async shaders, no reactive flushing, no Vulkan
+ check)
+
+---
+ src/common/settings.h | 35 +++++++++++++++++++++++++++++++----
+ 1 file changed, 31 insertions(+), 4 deletions(-)
+
+diff --git a/src/common/settings.h b/src/common/settings.h
+index 1f3e89f011..8a6de96fe5 100644
+--- a/src/common/settings.h
++++ b/src/common/settings.h
+@@ -203,8 +203,14 @@ struct Values {
+ 
+     // Core
+     SwitchableSetting<bool> use_multi_core{linkage, true, "use_multi_core", Category::Core};
++    // AriseOS (phone ARM64 builds): defaults tuned on a Galaxy S25 for Switch 2 games, so a fresh
++    // install starts with them; settings changed in the emulator still win.
+     SwitchableSetting<MemoryLayout, true> memory_layout_mode{linkage,
++#ifdef ARCHITECTURE_arm64
++                                                             MemoryLayout::Memory_12Gb,
++#else
+                                                              MemoryLayout::Memory_4Gb,
++#endif
+                                                              "memory_layout_mode",
+                                                              Category::Core,
+                                                              Specialization::Default,
+@@ -346,11 +352,20 @@ struct Values {
+ 
+     // Graphics Settings
+     ResolutionScalingInfo resolution_info{};
+-    SwitchableSetting<ResolutionSetup> resolution_setup{linkage, ResolutionSetup::Res1X,
++    SwitchableSetting<ResolutionSetup> resolution_setup{linkage,
++#ifdef ARCHITECTURE_arm64
++                                                        ResolutionSetup::Res1_2X,
++#else
++                                                        ResolutionSetup::Res1X,
++#endif
+                                                         "resolution_setup", Category::Renderer};
+ 
+     SwitchableSetting<VSyncMode, true> vsync_mode{linkage,
++#ifdef ARCHITECTURE_arm64
++                                                  VSyncMode::Mailbox,
++#else
+                                                   VSyncMode::Fifo,
++#endif
+                                                   "use_vsync",
+                                                   Category::Renderer,
+                                                   Specialization::RuntimeList,
+@@ -511,7 +526,7 @@ struct Values {
+                                          linkage, 0, "bg_blue", Category::Renderer, Specialization::Default, true, true};
+ 
+     SwitchableSetting<GpuAccuracy, true> gpu_accuracy{linkage,
+-#ifdef __ANDROID__
++#if defined(__ANDROID__) || defined(ARCHITECTURE_arm64)
+                                                       GpuAccuracy::Low,
+ #else
+                                                       GpuAccuracy::High,
+@@ -610,7 +625,7 @@ struct Values {
+                                                 Category::RendererAdvanced};
+ 
+     SwitchableSetting<bool> use_reactive_flushing{linkage,
+-#ifdef __ANDROID__
++#if defined(__ANDROID__) || defined(ARCHITECTURE_arm64)
+                                                   false,
+ #else
+                                                   true,
+@@ -673,7 +688,13 @@ struct Values {
+     SwitchableSetting<bool> emulate_bgr565{linkage, false, "emulate_bgr565",
+                                             Category::RendererHacks};
+ 
+-    SwitchableSetting<bool> use_asynchronous_shaders{linkage, false, "use_asynchronous_shaders",
++    SwitchableSetting<bool> use_asynchronous_shaders{linkage,
++#ifdef ARCHITECTURE_arm64
++                                                     true,
++#else
++                                                     false,
++#endif
++                                                     "use_asynchronous_shaders",
+                                                      Category::RendererHacks};
+ 
+     SwitchableSetting<GpuUnswizzleSize> gpu_unswizzle_texture_size{linkage,
+@@ -912,7 +933,13 @@ struct Values {
+                                 linkage, false, "use_auto_stub", Category::Debugging};
+     Setting<bool> enable_all_controllers{linkage, false, "enable_all_controllers",
+                                          Category::Debugging};
++#ifdef ARCHITECTURE_arm64
++    // The check re-runs the emulator as a child, which cannot start inside AriseOS (proot): it
++    // always reported broken Vulkan and switched to OpenGL.
++    Setting<bool> perform_vulkan_check{linkage, false, "perform_vulkan_check", Category::Debugging};
++#else
+     Setting<bool> perform_vulkan_check{linkage, true, "perform_vulkan_check", Category::Debugging};
++#endif
+     Setting<bool> disable_web_applet{linkage, true, "disable_web_applet", Category::Debugging};
+ 
+     // GPU Logging

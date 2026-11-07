@@ -45,7 +45,10 @@ object SwitchPresets {
     internal val DEBUGGING = listOf("perform_vulkan_check" to "false")
 
     /** AppImage id under /opt/appimages/user → config folder name. */
-    private val EMULATORS = mapOf("eglantine" to "eglantine", "lichii" to "eden", "orchid" to "eden", "lichii-frizti" to "eden")
+    // Orchid is AriseOS's own build and carries these settings as its defaults (tools/emulators/patches/orchid),
+    // so a reinstall starts tuned and nothing here overrides what the user changed. The Lichii builds share its
+    // ~/.config/eden and are no longer offered: only Eglantine, with its own folder, still gets the preset.
+    private val EMULATORS = mapOf("eglantine" to "eglantine")
 
     fun apply(root: File) {
         for ((id, dir) in EMULATORS) {
