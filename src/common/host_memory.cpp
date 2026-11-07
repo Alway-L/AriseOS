@@ -806,8 +806,11 @@ static void AriseWatchMemory(u8* base, size_t size) {
             // barely moved while 4.5 GiB of guest memory stayed in RAM). Below the threshold, page out
             // a 256 MiB window of guest memory every half second, walking through all of it:
             // pages the game is not using stay out, those it uses come back on their next touch.
+            // AriseOS: 768 MiB, an emergency only. With guest memory in a file the kernel can write
+            // it back by itself; paging 512 MiB windows out at 1.5 GiB free made the emulator
+            // threads read them back from storage hundreds of times a second.
             const char* value = std::getenv("ARISE_PAGEOUT_BELOW_MIB");
-            const size_t threshold = value != nullptr ? std::strtoull(value, nullptr, 10) : 1536;
+            const size_t threshold = value != nullptr ? std::strtoull(value, nullptr, 10) : 768;
             if (threshold == 0) {
                 return;
             }
