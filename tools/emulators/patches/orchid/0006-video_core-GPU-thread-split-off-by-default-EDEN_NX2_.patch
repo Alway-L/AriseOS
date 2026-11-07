@@ -1,0 +1,27 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Alway-L <felipemoura2015078@gmail.com>
+Date: Fri, 6 Nov 2026 22:53:26 -0300
+Subject: [PATCH] video_core: GPU thread split off by default (EDEN_NX2_SPLIT=2
+ turns it back on): Switch 2 boots hung waiting on GPU completions from it
+
+---
+ src/video_core/gpu_split.cpp | 5 ++++-
+ 1 file changed, 4 insertions(+), 1 deletion(-)
+
+diff --git a/src/video_core/gpu_split.cpp b/src/video_core/gpu_split.cpp
+index 7a4c093e1c..605795fb52 100644
+--- a/src/video_core/gpu_split.cpp
++++ b/src/video_core/gpu_split.cpp
+@@ -87,8 +87,11 @@ GpuSplit GpuSplit::instance;
+ 
+ void GpuSplit::MaybeStart(Core::System& system_) {
+     static const char mode = [] {
++        // AriseOS: off unless asked for (EDEN_NX2_SPLIT=1/2). On the phone, Switch 2 boots hung at
++        // "Launching..." waiting for GPU completions that the second thread published late or
++        // never signalled (lost wake-ups, events never set); the GPU thread runs the engines itself.
+         const char* value = std::getenv("EDEN_NX2_SPLIT");
+-        return value != nullptr ? value[0] : '2';
++        return value != nullptr ? value[0] : '0';
+     }();
+     const bool wanted = mode == '1' || mode == '2';
+     if (!wanted || !Tegra::g_nx2_ampere.load(std::memory_order_relaxed)) {
