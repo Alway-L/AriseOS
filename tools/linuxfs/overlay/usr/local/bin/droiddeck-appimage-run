@@ -228,6 +228,29 @@ while True:
             gpu += ", %d MHz" % (int(open("/sys/class/kgsl/kgsl-3d0/gpuclk").read().split()[0]) // 1000000)
         except (OSError, ValueError, IndexError):
             pass
+        # Clock now / ceiling per CPU cluster: a ceiling far below the hardware's maximum is a cap the
+        # phone set (performance profile, game service, heat), not the emulator idling.
+        clusters = []
+        for cpu in (0, 2, 6, 7):
+            base = "/sys/devices/system/cpu/cpu%d/cpufreq/" % cpu
+            try:
+                cur = int(open(base + "scaling_cur_freq").read()) // 1000
+                cap = int(open(base + "scaling_max_freq").read()) // 1000
+                top = int(open(base + "cpuinfo_max_freq").read()) // 1000
+                clusters.append("cpu%d %d/%d of %d MHz" % (cpu, cur, cap, top))
+            except (OSError, ValueError):
+                pass
+        try:
+            cap = int(open("/sys/class/kgsl/kgsl-3d0/devfreq/max_freq").read()) // 1000000
+            clusters.append("gpu ceiling %d MHz" % cap)
+        except (OSError, ValueError):
+            pass
+        try:
+            clusters.append("cpu %.0f C" % (int(open("/sys/class/thermal/thermal_zone1/temp").read()) / 1000))
+        except (OSError, ValueError):
+            pass
+        if clusters:
+            print("      clocks: " + ", ".join(clusters))
         print("%4ds available %d MiB, swap free %d of %d MiB, shmem %d MiB, GPU (kgsl) %s | %s" % (
             time.time() - start, kb(mi, "MemAvailable") >> 10, kb(mi, "SwapFree") >> 10, kb(mi, "SwapTotal") >> 10,
             kb(mi, "Shmem") >> 10, gpu, top))
