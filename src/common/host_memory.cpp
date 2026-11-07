@@ -718,6 +718,35 @@ static size_t AriseAvailableMiB() {
     return kib == ~size_t{0} ? kib : kib / 1024;
 }
 
+// AriseOS: settings for tests without a new build: KEY=VALUE lines in ~/.config/arise/orchid.env
+// (# comments) become environment variables when the emulator starts, unless already set.
+__attribute__((constructor)) static void AriseLoadEnvFile() {
+    const char* home = std::getenv("HOME");
+    if (home == nullptr) {
+        return;
+    }
+    const std::string path = std::string{home} + "/.config/arise/orchid.env";
+    FILE* file = std::fopen(path.c_str(), "r");
+    if (file == nullptr) {
+        return;
+    }
+    char line[512];
+    while (std::fgets(line, sizeof(line), file) != nullptr) {
+        std::string text{line};
+        while (!text.empty() && (text.back() == '\n' || text.back() == '\r' || text.back() == ' ')) {
+            text.pop_back();
+        }
+        const size_t equals = text.find('=');
+        if (text.empty() || text[0] == '#' || equals == std::string::npos || equals == 0) {
+            continue;
+        }
+        const std::string key = text.substr(0, equals);
+        setenv(key.c_str(), text.substr(equals + 1).c_str(), 0);
+        std::fprintf(stderr, "AriseOS: %s set from %s\n", key.c_str(), path.c_str());
+    }
+    std::fclose(file);
+}
+
 static int AriseOpenGuestMemoryFile(size_t size) {
     const char* toggle = std::getenv("ARISE_GUEST_MEMORY_FILE");
     if (toggle != nullptr && toggle[0] == '0') {
