@@ -1,0 +1,25 @@
+From b312e3ae085df475277dd19362b074f470802f69 Mon Sep 17 00:00:00 2001
+From: Alway-L <felipemoura2015078@gmail.com>
+Date: Sat, 7 Nov 2026 12:16:43 -0300
+Subject: [PATCH] vulkan: declare NoteDrawReuseProbeFrame before its definition
+ (Linux -Werror=missing-declarations)
+
+---
+ src/video_core/renderer_vulkan/vk_graphics_pipeline.cpp | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/src/video_core/renderer_vulkan/vk_graphics_pipeline.cpp b/src/video_core/renderer_vulkan/vk_graphics_pipeline.cpp
+index 24d4c97e84..42d5d0b854 100644
+--- a/src/video_core/renderer_vulkan/vk_graphics_pipeline.cpp
++++ b/src/video_core/renderer_vulkan/vk_graphics_pipeline.cpp
+@@ -345,6 +345,7 @@ ConfigureFuncPtr ConfigureFunc(const std::array<bool, NUM_STAGES>& stages,
+ std::atomic<std::chrono::nanoseconds::rep> hold_time_ns{};
+ } // Anonymous namespace
+ 
++void NoteDrawReuseProbeFrame();
+ void NoteDrawReuseProbeFrame() {
+     if (DrawReuseProbe::Enabled()) [[unlikely]] {
+         DrawReuseProbe::Get().Frame();
+-- 
+2.43.0
+
