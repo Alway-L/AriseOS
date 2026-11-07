@@ -2215,25 +2215,49 @@ bool TextureCache<P>::AriseBlitSampled(const TICEntry& src,
     if constexpr (FRAMEBUFFER_BLITS) {
         return false;
     } else {
-        const ImageInfo src_info(src);
+        static u32 reported = 0;
+        const auto refuse = [&](const char* reason) {
+            if (reported++ < 8) {
+                LOG_WARNING(HW_GPU, "AriseOS sampled blit {:#x} -> {:#x}: {}", src.Address(),
+                            dst.Address(), reason);
+            }
+            return false;
+        };
         const ImageInfo dst_info(dst);
-        if (GetFormatType(src_info.format) != SurfaceType::ColorTexture ||
-            GetFormatType(dst_info.format) != SurfaceType::ColorTexture) {
-            return false;
+        if (GetFormatType(dst_info.format) != SurfaceType::ColorTexture) {
+            return refuse("destination is not a colour format");
         }
-        const GPUVAddr src_addr = src.Address();
-        const GPUVAddr dst_addr = dst.Address();
-        const ImageId src_id = FindImage(src_info, src_addr, RelaxedOptions::Samples);
+        if (!IsValidEntry(*gpu_memory, src)) {
+            return refuse("invalid source descriptor");
+        }
+        // The same lookup a sampled texture takes: an image the GPU wrote in another format is
+        // joined or viewed as the descriptor's format.
+        const auto [pair, is_new] = channel_state->image_views.try_emplace(src);
+        if (is_new) {
+            pair->second = CreateImageView(src);
+            if (pair->second != NULL_IMAGE_VIEW_ID) {
+                image_view_descriptors[pair->second].emplace_back(current_channel_id, src);
+            }
+        }
+        const ImageViewId src_view_id = pair->second;
+        if (src_view_id == NULL_IMAGE_VIEW_ID) {
+            return refuse("no image view for the source");
+        }
+        PrepareImageView(src_view_id, false, false);
+        const ImageId src_id = slot_image_views[src_view_id].image_id;
         if (!src_id) {
-            return false;
+            return refuse("source view has no image");
         }
+        const GPUVAddr dst_addr = dst.Address();
         const ImageId dst_id = FindOrInsertImage(dst_info, dst_addr, RelaxedOptions::Samples);
-        if (!dst_id || !slot_images[src_id].TryFindBase(src_addr) ||
-            !slot_images[dst_id].TryFindBase(dst_addr) ||
-            slot_images[src_id].info.num_samples != 1 || slot_images[dst_id].info.num_samples != 1) {
-            return false;
+        if (!dst_id) {
+            return refuse("no destination image");
         }
-        PrepareImage(src_id, false, false);
+        const auto dst_base = slot_images[dst_id].TryFindBase(dst_addr);
+        if (!dst_base || slot_images[dst_id].info.num_samples != 1 ||
+            slot_images[src_id].info.num_samples != 1) {
+            return refuse("destination base or sample count");
+        }
         PrepareImage(dst_id, true, false);
         Image& src_image = slot_images[src_id];
         Image& dst_image = slot_images[dst_id];
@@ -2256,17 +2280,12 @@ bool TextureCache<P>::AriseBlitSampled(const TICEntry& src,
             region.end.x = resolution.ScaleUp(region.end.x);
             region.end.y = resolution.ScaleUp(region.end.y);
         };
-        const SubresourceRange src_range{.base = *src_image.TryFindBase(src_addr),
-                                         .extent = {1, 1}};
-        const ImageViewInfo src_view_info(ImageViewType::e2D, src_info.format, src_range);
-        const ImageViewId src_view_id = FindOrEmplaceImageView(src_id, src_view_info);
         Region2D src_region{Offset2D{.x = copy.src_x0, .y = copy.src_y0},
                             Offset2D{.x = copy.src_x1, .y = copy.src_y1}};
         if (is_src_rescaled) {
             scale_region(src_region);
         }
-        const SubresourceRange dst_range{.base = *slot_images[dst_id].TryFindBase(dst_addr),
-                                         .extent = {1, 1}};
+        const SubresourceRange dst_range{.base = *dst_base, .extent = {1, 1}};
         const ImageViewInfo dst_view_info(ImageViewType::e2D, dst_info.format, dst_range);
         const auto [dst_framebuffer_id, dst_view_id] = RenderTargetFromImage(dst_id, dst_view_info);
         Region2D dst_region{Offset2D{.x = copy.dst_x0, .y = copy.dst_y0},
