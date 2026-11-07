@@ -7,6 +7,11 @@
 
 namespace Shader::Maxwell {
 
+// AriseOS: set by the pipeline cache while it builds the disk cache at boot. Tensor programs are
+// left for when the game asks for them, so "Loading shaders" does not wait minutes on Turnip
+// compiling Ocarina's movie network (now skipped at run time, ocarina_movie.h).
+thread_local bool arise_preloading_pipelines = false;
+
 void TranslatorVisitor::TENSOR_MUL_ADD(u64 insn) {
     union {
         u64 raw;
@@ -31,7 +36,7 @@ void TranslatorVisitor::TENSOR_MUL_ADD(u64 insn) {
     // first boot compiles them for a few minutes, then they come from the pipeline cache.
     // EDEN_NX2_NO_TENSOR=1 turns them off.
     static const bool disabled{std::getenv("EDEN_NX2_NO_TENSOR") != nullptr};
-    if (disabled || ((insn >> 48) & 1) == 0) {
+    if (disabled || arise_preloading_pipelines || ((insn >> 48) & 1) == 0) {
         throw NotImplementedException("Unsupported matrix multiply encoding");
     }
     const bool short_depth = (insn >> 49) & 1;

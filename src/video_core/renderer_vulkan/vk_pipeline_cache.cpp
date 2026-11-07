@@ -41,6 +41,10 @@
 #include "common/shutdown_progress.h"
 #include "common/thread.h"
 #include "common/thread_worker.h"
+
+namespace Shader::Maxwell {
+extern thread_local bool arise_preloading_pipelines;
+}
 #include "core/core.h"
 #include "shader_recompiler/backend/spirv/emit_spirv.h"
 #include "shader_recompiler/environment.h"
@@ -2948,6 +2952,10 @@ void PipelineCache::LoadDiskResources(u64 title_id, std::stop_token stop_loading
                                                        PrebuildTicket& ticket) {
         ShaderPools pools;
         ComputePipelineCacheEntry entry;
+        Shader::Maxwell::arise_preloading_pipelines = true;
+        SCOPE_EXIT {
+            Shader::Maxwell::arise_preloading_pipelines = false;
+        };
         for (auto& env : envs) {
             pools.ReleaseContents();
             entry = CreateComputePipeline(pools, key, env, state.statistics.get(), false);
@@ -3699,6 +3707,10 @@ void PipelineCache::StartComputeWarm(u64 title_id) {
                 bool ok = false;
                 try {
                     ShaderPools pools;
+                    Shader::Maxwell::arise_preloading_pipelines = true;
+                    SCOPE_EXIT {
+                        Shader::Maxwell::arise_preloading_pipelines = false;
+                    };
                     // Built and destroyed here: only the driver's cache keeps it.
                     ok = CreateComputePipeline(pools, entry.key, entry.env, nullptr, false, true)
                              .pipeline != nullptr;
