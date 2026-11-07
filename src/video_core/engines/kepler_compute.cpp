@@ -4,6 +4,8 @@
 // SPDX-FileCopyrightText: Copyright 2018 yuzu Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+#include <string_view>
+#include <vector>
 #include <algorithm>
 #include <atomic>
 #include <bit>
@@ -1465,7 +1467,7 @@ void KeplerCompute::CheckDlssNetwork() {
         const auto tic = GetTICEntry(tic_index);
         using RTFormat = Tegra::RenderTargetFormat;
         Fermi2D::Surface result{};
-        switch (tic.format) {
+        switch (tic.format.Value()) {
         case Texture::TextureFormat::B10G11R11:
             result.format = RTFormat::B10G11R11_FLOAT;
             break;
@@ -2115,6 +2117,171 @@ bool KeplerCompute::ProcessOcarinaMovie(u64 program_id, u64 native_key) {
                          "of the movie network",
                  frame.Address(), frame.Width(), frame.Height(), output->Address(),
                  output->Width(), output->Height());
+    }
+    return true;
+}
+
+// AriseOS: Ocarina of Time runs one fused network dispatch per frame that writes the 1920x1080
+// B10G11R11 scene colour (native keys below). Emulated HMMA made it 490-815 ms of GPU time a
+// frame on an Adreno 830, ~90% of the frame. On ARM64 it is replaced by a bilinear blit of the
+// network's input colour into its output; EDEN_NX2_OOT_NETWORK=native keeps the network.
+bool KeplerCompute::ProcessOcarinaNetwork(u64 program_id, u64 native_key) {
+    static constexpr std::array<u64, 2> NetworkKeys{0xd8efd9f0c95abd80ULL, 0x6f9367bd41dc0b58ULL};
+#ifdef ARCHITECTURE_arm64
+    static const bool enabled = [] {
+        const char* value = std::getenv("EDEN_NX2_OOT_NETWORK");
+        return value == nullptr || std::string_view{value} != "native";
+    }();
+#else
+    static const bool enabled = [] {
+        const char* value = std::getenv("EDEN_NX2_OOT_NETWORK");
+        return value != nullptr && std::string_view{value} == "blit";
+    }();
+#endif
+    static bool failed = false;
+    if (!enabled || failed || program_id != VideoCommon::OcarinaMovie::ProgramId ||
+        std::ranges::find(NetworkKeys, native_key) == NetworkKeys.end()) {
+        return false;
+    }
+    using namespace Tegra::Texture;
+    const auto target_format = [](const TICEntry& tic) -> std::optional<Tegra::RenderTargetFormat> {
+        const bool float_types = tic.r_type == ComponentType::FLOAT;
+        const bool unorm_types = tic.r_type == ComponentType::UNORM;
+        switch (tic.format.Value()) {
+        case TextureFormat::B10G11R11:
+            return Tegra::RenderTargetFormat::B10G11R11_FLOAT;
+        case TextureFormat::R16G16B16A16:
+            if (float_types) {
+                return Tegra::RenderTargetFormat::R16G16B16A16_FLOAT;
+            }
+            return std::nullopt;
+        case TextureFormat::A8B8G8R8:
+            if (unorm_types && tic.srgb_conversion == 0) {
+                return Tegra::RenderTargetFormat::A8B8G8R8_UNORM;
+            }
+            return std::nullopt;
+        case TextureFormat::A2B10G10R10:
+            if (unorm_types) {
+                return Tegra::RenderTargetFormat::A2B10G10R10_UNORM;
+            }
+            return std::nullopt;
+        default:
+            return std::nullopt;
+        }
+    };
+    const auto usable = [](const TICEntry& tic) {
+        return (tic.texture_type == TextureType::Texture2D ||
+                tic.texture_type == TextureType::Texture2DNoMipmap) &&
+               tic.IsBlockLinear() && tic.Depth() == 1 && tic.Address() != 0 &&
+               tic.Width() >= 256 && tic.Height() >= 144 && tic.Width() <= 8192 &&
+               tic.Height() <= 8192;
+    };
+    struct Candidate {
+        u32 offset;
+        TICEntry tic;
+    };
+    std::vector<Candidate> candidates;
+    const auto& cbuf = launch_description.const_buffer_config[0];
+    const u32 scan = (std::min)(static_cast<u32>(cbuf.size.Value()), 0x400U);
+    for (u32 offset = 0; offset + 4 <= scan; offset += 4) {
+        const auto tic = ComputeImageHandle(offset);
+        if (!tic || !usable(*tic) || !target_format(*tic)) {
+            continue;
+        }
+        const bool seen = std::ranges::any_of(candidates, [&](const Candidate& c) {
+            return c.tic.Address() == tic->Address() && c.tic.format == tic->format;
+        });
+        if (!seen) {
+            candidates.push_back({offset, *tic});
+        }
+    }
+    const auto describe = [](const Candidate& c) {
+        return fmt::format(" [cb0+{:#x} {:#x} {}x{} format {:#x} type {} mips {}]", c.offset,
+                           c.tic.Address(), c.tic.Width(), c.tic.Height(),
+                           static_cast<u32>(c.tic.format.Value()),
+                           static_cast<u32>(c.tic.r_type.Value()), c.tic.max_mip_level.Value());
+    };
+    static u32 logged = 0;
+    if (logged < 4) {
+        ++logged;
+        std::string list;
+        for (const auto& c : candidates) {
+            list += describe(c);
+        }
+        std::string words;
+        const GPUVAddr address = (GPUVAddr{cbuf.address_high} << 32) | cbuf.address_low;
+        for (u32 offset = 0; offset + 4 <= (std::min)(scan, 0x200U); offset += 4) {
+            if (memory_manager.IsFullyMappedRange(address + offset, 4)) {
+                words += fmt::format(" {:08x}", memory_manager.Read<u32>(address + offset));
+            }
+        }
+        LOG_INFO(HW_GPU, "AriseOS Ocarina network {:#018x}: images{} | cb0{}", native_key,
+                 list.empty() ? " none" : list, words);
+    }
+    const Candidate* output = nullptr;
+    for (const auto& c : candidates) {
+        if (c.tic.format == TextureFormat::B10G11R11 &&
+            (output == nullptr || c.tic.Width() * c.tic.Height() >
+                                      output->tic.Width() * output->tic.Height())) {
+            output = &c;
+        }
+    }
+    const Candidate* input = nullptr;
+    if (output != nullptr) {
+        for (const auto& c : candidates) {
+            if (&c == output || c.tic.Address() == output->tic.Address() ||
+                c.tic.Width() > output->tic.Width() || c.tic.Height() > output->tic.Height()) {
+                continue;
+            }
+            if (input == nullptr ||
+                c.tic.Width() * c.tic.Height() > input->tic.Width() * input->tic.Height()) {
+                input = &c;
+            }
+        }
+    }
+    const auto surface = [&](const TICEntry& tic) {
+        Fermi2D::Surface result{};
+        result.format = *target_format(tic);
+        result.linear = Fermi2D::MemoryLayout::BlockLinear;
+        result.block_width.Assign(tic.block_width);
+        result.block_height.Assign(tic.block_height);
+        result.block_depth.Assign(tic.block_depth);
+        result.depth = 1;
+        result.width = tic.Width();
+        result.height = tic.Height();
+        result.addr_upper = static_cast<u32>(tic.Address() >> 32);
+        result.addr_lower = static_cast<u32>(tic.Address());
+        return result;
+    };
+    bool done = false;
+    if (output != nullptr && input != nullptr) {
+        const Fermi2D::Config config{
+            .operation = Fermi2D::Operation::SrcCopy,
+            .filter = Fermi2D::Filter::Bilinear,
+            .must_accelerate = true,
+            .dst_x0 = 0,
+            .dst_y0 = 0,
+            .dst_x1 = static_cast<s32>(output->tic.Width()),
+            .dst_y1 = static_cast<s32>(output->tic.Height()),
+            .src_x0 = 0,
+            .src_y0 = 0,
+            .src_x1 = static_cast<s32>(input->tic.Width()),
+            .src_y1 = static_cast<s32>(input->tic.Height()),
+        };
+        done = rasterizer->AccelerateSurfaceCopy(surface(input->tic), surface(output->tic), config);
+    }
+    if (!done) {
+        failed = true;
+        LOG_WARNING(HW_GPU, "AriseOS Ocarina network: no blit (output {}, input {}); the network "
+                            "runs natively",
+                    output ? describe(*output) : std::string{" none"},
+                    input ? describe(*input) : std::string{" none"});
+        return false;
+    }
+    static bool announced = false;
+    if (!std::exchange(announced, true)) {
+        LOG_INFO(HW_GPU, "AriseOS Ocarina network replaced: input{} scaled into output{}",
+                 describe(*input), describe(*output));
     }
     return true;
 }

@@ -274,6 +274,10 @@ public:
     /// Ocarina of Time's movie network (ocarina_movie.h): true when this dispatch is skipped or
     /// replaced.
     bool ProcessOcarinaMovie(u64 program_id, u64 native_key);
+
+    /// Ocarina of Time's per-frame image network on phones: true when the dispatch was replaced
+    /// by a bilinear blit of its input colour into its output.
+    bool ProcessOcarinaNetwork(u64 program_id, u64 native_key);
     void TraceDlssContract(u64 native_key, bool warn_unvalidated = true);
 
     /// GPU thread split with macros on its front half (gpu_split.h, EDEN_NX2_SPLIT=2), called by

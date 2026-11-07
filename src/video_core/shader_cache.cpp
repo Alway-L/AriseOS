@@ -359,6 +359,11 @@ const ShaderInfo* ShaderCache::ComputeShader() {
                                             shader->lowered_native->native_program_key)) {
         throw FireEmblemUpscale::DispatchReplaced{};
     }
+    if (kepler_compute->IsNativeMode() && shader->lowered_native &&
+        kepler_compute->ProcessOcarinaNetwork(program_id,
+                                              shader->lowered_native->native_program_key)) {
+        throw FireEmblemUpscale::DispatchReplaced{};
+    }
     return shader;
 }
 
