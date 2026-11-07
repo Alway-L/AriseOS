@@ -1,0 +1,49 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Alway-L <felipemoura2015078@gmail.com>
+Date: Sat, 7 Nov 2026 07:21:15 -0300
+Subject: [PATCH 13/13] core: back to the 12 GiB layout for every Switch 2 game
+ (Ocarina of Time does not boot on 8 or 10 GiB)
+
+---
+ src/core/core.cpp                                          | 7 -------
+ src/core/hle/kernel/board/nintendo/nx/k_system_control.cpp | 6 ++----
+ 2 files changed, 2 insertions(+), 11 deletions(-)
+
+diff --git a/src/core/core.cpp b/src/core/core.cpp
+index 84cf828815..9c93ea144c 100644
+--- a/src/core/core.cpp
++++ b/src/core/core.cpp
+@@ -369,14 +369,7 @@ struct System::Impl {
+ 
+         // Switch 2 titles size their heap from the total memory and need the 12 GiB layout. Set it
+         // as a per-game value, so RestoreGlobalState brings back the configured layout afterwards.
+-        // AriseOS: 8 and 10 GiB chosen in the settings are kept (a phone with 12 GiB of RAM cannot
+-        // give a game all 12); only 4 and 6 GiB are raised to 12.
+         if (switch2_program &&
+-            Settings::values.memory_layout_mode.GetValue() >= Settings::MemoryLayout::Memory_8Gb &&
+-            Settings::values.memory_layout_mode.GetValue() != Settings::MemoryLayout::Memory_12Gb) {
+-            LOG_WARNING(Core, "AriseOS: Switch 2 program on the smaller memory layout chosen in the settings ({})",
+-                        Settings::values.memory_layout_mode.GetValue() == Settings::MemoryLayout::Memory_10Gb ? "10 GiB" : "8 GiB");
+-        } else if (switch2_program &&
+             Settings::values.memory_layout_mode.GetValue() != Settings::MemoryLayout::Memory_12Gb) {
+             LOG_INFO(Core, "Switch 2 program: using the 12 GiB memory layout");
+             Settings::values.memory_layout_mode.SetGlobal(false);
+diff --git a/src/core/hle/kernel/board/nintendo/nx/k_system_control.cpp b/src/core/hle/kernel/board/nintendo/nx/k_system_control.cpp
+index c15acae094..ba4737e25f 100644
+--- a/src/core/hle/kernel/board/nintendo/nx/k_system_control.cpp
++++ b/src/core/hle/kernel/board/nintendo/nx/k_system_control.cpp
+@@ -89,12 +89,10 @@ size_t KSystemControl::Init::GetIntendedMemorySize() {
+         return 4_GiB;
+     case Smc::MemorySize_6GB:
+         return 6_GiB;
+-    // AriseOS: a Switch 2 game on the smaller 8/10 GiB layout keeps the graphics server's memory
+-    // (GPU-only regions, render targets), which comes on top of the 12 GiB on the console.
+     case Smc::MemorySize_8GB:
+-        return 8_GiB + (Settings::CurrentProgramIsSwitch2() ? KSystemControl::Nx2GraphicsServerMemorySize : 0);
++        return 8_GiB;
+     case Smc::MemorySize_10GB:
+-        return 10_GiB + (Settings::CurrentProgramIsSwitch2() ? KSystemControl::Nx2GraphicsServerMemorySize : 0);
++        return 10_GiB;
+     case Smc::MemorySize_12GB:
+         return 12_GiB + KSystemControl::Nx2GraphicsServerMemorySize;
+     }
