@@ -1,0 +1,173 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Alway-L <felipemoura2015078@gmail.com>
+Date: Fri, 6 Nov 2026 22:17:45 -0300
+Subject: [PATCH] video_core: AriseOS hang report (guest threads, code and
+ memory at their PCs, GPU split state) when no frame comes for 20 s; the
+ split's back thread never sleeps without a time limit
+
+---
+ src/video_core/gpu_split.cpp  | 21 ++++++++-
+ src/video_core/gpu_split.h    |  2 +
+ src/video_core/gpu_thread.cpp | 83 ++++++++++++++++++++++++++++++++++-
+ 3 files changed, 103 insertions(+), 3 deletions(-)
+
+diff --git a/src/video_core/gpu_split.cpp b/src/video_core/gpu_split.cpp
+index 560f346fe2..7a4c093e1c 100644
+--- a/src/video_core/gpu_split.cpp
++++ b/src/video_core/gpu_split.cpp
+@@ -204,6 +204,13 @@ void GpuSplit::Publish() {
+     }
+ }
+ 
++void GpuSplit::LogState() const {
++    LOG_WARNING(HW_GPU,
++                "AriseOS hang report: GPU split active {}, written {}, published {}, consumed {}, back {}",
++                active, write_position, published.load(), consumed.load(),
++                back_waiting.load() ? "parked" : "running");
++}
++
+ void GpuSplit::Drain() {
+     consumed_cache = consumed.load(std::memory_order_acquire);
+     if (consumed_cache == write_position) {
+@@ -386,8 +393,18 @@ void GpuSplit::BackLoop(std::stop_token stop_token) {
+                 back_waiting.store(true, std::memory_order_seq_cst);
+                 const u32 seen = wake.load(std::memory_order_seq_cst);
+                 available = published.load(std::memory_order_seq_cst);
+-                if (available == read_position && !stop_token.stop_requested()) {
+-                    wake.wait(seen, std::memory_order_seq_cst);
++                // AriseOS: never sleep without a time limit. A wake-up lost here left the GPU idle
++                // with work published and the game spinning on "Launching..."; poll every 0.25 ms.
++                while (available == read_position && !stop_token.stop_requested() &&
++                       wake.load(std::memory_order_seq_cst) == seen) {
++                    std::this_thread::sleep_for(std::chrono::microseconds{250});
++                    available = published.load(std::memory_order_seq_cst);
++                }
++                if (available != read_position && wake.load(std::memory_order_seq_cst) == seen) {
++                    static std::atomic<u32> recovered{};
++                    if (recovered.fetch_add(1) < 8) {
++                        LOG_WARNING(HW_GPU, "AriseOS: GPU back thread found published work without a wake-up");
++                    }
+                 }
+                 back_waiting.store(false, std::memory_order_relaxed);
+                 continue;
+diff --git a/src/video_core/gpu_split.h b/src/video_core/gpu_split.h
+index 56ef958281..0950d345e0 100644
+--- a/src/video_core/gpu_split.h
++++ b/src/video_core/gpu_split.h
+@@ -103,6 +103,8 @@ public:
+ 
+     /// Makes what was sent visible to the back.
+     void Publish();
++    /// AriseOS hang report: ring positions and whether the back thread is parked (front thread).
++    void LogState() const;
+     /// Waits until the back executed everything sent so far.
+     void Drain();
+ 
+diff --git a/src/video_core/gpu_thread.cpp b/src/video_core/gpu_thread.cpp
+index a61ffd3cc5..dddbadb4ae 100644
+--- a/src/video_core/gpu_thread.cpp
++++ b/src/video_core/gpu_thread.cpp
+@@ -12,6 +12,13 @@
+ #include "common/settings.h"
+ #include "common/thread.h"
+ #include "core/core.h"
++#include <string>
++#include <fmt/format.h>
++#include "common/logging.h"
++#include "core/memory.h"
++#include "core/hle/kernel/kernel.h"
++#include "core/hle/kernel/k_thread.h"
++#include "core/hle/kernel/k_process.h"
+ #include "core/frontend/graphics_context.h"
+ #include "video_core/control/scheduler.h"
+ #include "video_core/dma_pusher.h"
+@@ -70,6 +77,73 @@ void SignalCommand(SynchState& state, u64 fence, bool block) {
+     }
+ }
+ 
++// AriseOS: no new frame for 20 s while the GPU thread waits for work. Logs every guest thread of
++// the game (state, registers at its last interrupt) and, for runnable ones, the code around the PC
++// and the memory its registers point at, so a guest loop waiting on something can be read back.
++void AriseHangCheck(Core::System& system, const GpuSplit& split, bool pending_channels) {
++    static u64 last_presents = ~u64{0};
++    static auto last_change = std::chrono::steady_clock::now();
++    static auto last_report = std::chrono::steady_clock::time_point{};
++    static int reports = 0;
++    const u64 presents = Core::g_nx2_present_count.load(std::memory_order_relaxed);
++    const auto now = std::chrono::steady_clock::now();
++    if (presents != last_presents) {
++        last_presents = presents;
++        last_change = now;
++        return;
++    }
++    if (now - last_change < std::chrono::seconds{20} || now - last_report < std::chrono::seconds{60} ||
++        reports >= 3) {
++        return;
++    }
++    last_report = now;
++    ++reports;
++    auto* const process = system.Kernel().ApplicationProcess();
++    LOG_WARNING(HW_GPU, "AriseOS hang report {}: no new frame for {} s after {} presents; GPU idle, "
++                "channels waiting on a semaphore: {}",
++                reports, std::chrono::duration_cast<std::chrono::seconds>(now - last_change).count(),
++                presents, pending_channels);
++    split.LogState();
++    if (process == nullptr) {
++        return;
++    }
++    auto& memory = system.ApplicationMemory();
++    for (const auto& thread : process->GetThreadList()) {
++        const auto& ctx = thread.GetContext();
++        const auto state = static_cast<u32>(thread.GetState());
++        LOG_WARNING(HW_GPU, "AriseOS hang report: thread {} state {:#x} core {} prio {} wait {} pc {:#x} "
++                    "lr {:#x} sp {:#x} fp {:#x}",
++                    thread.GetThreadId(), state, thread.GetActiveCore(), thread.GetPriority(),
++                    static_cast<u32>(thread.GetWaitReasonForDebugging()), ctx.pc, ctx.lr, ctx.sp, ctx.fp);
++        if ((state & static_cast<u32>(Kernel::ThreadState::Mask)) !=
++            static_cast<u32>(Kernel::ThreadState::Runnable)) {
++            continue;
++        }
++        std::string regs;
++        for (size_t i = 0; i < ctx.r.size(); ++i) {
++            regs += fmt::format(" x{}={:x}", i, ctx.r[i]);
++        }
++        LOG_WARNING(HW_GPU, "AriseOS hang report: thread {} regs{}", thread.GetThreadId(), regs);
++        std::string code;
++        for (s64 i = -16; i < 16; ++i) {
++            const u64 at = ctx.pc + i * 4;
++            code += memory.IsValidVirtualAddressRange(at, 4) ? fmt::format(" {:08x}", memory.Read32(at)) : " ????????";
++        }
++        LOG_WARNING(HW_GPU, "AriseOS hang report: thread {} code from {:#x}:{}", thread.GetThreadId(),
++                    ctx.pc - 64, code);
++        for (size_t i = 0; i < ctx.r.size(); ++i) {
++            const u64 at = ctx.r[i] & ~u64{3};
++            if (at < 0x10000 || !memory.IsValidVirtualAddressRange(at, 16)) {
++                continue;
++            }
++            LOG_WARNING(HW_GPU, "AriseOS hang report: thread {} [x{} {:#x}] = {:08x} {:08x} {:08x} {:08x}",
++                        thread.GetThreadId(), i, at, memory.Read32(at), memory.Read32(at + 4),
++                        memory.Read32(at + 8), memory.Read32(at + 12));
++        }
++    }
++    Common::Log::Flush();
++}
++
+ } // Anonymous namespace
+ 
+ ThreadManager::ThreadManager(Core::System& system_)
+@@ -125,7 +199,14 @@ void ThreadManager::StartThread(VideoCore::RendererBase& renderer, Core::Fronten
+                 }
+             } else {
+                 Profile::Scope scope{Profile::Zone::Idle};
+-                state.queue.PopWait(next, stop_token);
++                // AriseOS: wait in 1 s slices, so a game that stops producing frames while the GPU
++                // has nothing to do is reported (what each guest thread is doing) in the log.
++                while (!state.queue.PopWaitFor(next, std::chrono::seconds{1})) {
++                    if (stop_token.stop_requested()) {
++                        break;
++                    }
++                    AriseHangCheck(system, split, scheduler.HasPendingChannels());
++                }
+             }
+             if (std::holds_alternative<std::monostate>(next.data)) {
+                 continue;
