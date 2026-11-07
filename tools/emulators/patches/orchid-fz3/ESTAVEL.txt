@@ -1,0 +1,2 @@
+Orchid estável atual: orchid-arise-fz-frizti-v3-b12 (2026-11-07; série tools/emulators/patches/orchid-fz3, commit 4b2c6ccb), com AriseOS 1.3.46.
+Anterior: orchid-arise-fz-frizti-v2-b5 (primeira imagem no Ocarina; série orchid-fz).
