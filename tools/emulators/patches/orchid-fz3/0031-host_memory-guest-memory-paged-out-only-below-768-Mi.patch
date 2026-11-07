@@ -1,0 +1,47 @@
+From 39964c909da607cb5c2edbc5126a2e529a6ce76f Mon Sep 17 00:00:00 2001
+From: Alway-L <felipemoura2015078@gmail.com>
+Date: Sat, 7 Nov 2026 15:24:00 -0300
+Subject: [PATCH] host_memory: guest memory paged out only below 768 MiB free;
+ pipeline preload flag reset on every exit
+
+---
+ src/common/host_memory.cpp                           | 5 ++++-
+ src/video_core/renderer_vulkan/vk_pipeline_cache.cpp | 4 +++-
+ 2 files changed, 7 insertions(+), 2 deletions(-)
+
+diff --git a/src/common/host_memory.cpp b/src/common/host_memory.cpp
+index b7fbc65f77..d220cf2827 100644
+--- a/src/common/host_memory.cpp
++++ b/src/common/host_memory.cpp
+@@ -638,8 +638,11 @@ static void AriseWatchMemory(u8* base, size_t size) {
+             // barely moved while 4.5 GiB of guest memory stayed in RAM). Below the threshold, page out
+             // a 256 MiB window of guest memory every half second, walking through all of it:
+             // pages the game is not using stay out, those it uses come back on their next touch.
++            // AriseOS: 768 MiB, an emergency only. With guest memory in a file the kernel can write
++            // it back by itself; paging 512 MiB windows out at 1.5 GiB free made the emulator
++            // threads read them back from storage hundreds of times a second.
+             const char* value = std::getenv("ARISE_PAGEOUT_BELOW_MIB");
+-            const size_t threshold = value != nullptr ? std::strtoull(value, nullptr, 10) : 1536;
++            const size_t threshold = value != nullptr ? std::strtoull(value, nullptr, 10) : 768;
+             if (threshold == 0) {
+                 return;
+             }
+diff --git a/src/video_core/renderer_vulkan/vk_pipeline_cache.cpp b/src/video_core/renderer_vulkan/vk_pipeline_cache.cpp
+index 0b6ed4a180..5204dc5918 100644
+--- a/src/video_core/renderer_vulkan/vk_pipeline_cache.cpp
++++ b/src/video_core/renderer_vulkan/vk_pipeline_cache.cpp
+@@ -1226,8 +1226,10 @@ void PipelineCache::LoadDiskResources(u64 title_id, std::stop_token stop_loading
+         workers.QueueWork([this, key, env_ = std::move(env), &state, &callback]() mutable {
+             ShaderPools pools;
+             Shader::Maxwell::arise_preloading_pipelines = true;
++            SCOPE_EXIT {
++                Shader::Maxwell::arise_preloading_pipelines = false;
++            };
+             auto entry{CreateComputePipeline(pools, key, env_, state.statistics.get(), false)};
+-            Shader::Maxwell::arise_preloading_pipelines = false;
+             std::scoped_lock lock{state.mutex};
+             if (entry.pipeline) {
+                 compute_cache.emplace(key, std::move(entry));
+-- 
+2.43.0
+
