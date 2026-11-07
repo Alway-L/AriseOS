@@ -151,6 +151,7 @@ void TextureCache<P>::RunGarbageCollector(bool out_of_memory) {
     bool high_priority_mode = false;
     bool aggressive_mode = false;
     bool evict_old_costly = false;
+    bool emergency = false;
     u64 ticks_to_destroy = 0;
     size_t num_iterations = 0;
     const auto Configure = [&](bool allow_aggressive) {
@@ -165,9 +166,26 @@ void TextureCache<P>::RunGarbageCollector(bool out_of_memory) {
         }();
         ticks_to_destroy = (std::max)(ticks_to_destroy, min_age);
         num_iterations = aggressive_mode ? 40 : (high_priority_mode ? 20 : 10);
+        // AriseOS: loading an area made thousands of images in a few frames (Ocarina of Time: 480 MiB
+        // to 2.6 GiB of device memory in 15 s, critical 768 MiB). They were all younger than the 10
+        // frames above and the collector freed nothing, so the phone ran out of RAM (the GPU's memory
+        // is RAM there) and Android ended the app. Far over the limit, images two frames old go too,
+        // costly ones included, and the pass visits many more; a re-upload beats being killed.
+        if (allow_aggressive && total_used_memory >= critical_memory + critical_memory / 2) {
+            ticks_to_destroy = (std::max)(u64{2}, min_age);
+            evict_old_costly = true;
+            emergency = true;
+            num_iterations = 400;
+            static u32 notes = 0;
+            if (notes < 5) {
+                ++notes;
+                LOG_WARNING(HW_GPU, "AriseOS: texture cache at {} MiB (critical {} MiB): emergency collection",
+                            total_used_memory >> 20, critical_memory >> 20);
+            }
+        }
     };
     const auto Cleanup = [this, &num_iterations, &high_priority_mode, &aggressive_mode,
-                          &evict_old_costly, out_of_memory](ImageId image_id) {
+                          &evict_old_costly, &emergency, out_of_memory](ImageId image_id) {
         if (num_iterations == 0) {
             return true;
         }
@@ -177,6 +195,9 @@ void TextureCache<P>::RunGarbageCollector(bool out_of_memory) {
             return false;
         }
         const bool must_download = IsDownloadable(image) && False(image.flags & ImageFlagBits::BadOverlap);
+        if (emergency && must_download) {
+            return false; // a download per image would stall the GPU for each; free the others
+        }
         if ((!aggressive_mode && !evict_old_costly && True(image.flags & ImageFlagBits::CostlyLoad)) ||
             (!high_priority_mode && must_download)) {
             return false;
@@ -662,7 +683,12 @@ void TextureCache<P>::TickFrame() {
     }
     // Every 600 frames: device memory in use against the collector's thresholds.
     // Skip expensive heap allocation, map construction, and sorting unless debug logging is explicitly enabled.
+    // AriseOS: on by default on ARM64 (phones), where the texture cache decides if Android keeps the app.
+#ifdef ARCHITECTURE_arm64
+    static const bool log_tc = true;
+#else
     static const bool log_tc = std::getenv("EDEN_NX2_TC_LOG") != nullptr;
+#endif
     static u64 frames{};
     if (log_tc && ++frames % 600 == 0) {
         u64 image_bytes{};
