@@ -3469,4 +3469,8 @@
     <string name="touch_style_switch">Switch</string>
     <string name="touch_style_playstation">PlayStation</string>
     <string name="touch_style_title">Estilo dos botões</string>
+    <string name="game_booster_title">Game Booster da Samsung</string>
+    <string name="game_booster_hint">Abre o Gaming Hub: adicione o AriseOS lá e escolha Desempenho no painel do Game Booster para mais MHz de CPU e GPU.</string>
+    <string name="game_booster_open">Abrir</string>
+    <string name="game_booster_toast">Adicione o AriseOS na Biblioteca e escolha Desempenho no Game Booster.</string>
 </resources>

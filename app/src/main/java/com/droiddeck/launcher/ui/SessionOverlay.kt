@@ -535,7 +535,17 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                     modifier = Modifier.weight(1f).fillMaxWidth().verticalScroll(pageScroll.getValue(page)),
                 ) { CompositionLocalProvider(LocalChipMinWidth provides 96.dp, LocalCompactSettings provides true) {
                     when (page) {
-                        SessionDrawerPage.HUD -> DroidDeckHudSettings(host, a) { key -> focus.track(page, key) }
+                        SessionDrawerPage.HUD -> {
+                            val context = LocalContext.current
+                            if (com.droiddeck.launcher.core.GameBooster.available(context)) {
+                                SettingsGroup(stringResource(R.string.game_booster_title)) {
+                                    ActionRow(stringResource(R.string.game_booster_title), stringResource(R.string.game_booster_hint),
+                                        stringResource(R.string.game_booster_open), { com.droiddeck.launcher.core.GameBooster.open(context) },
+                                        modifier = focus.track(page, "game-booster"))
+                                }
+                            }
+                            DroidDeckHudSettings(host, a) { key -> focus.track(page, key) }
+                        }
                         SessionDrawerPage.DISPLAY -> {
                             SettingsGroup(stringResource(R.string.drawer_page_display)) {
                                 val fgOpen = host.open == "fg"

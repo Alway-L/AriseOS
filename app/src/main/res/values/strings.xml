@@ -3553,4 +3553,8 @@
     <string name="touch_style_switch">Switch</string>
     <string name="touch_style_playstation">PlayStation</string>
     <string name="touch_style_title">Button style</string>
+    <string name="game_booster_title">Samsung Game Booster</string>
+    <string name="game_booster_hint">Opens Gaming Hub: add AriseOS there and pick Performance in the Game Booster panel for higher CPU and GPU clocks.</string>
+    <string name="game_booster_open">Open</string>
+    <string name="game_booster_toast">Add AriseOS in the Library, then choose Performance in Game Booster.</string>
 </resources>
