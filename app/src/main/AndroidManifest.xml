@@ -58,6 +58,7 @@
         android:largeHeap="true"
         android:extractNativeLibs="true"
         android:appCategory="game"
+        android:isGame="true"
         android:isGame="true">
 
         <meta-data android:name="android.game_mode_config" android:resource="@xml/game_mode_config" />
