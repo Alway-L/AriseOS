@@ -161,10 +161,33 @@ while True:
                     cpu = 0
                 busy = int(100 * (cpu - last.get(pid, cpu)) / 15)
                 last[pid] = cpu
-                procs.append((rss, name, kb(st, "RssAnon"), kb(st, "RssShmem"), kb(st, "VmSwap"), busy, kb(st, "Threads")))
+                procs.append((rss, name, kb(st, "RssAnon"), kb(st, "RssShmem"), kb(st, "VmSwap"), busy, kb(st, "Threads"), pid))
         procs.sort(reverse=True)
+        # Busy threads of the biggest process (the emulator): which one spins when a game hangs.
+        if procs:
+            big = procs[0][7]
+            hot = []
+            try:
+                for tid in os.listdir("/proc/%s/task" % big):
+                    try:
+                        f = open("/proc/%s/task/%s/stat" % (big, tid)).read()
+                        comm = f[f.index("(") + 1:f.rindex(")")]
+                        rest = f.rsplit(")", 1)[1].split()
+                        cpu = (int(rest[11]) + int(rest[12])) / ticks
+                    except (OSError, ValueError, IndexError):
+                        continue
+                    key = "t" + tid
+                    busy = int(100 * (cpu - last.get(key, cpu)) / 15)
+                    last[key] = cpu
+                    if busy >= 10:
+                        hot.append((busy, comm, rest[0]))
+            except OSError:
+                pass
+            if hot:
+                hot.sort(reverse=True)
+                print("      busy threads: " + ", ".join("%s %d%% (%s)" % (c, b, st) for b, c, st in hot[:8]))
         top = ", ".join("%s %d MiB (anon %d, shm %d, swap %d, cpu %d%%, %d threads)" % (n, r >> 10, a >> 10, sh >> 10,
-                        sw >> 10, b, t) for r, n, a, sh, sw, b, t in procs[:5])
+                        sw >> 10, b, t) for r, n, a, sh, sw, b, t, _ in procs[:5])
         print("%4ds available %d MiB, swap free %d of %d MiB, shmem %d MiB | %s" % (
             time.time() - start, kb(mi, "MemAvailable") >> 10, kb(mi, "SwapFree") >> 10, kb(mi, "SwapTotal") >> 10,
             kb(mi, "Shmem") >> 10, top))
