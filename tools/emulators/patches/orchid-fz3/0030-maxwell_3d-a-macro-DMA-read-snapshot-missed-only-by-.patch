@@ -1,0 +1,98 @@
+From 30e1e3301e99082dfe1d457d8cb01670777307df Mon Sep 17 00:00:00 2001
+From: Alway-L <felipemoura2015078@gmail.com>
+Date: Sat, 7 Nov 2026 15:22:42 -0300
+Subject: [PATCH] maxwell_3d: a macro DMA read snapshot missed only by compute
+ or copy work waits for that work alone and is kept when it left the pages
+ untouched
+
+---
+ src/video_core/engines/maxwell_3d.cpp | 46 +++++++++++++++++++++++++++
+ src/video_core/gpu_split.h            | 11 +++++++
+ 2 files changed, 57 insertions(+)
+
+diff --git a/src/video_core/engines/maxwell_3d.cpp b/src/video_core/engines/maxwell_3d.cpp
+index bc50a9b75a..748fa07317 100644
+--- a/src/video_core/engines/maxwell_3d.cpp
++++ b/src/video_core/engines/maxwell_3d.cpp
+@@ -1869,6 +1869,52 @@ void Maxwell3D::FrontDmaRead(VideoCommon::GpuSplit& split, FrontState& fs, u32 m
+                     ++miss_reasons[reason];
+                 }
+             }
++            // AriseOS: a miss caused only by compute or copy work sent since the snapshot waits
++            // for that work (not for everything queued after it) and keeps the snapshot when the
++            // work left these pages untouched (not GPU-modified). Ocarina's forest drained ~260
++            // times a second for its per-object report reads, the front and back taking turns.
++            static u64 writer_waits{};
++            static u64 writer_saved{};
++            if (!hit && snapshot_mode >= 9) {
++                const GPUVAddr page_begin = source & ~GPUVAddr{0xfff};
++                const GPUVAddr page_end = (source + read_bytes + 0xfff) & ~GPUVAddr{0xfff};
++                bool only_writers = true;
++                u64 oldest = ~u64{0};
++                for (u64 page = first_page; page <= last_page && only_writers; ++page) {
++                    const auto it = fs.dma_snapshots.find(page);
++                    only_writers = it != fs.dma_snapshots.end() &&
++                                   !split.MayBeWrittenSinceExceptWriters(it->second, *device,
++                                                                         read_bytes);
++                    if (only_writers) {
++                        oldest = (std::min)(oldest, it->second);
++                    }
++                }
++                if (only_writers && split.LastWriterPosition() > oldest) {
++                    ++writer_waits;
++                    const u64 validated = split.LastWriterPosition();
++                    split.WaitUntil(validated, VideoCommon::DrainSite::MacroDmaRead);
++                    if (!memory_manager.IsMemoryDirty(page_begin,
++                                                      static_cast<size_t>(page_end - page_begin),
++                                                      VideoCommon::CacheType::BufferCache) &&
++                        !split.MayBeWrittenSinceExceptWriters(oldest, *device, read_bytes)) {
++                        ++writer_saved;
++                        for (u64 page = first_page; page <= last_page; ++page) {
++                            fs.dma_snapshots[page] = validated;
++                        }
++                        hit = true;
++                    }
++                }
++            }
++            {
++                static auto last_writer_log = std::chrono::steady_clock::now();
++                if (const auto now = std::chrono::steady_clock::now();
++                    now - last_writer_log >= std::chrono::seconds{5}) {
++                    last_writer_log = now;
++                    LOG_INFO(HW_GPU, "AriseOS DMA snapshot: {} compute/copy misses waited for that "
++                                     "work only, {} kept their snapshot",
++                             writer_waits, writer_saved);
++                }
++            }
+             // A report's value is up to 8 bytes, listed by its first 4: look 12 bytes back. A
+             // listed report may not be in guest memory yet: take the drained path.
+             if (!hit || !rasterizer->HasCachedReports(*device - 12, u64{read_bytes} + 12)) {
+diff --git a/src/video_core/gpu_split.h b/src/video_core/gpu_split.h
+index f6f9c8f1fc..7582057bd5 100644
+--- a/src/video_core/gpu_split.h
++++ b/src/video_core/gpu_split.h
+@@ -301,10 +301,21 @@ public:
+     /// whether work sent after position `since` may write device bytes
+     /// [begin, begin + size): compute or copies (any range), unranged writers, or a noted write
+     /// that overlaps the range. Also true when more writes were noted since than are remembered.
++    /// MayBeWrittenSince without compute and copy work (AriseOS: checked on its own, after
++    /// waiting for that work, by whether it left the range GPU-modified).
++    [[nodiscard]] bool MayBeWrittenSinceExceptWriters(u64 since, u64 begin, u64 size) const {
++        if (last_unranged_position > since) {
++            return true;
++        }
++        return MayBeWrittenSinceRanged(since, begin, size);
++    }
+     [[nodiscard]] bool MayBeWrittenSince(u64 since, u64 begin, u64 size) const {
+         if (last_writer_position > since || last_unranged_position > since) {
+             return true;
+         }
++        return MayBeWrittenSinceRanged(since, begin, size);
++    }
++    [[nodiscard]] bool MayBeWrittenSinceRanged(u64 since, u64 begin, u64 size) const {
+         if (last_memory_writer_position <= since) {
+             return false;
+         }
+-- 
+2.43.0
+
