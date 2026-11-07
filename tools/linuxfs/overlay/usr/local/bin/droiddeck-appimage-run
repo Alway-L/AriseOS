@@ -126,6 +126,54 @@ for gib in (12, 8, 4):
 PY
 fi
 echo "== appimage $ARGV0 ($APPDIR) ${flags[*]} FEX $fex Qt $qt${QT_QPA_PLATFORM:+ ($QT_QPA_PLATFORM)}"
+# AriseOS: while a Switch emulator runs, log the phone's free memory and the biggest processes every 15 s, so a
+# session Android ends for memory (LOW_MEMORY) shows what grew before it.
+sampler=
+if [ -e "$APPDIR/usr/bin/eden-cli" ] && command -v python3 >/dev/null 2>&1; then
+  python3 -u - <<'PY' 2>/dev/null | sed -u 's/^/== mem: /' &
+import os, time
+def kb(text, key):
+    for line in text.splitlines():
+        if line.startswith(key + ":"):
+            return int(line.split()[1])
+    return 0
+start = time.time()
+ticks = os.sysconf("SC_CLK_TCK")
+last = {}
+while True:
+    try:
+        mi = open("/proc/meminfo").read()
+        procs = []
+        for pid in os.listdir("/proc"):
+            if not pid.isdigit():
+                continue
+            try:
+                st = open("/proc/%s/status" % pid).read()
+            except OSError:
+                continue
+            rss = kb(st, "VmRSS")
+            if rss > 50 * 1024:
+                name = st.split("\n", 1)[0].split(":", 1)[1].strip()
+                try:
+                    f = open("/proc/%s/stat" % pid).read().rsplit(")", 1)[1].split()
+                    cpu = (int(f[11]) + int(f[12])) / ticks
+                except (OSError, IndexError, ValueError):
+                    cpu = 0
+                busy = int(100 * (cpu - last.get(pid, cpu)) / 15)
+                last[pid] = cpu
+                procs.append((rss, name, kb(st, "RssAnon"), kb(st, "RssShmem"), kb(st, "VmSwap"), busy, kb(st, "Threads")))
+        procs.sort(reverse=True)
+        top = ", ".join("%s %d MiB (anon %d, shm %d, swap %d, cpu %d%%, %d threads)" % (n, r >> 10, a >> 10, sh >> 10,
+                        sw >> 10, b, t) for r, n, a, sh, sw, b, t in procs[:5])
+        print("%4ds available %d MiB, swap free %d of %d MiB, shmem %d MiB | %s" % (
+            time.time() - start, kb(mi, "MemAvailable") >> 10, kb(mi, "SwapFree") >> 10, kb(mi, "SwapTotal") >> 10,
+            kb(mi, "Shmem") >> 10, top))
+    except Exception as e:
+        print("sampler: %s" % e)
+    time.sleep(15)
+PY
+  sampler=$!
+fi
 cd "$APPDIR" || exit 1
 started=$(mktemp "${TMPDIR:-/tmp}/droiddeck-appimage.XXXXXX")
 case ${DBUS_SESSION_BUS_ADDRESS:-} in
@@ -138,6 +186,7 @@ case ${DBUS_SESSION_BUS_ADDRESS:-} in
      fi ;;
 esac
 rc=$?
+[ -n "$sampler" ] && kill "$sampler" 2>/dev/null
 if [ "$rc" -gt 128 ]; then
   echo "== appimage $ARGV0: ended by signal $((rc - 128)) ($(kill -l $((rc - 128)) 2>/dev/null))"
 else
