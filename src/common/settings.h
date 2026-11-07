@@ -573,8 +573,14 @@ struct Values {
 
     SwitchableSetting<GpuAccuracy, true> gpu_accuracy{linkage,
                                                       // Low on desktop too: the Frizti builds are
-                                                      // tuned for Ocarina of Time there.
+                                                      // tuned for Ocarina of Time there. High on
+                                                      // AriseOS phones (with reactive flushing): the
+                                                      // forest fog was washed out white at Low.
+#ifdef ARCHITECTURE_arm64
+                                                      GpuAccuracy::High,
+#else
                                                       GpuAccuracy::Low,
+#endif
                                                       "gpu_accuracy",
                                                       Category::RendererAdvanced,
                                                       Specialization::Default,
@@ -730,8 +736,10 @@ struct Values {
     SwitchableSetting<bool> mkw_dynamic_fps{linkage, false, "mkw_dynamic_fps",
                                             Category::RendererAdvanced};
 
+    // AriseOS: on for phones too: without it, and at Low accuracy, Ocarina of Time's auto
+    // exposure read nothing back from the GPU and its forest was washed out white.
     SwitchableSetting<bool> use_reactive_flushing{linkage,
-#if defined(__ANDROID__) || defined(ARCHITECTURE_arm64)
+#if defined(__ANDROID__)
                                                   false,
 #else
                                                   true,
