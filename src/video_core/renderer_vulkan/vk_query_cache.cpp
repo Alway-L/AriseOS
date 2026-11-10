@@ -96,11 +96,23 @@ public:
     // made the wait spin forever inside RADV with all GPU work finished (Ocarina of Time froze
     // right after its intro on Xclipse; their begin and end were recorded into a submission the GPU
     // had finished, and no reset came after). Such slots read as 0 after a while and are logged.
+    // Once the GPU has finished the bank's last submission, a slot that is still not available
+    // never will be: stop shortly after that instead of at the 2 s deadline. Fire Emblem:
+    // Fortune's Weave (04007EF01F8AE000) hit it on nearly every frame and ran at 0 FPS.
     void Sync(size_t start, size_t size) {
         const auto& dev = device.GetLogical();
         std::vector<std::array<u64, 2>> results(size);
-        const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds{2};
+        auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds{2};
+        bool gpu_done = false;
         for (u32 spins = 0;; ++spins) {
+            if (!gpu_done && (spins & 63) == 0) {
+                scheduler.GetMasterSemaphore().Refresh();
+            }
+            if (!gpu_done && scheduler.IsFree(last_used_tick)) {
+                gpu_done = true;
+                deadline = (std::min)(deadline, std::chrono::steady_clock::now() +
+                                                    std::chrono::milliseconds{2});
+            }
             const VkResult query_result = dev.GetQueryResults(
                 *query_pool, static_cast<u32>(start), static_cast<u32>(size),
                 results.size() * sizeof(results[0]), results.data(), sizeof(results[0]),
