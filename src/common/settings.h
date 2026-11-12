@@ -573,14 +573,13 @@ struct Values {
 
     SwitchableSetting<GpuAccuracy, true> gpu_accuracy{linkage,
                                                       // Low on desktop too: the Frizti builds are
-                                                      // tuned for Ocarina of Time there. High on
-                                                      // AriseOS phones (with reactive flushing): the
-                                                      // forest fog was washed out white at Low.
-#ifdef ARCHITECTURE_arm64
-                                                      GpuAccuracy::High,
-#else
+                                                      // tuned for Ocarina of Time there. Low on
+                                                      // AriseOS phones too: reactive flushing is
+                                                      // what un-whitens the forest fog, and High
+                                                      // spent 355 ms of every GPU-thread second
+                                                      // flushing for CPU writes (337 a second, 0
+                                                      // bytes downloaded) on an Adreno 830.
                                                       GpuAccuracy::Low,
-#endif
                                                       "gpu_accuracy",
                                                       Category::RendererAdvanced,
                                                       Specialization::Default,
