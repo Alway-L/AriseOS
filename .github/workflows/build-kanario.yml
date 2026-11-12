@@ -191,6 +191,7 @@ jobs:
           -DUSE_DISCORD_PRESENCE=OFF
           -DUSE_CCACHE=ON
           -DKANARIO_BUILD=ON
+          -DENABLE_WERROR=OFF
         )
         if [ '${{ matrix.pgo }}' = 'true' ]; then
           # Same flags Eden's CI passes for its clang PGO build.
