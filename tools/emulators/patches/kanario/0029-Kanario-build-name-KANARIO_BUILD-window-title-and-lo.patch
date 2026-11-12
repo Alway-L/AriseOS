@@ -1,0 +1,106 @@
+From d88dec6c2e704969a9062fdd680698957a118fd3 Mon Sep 17 00:00:00 2001
+From: Alway-L <felipemoura2015078@gmail.com>
+Date: Thu, 12 Nov 2026 10:05:49 -0300
+Subject: [PATCH 29/29] Kanario: build name (KANARIO_BUILD), window title and
+ log line; keeps the eden data folder; Ocarina's speed fix applies to it,
+ frame generation stays available
+
+---
+ CMakeModules/GenerateSCMRev.cmake     | 4 +++-
+ src/common/fs/fs_paths.h              | 5 +++--
+ src/common/settings.cpp               | 3 ++-
+ src/qt_common/qt_common.cpp           | 4 +++-
+ src/tests/common/data_directories.cpp | 2 +-
+ src/yuzu/bootmanager.cpp              | 4 +++-
+ 6 files changed, 15 insertions(+), 7 deletions(-)
+
+diff --git a/CMakeModules/GenerateSCMRev.cmake b/CMakeModules/GenerateSCMRev.cmake
+index 7301d3aba0..41cf48be27 100644
+--- a/CMakeModules/GenerateSCMRev.cmake
++++ b/CMakeModules/GenerateSCMRev.cmake
+@@ -62,7 +62,9 @@ set(BUILD_AUTO_UPDATE_STABLE_API "api.github.com")
+ set(BUILD_AUTO_UPDATE_API_PATH "/repos/zortos293/Lichii/releases?per_page=100")
+ set(BUILD_AUTO_UPDATE_WEBSITE "https://github.com")
+ set(BUILD_AUTO_UPDATE_REPO "zortos293/Lichii")
+-if (NIGHTLY_BUILD)
++if (KANARIO_BUILD)
++    set(REPO_NAME "Kanario")
++elseif (NIGHTLY_BUILD)
+     set(REPO_NAME "Lichii Nightly")
+ elseif (FRIZTI_VERSION AND NOT LICHII_BUILD_TAG MATCHES "^build-[0-9]+$")
+     set(REPO_NAME "Fritchii")
+diff --git a/src/common/fs/fs_paths.h b/src/common/fs/fs_paths.h
+index 2d0204cc8f..480016d2f9 100644
+--- a/src/common/fs/fs_paths.h
++++ b/src/common/fs/fs_paths.h
+@@ -10,8 +10,9 @@
+ 
+ // Fritchii keeps its own profile (v5.8, the owner's call): imported from eden (Eden, Lichii
+ // before build 150, earlier Fritchii) or lichii (Lichii 150+) on the first launch.
+-#define EDEN_DIR "fritchii"
+-#define EDEN_LEGACY_DIR "eden"
++// AriseOS Kanario keeps the eden folder: saves, settings and shader caches stay where they were.
++#define EDEN_DIR "eden"
++#define EDEN_LEGACY_DIR "fritchii"
+ #define LICHII_DIR "lichii"
+ #define PORTABLE_DIR "user"
+ 
+diff --git a/src/common/settings.cpp b/src/common/settings.cpp
+index 4bb2cf954c..4c8e47d8f5 100644
+--- a/src/common/settings.cpp
++++ b/src/common/settings.cpp
+@@ -449,7 +449,8 @@ bool SpeedLimitEnabled() {
+     // Fritchii: Ocarina of Time's logic takes one fixed step per frame (1/60 s, or 1/30 with the
+     // 30 FPS mode), so "Unlocked" above 60 FPS ran the whole game fast, not just smoother
+     // (2026-11-09). It stays at its speed; Turbo and Slow remain the deliberate speed changes.
+-    static const bool fritchii = std::string_view{Common::g_build_name} == "Fritchii";
++    static const bool fritchii = std::string_view{Common::g_build_name} == "Fritchii" ||
++                                 std::string_view{Common::g_build_name} == "Kanario";
+     constexpr u64 OcarinaOfTime = 0x0400486024DEC000ULL;
+     if (!fritchii || GetCurrentProgramID() != OcarinaOfTime) {
+         return false;
+diff --git a/src/qt_common/qt_common.cpp b/src/qt_common/qt_common.cpp
+index 594f3f4a3c..45a79d5432 100644
+--- a/src/qt_common/qt_common.cpp
++++ b/src/qt_common/qt_common.cpp
+@@ -217,7 +217,9 @@ std::string BuildVersionString() {
+     const auto build_id = std::string(Common::g_build_id);
+ 
+     const auto yuzu_build =
+-        std::string_view{Common::g_build_name} == "Fritchii"
++        std::string_view{Common::g_build_name} == "Kanario"
++            ? fmt::format("Kanario {} | {}-{}", Common::g_build_version, branch_name, description)
++        : std::string_view{Common::g_build_name} == "Fritchii"
+             ? fmt::format("Fritchii {} | {}-{}", Common::g_build_version, branch_name, description)
+             : fmt::format("Lichii Development Build | {}-{}", branch_name, description);
+     const auto override_build =
+diff --git a/src/tests/common/data_directories.cpp b/src/tests/common/data_directories.cpp
+index 34858faa2e..e0cad10873 100644
+--- a/src/tests/common/data_directories.cpp
++++ b/src/tests/common/data_directories.cpp
+@@ -13,6 +13,6 @@ TEST_CASE("Lichii keeps its data apart from Eden's", "[fs]") {
+         SKIP("portable user directory in use");
+     }
+     CHECK(data.filename() == "fritchii");
+-    CHECK(GetLegacyPath(LegacyEdenDir).filename() == "eden");
++    CHECK(GetLegacyPath(LegacyEdenDir).filename() == "fritchii");
+     CHECK(GetLegacyPath(LegacyEdenDir).parent_path() == data.parent_path());
+ }
+diff --git a/src/yuzu/bootmanager.cpp b/src/yuzu/bootmanager.cpp
+index f4cc00aadf..3ae1de4707 100644
+--- a/src/yuzu/bootmanager.cpp
++++ b/src/yuzu/bootmanager.cpp
+@@ -119,7 +119,9 @@ struct NullRenderWidget : public RenderWidget {
+ GRenderWindow::GRenderWindow(MainWindow* parent,
+                              std::shared_ptr<InputCommon::InputSubsystem> input_subsystem_)
+     : QWidget(parent), input_subsystem{std::move(input_subsystem_)} {
+-    if (std::string_view{Common::g_build_name} == "Fritchii") {
++    if (std::string_view{Common::g_build_name} == "Kanario") {
++        setWindowTitle(QStringLiteral("Kanario %1").arg(QString::fromUtf8(Common::g_build_version)));
++    } else if (std::string_view{Common::g_build_name} == "Fritchii") {
+         setWindowTitle(QStringLiteral("Fritchii %1").arg(QString::fromUtf8(Common::g_build_version)));
+     } else {
+         setWindowTitle(QStringLiteral("Lichii %1 | %2-%3")
+-- 
+2.43.0
+

@@ -1,0 +1,79 @@
+From ec242d39fb4afca45749a9e180809f7aa67a4d2e Mon Sep 17 00:00:00 2001
+From: Alway-L <felipemoura2015078@gmail.com>
+Date: Sat, 7 Nov 2026 09:21:14 -0300
+Subject: [PATCH 16/29] vulkan: tensor programs are not built while loading the
+ disk pipeline cache at boot (Ocarina's movie network kept Loading shaders at
+ 791/794); they build when the game asks
+
+(cherry picked from commit 6abb7758577da7f61bb0fa682dfae910bae358c3)
+(cherry picked from commit 5c72d12e7418b7a4ddf69fc50978e65dfdb02713)
+---
+ .../maxwell/translate/impl/tensor_mul_add.cpp        |  7 ++++++-
+ src/video_core/renderer_vulkan/vk_pipeline_cache.cpp | 12 ++++++++++++
+ 2 files changed, 18 insertions(+), 1 deletion(-)
+
+diff --git a/src/shader_recompiler/frontend/maxwell/translate/impl/tensor_mul_add.cpp b/src/shader_recompiler/frontend/maxwell/translate/impl/tensor_mul_add.cpp
+index f636cdadae..227747497d 100644
+--- a/src/shader_recompiler/frontend/maxwell/translate/impl/tensor_mul_add.cpp
++++ b/src/shader_recompiler/frontend/maxwell/translate/impl/tensor_mul_add.cpp
+@@ -7,6 +7,11 @@
+ 
+ namespace Shader::Maxwell {
+ 
++// AriseOS: set by the pipeline cache while it builds the disk cache at boot. Tensor programs are
++// left for when the game asks for them, so "Loading shaders" does not wait minutes on Turnip
++// compiling Ocarina's movie network (now skipped at run time, ocarina_movie.h).
++thread_local bool arise_preloading_pipelines = false;
++
+ void TranslatorVisitor::TENSOR_MUL_ADD(u64 insn) {
+     union {
+         u64 raw;
+@@ -31,7 +36,7 @@ void TranslatorVisitor::TENSOR_MUL_ADD(u64 insn) {
+     // first boot compiles them for a few minutes, then they come from the pipeline cache.
+     // EDEN_NX2_NO_TENSOR=1 turns them off.
+     static const bool disabled{std::getenv("EDEN_NX2_NO_TENSOR") != nullptr};
+-    if (disabled || ((insn >> 48) & 1) == 0) {
++    if (disabled || arise_preloading_pipelines || ((insn >> 48) & 1) == 0) {
+         throw NotImplementedException("Unsupported matrix multiply encoding");
+     }
+     const bool short_depth = (insn >> 49) & 1;
+diff --git a/src/video_core/renderer_vulkan/vk_pipeline_cache.cpp b/src/video_core/renderer_vulkan/vk_pipeline_cache.cpp
+index 1bb0d45e48..e67721892d 100644
+--- a/src/video_core/renderer_vulkan/vk_pipeline_cache.cpp
++++ b/src/video_core/renderer_vulkan/vk_pipeline_cache.cpp
+@@ -41,6 +41,10 @@
+ #include "common/shutdown_progress.h"
+ #include "common/thread.h"
+ #include "common/thread_worker.h"
++
++namespace Shader::Maxwell {
++extern thread_local bool arise_preloading_pipelines;
++}
+ #include "core/core.h"
+ #include "shader_recompiler/backend/spirv/emit_spirv.h"
+ #include "shader_recompiler/environment.h"
+@@ -2948,6 +2952,10 @@ void PipelineCache::LoadDiskResources(u64 title_id, std::stop_token stop_loading
+                                                        PrebuildTicket& ticket) {
+         ShaderPools pools;
+         ComputePipelineCacheEntry entry;
++        Shader::Maxwell::arise_preloading_pipelines = true;
++        SCOPE_EXIT {
++            Shader::Maxwell::arise_preloading_pipelines = false;
++        };
+         for (auto& env : envs) {
+             pools.ReleaseContents();
+             entry = CreateComputePipeline(pools, key, env, state.statistics.get(), false);
+@@ -3699,6 +3707,10 @@ void PipelineCache::StartComputeWarm(u64 title_id) {
+                 bool ok = false;
+                 try {
+                     ShaderPools pools;
++                    Shader::Maxwell::arise_preloading_pipelines = true;
++                    SCOPE_EXIT {
++                        Shader::Maxwell::arise_preloading_pipelines = false;
++                    };
+                     // Built and destroyed here: only the driver's cache keeps it.
+                     ok = CreateComputePipeline(pools, entry.key, entry.env, nullptr, false, true)
+                              .pipeline != nullptr;
+-- 
+2.43.0
+

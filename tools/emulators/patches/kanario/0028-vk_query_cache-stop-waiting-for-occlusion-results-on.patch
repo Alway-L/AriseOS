@@ -1,0 +1,51 @@
+From 2e732aa67335e1a31938b3275a4f4baad9ce69bc Mon Sep 17 00:00:00 2001
+From: pavelgajdo <pavel.gajdo@gmail.com>
+Date: Tue, 10 Nov 2026 17:06:27 +0100
+Subject: [PATCH 28/29] vk_query_cache: stop waiting for occlusion results once
+ the GPU is past their bank
+
+On Xclipse's RADV some occlusion query slots never become available although
+the submission that ended them finished. Each read of such a bank waited the
+full 2 s deadline: Fire Emblem: Fortune's Weave (04007EF01F8AE000) hit it
+on nearly every frame and showed 0 FPS. Once the GPU has passed the bank's
+last use, give the results 2 ms more and read the missing slots as 0, as the
+deadline did.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+(cherry picked from commit 1c14fcb153d4541d2e6d058522d2376b7fe41370)
+---
+ src/video_core/renderer_vulkan/vk_query_cache.cpp | 14 +++++++++++++-
+ 1 file changed, 13 insertions(+), 1 deletion(-)
+
+diff --git a/src/video_core/renderer_vulkan/vk_query_cache.cpp b/src/video_core/renderer_vulkan/vk_query_cache.cpp
+index ea67863d73..6597fb3c20 100644
+--- a/src/video_core/renderer_vulkan/vk_query_cache.cpp
++++ b/src/video_core/renderer_vulkan/vk_query_cache.cpp
+@@ -96,11 +96,23 @@ public:
+     // made the wait spin forever inside RADV with all GPU work finished (Ocarina of Time froze
+     // right after its intro on Xclipse; their begin and end were recorded into a submission the GPU
+     // had finished, and no reset came after). Such slots read as 0 after a while and are logged.
++    // Once the GPU has finished the bank's last submission, a slot that is still not available
++    // never will be: stop shortly after that instead of at the 2 s deadline. Fire Emblem:
++    // Fortune's Weave (04007EF01F8AE000) hit it on nearly every frame and ran at 0 FPS.
+     void Sync(size_t start, size_t size) {
+         const auto& dev = device.GetLogical();
+         std::vector<std::array<u64, 2>> results(size);
+-        const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds{2};
++        auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds{2};
++        bool gpu_done = false;
+         for (u32 spins = 0;; ++spins) {
++            if (!gpu_done && (spins & 63) == 0) {
++                scheduler.GetMasterSemaphore().Refresh();
++            }
++            if (!gpu_done && scheduler.IsFree(last_used_tick)) {
++                gpu_done = true;
++                deadline = (std::min)(deadline, std::chrono::steady_clock::now() +
++                                                    std::chrono::milliseconds{2});
++            }
+             const VkResult query_result = dev.GetQueryResults(
+                 *query_pool, static_cast<u32>(start), static_cast<u32>(size),
+                 results.size() * sizeof(results[0]), results.data(), sizeof(results[0]),
+-- 
+2.43.0
+

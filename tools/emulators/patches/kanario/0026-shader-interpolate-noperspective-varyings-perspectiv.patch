@@ -1,0 +1,293 @@
+From aaa63959a9952dc15667fc54109173b9cd6f1216 Mon Sep 17 00:00:00 2001
+From: Zortos <zortosdev@proton.me>
+Date: Sun, 8 Nov 2026 14:27:51 +0100
+Subject: [PATCH 26/29] shader: interpolate noperspective varyings
+ perspective-correct (OoT tomb red line, port of #722) (#820)
+
+* shader: interpolate noperspective varyings perspective-correct (#441)
+
+Ocarina of Time draws water volumes whose vertex shader writes a
+screen-space coordinate (clip.xy / clip.w) as a noperspective varying.
+When a vertex sits next to or behind the camera (w close to 0), the
+primitive is clipped and the attribute has to be re-interpolated at the
+clip points. On AMD (RDNA3, Windows driver) that produces wrong values:
+the fragment shader samples its depth input far off, computes a negative
+distance and exp2 overflows to the R11G11B10 maximum. This is the red
+dotted line in the Royal Family's Tomb.
+
+Emulate noperspective with perspective interpolation instead: the last
+pre-rasterization stage (vertex, tessellation evaluation or geometry)
+writes the value times Position.w, and the fragment stage reads it
+perspective-correct and multiplies by FragCoord.w (1/w). The result is
+the same screen-linear value, and clipping now interpolates it correctly.
+
+Mesh pipelines are left unchanged: the fragment stage only converts its
+inputs when the previous stage scaled them. EDEN_NX2_NOPERSP_AS_SMOOTH=0
+turns the emulation off.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+
+* shader: keep noperspective emulation out of XFB, indexed loads and repeated EmitVertex
+
+Review follow-ups for the perspective-correct noperspective emulation:
+
+- Skip the emulation when transform feedback is enabled or the fragment
+  program reads attributes indexed. Transform feedback would capture the
+  value times Position.w, and the indexed load path does not multiply by
+  FragCoord.w. Producer and fragment stage decide together, so those
+  pipelines keep native noperspective interpolation.
+- Geometry shaders keep output values across EmitVertex. An output that
+  is written once and emitted several times was scaled by every vertex's
+  w in turn. Restore the unscaled values after each EmitVertex, like the
+  fixed pipeline point size.
+- Assert instead of silently skipping the FragCoord.w multiply; only
+  float inputs are marked and DefineInputs forces FragCoord for them.
+- Wrap three lines to the 100-column limit.
+
+Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>
+
+* shader: always interpolate noperspective varyings perspective-correct
+
+Drop the EDEN_NX2_NOPERSP_AS_SMOOTH switch from #722 so the fix ships
+unconditionally.
+
+* shader: keep native noperspective varyings with passthrough geometry
+
+A passthrough geometry shader can write generics outside its passthrough
+mask, and those aren't scaled by Position.w, so the fragment stage must not
+divide them.
+
+---------
+
+Co-authored-by: justin-wq1337 <352978534+justin-wq1337@users.noreply.github.com>
+Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
+(cherry picked from commit 18a78876bfee995c580e20d6b6eb157b57b86736)
+(cherry picked from commit 497275025880ce8a1bec02b1d9f860636dfe1055)
+---
+ .../spirv/emit_spirv_context_get_set.cpp      | 10 +++-
+ .../backend/spirv/emit_spirv_special.cpp      | 49 +++++++++++++++++++
+ .../backend/spirv/spirv_emit_context.cpp      | 14 +++++-
+ .../backend/spirv/spirv_emit_context.h        |  2 +
+ src/shader_recompiler/runtime_info.h          |  6 +++
+ .../renderer_vulkan/vk_pipeline_cache.cpp     | 27 ++++++++++
+ 6 files changed, 105 insertions(+), 3 deletions(-)
+
+diff --git a/src/shader_recompiler/backend/spirv/emit_spirv_context_get_set.cpp b/src/shader_recompiler/backend/spirv/emit_spirv_context_get_set.cpp
+index 74cd97c641..130f0b0fd9 100644
+--- a/src/shader_recompiler/backend/spirv/emit_spirv_context_get_set.cpp
++++ b/src/shader_recompiler/backend/spirv/emit_spirv_context_get_set.cpp
+@@ -314,7 +314,15 @@ Id EmitGetAttribute(EmitContext& ctx, IR::Attribute attr, Id vertex) {
+         }
+         const Id pointer{
+             AttrPointer(ctx, generic.pointer_type, vertex, generic.id, ctx.Const(element))};
+-        const Id value{ctx.OpLoad(generic.component_type, pointer)};
++        Id value{ctx.OpLoad(generic.component_type, pointer)};
++        if (ctx.stage == Stage::Fragment && ctx.noperspective_as_smooth_inputs[index]) {
++            // Written times Position.w and interpolated perspective-correct: undo with 1/w.
++            // Only float inputs are marked, and DefineInputs forces FragCoord for them.
++            ASSERT(generic.load_op == InputGenericLoadOp::None && ValidId(ctx.input_position));
++            const Id frag_w{ctx.OpLoad(
++                ctx.F32[1], ctx.OpAccessChain(ctx.input_f32, ctx.input_position, ctx.Const(3u)))};
++            value = ctx.OpFMul(ctx.F32[1], value, frag_w);
++        }
+         return [&ctx, generic, value]() {
+             switch (generic.load_op) {
+             case InputGenericLoadOp::Bitcast:
+diff --git a/src/shader_recompiler/backend/spirv/emit_spirv_special.cpp b/src/shader_recompiler/backend/spirv/emit_spirv_special.cpp
+index 044e54955f..a8c7a6bca0 100644
+--- a/src/shader_recompiler/backend/spirv/emit_spirv_special.cpp
++++ b/src/shader_recompiler/backend/spirv/emit_spirv_special.cpp
+@@ -4,12 +4,17 @@
+ // SPDX-FileCopyrightText: Copyright 2021 yuzu Emulator Project
+ // SPDX-License-Identifier: GPL-2.0-or-later
+ 
++#include <utility>
++#include <vector>
++
+ #include "shader_recompiler/backend/spirv/emit_spirv.h"
+ #include "shader_recompiler/backend/spirv/emit_spirv_instructions.h"
+ #include "shader_recompiler/backend/spirv/spirv_emit_context.h"
+ 
+ namespace Shader::Backend::SPIRV {
+ namespace {
++/// Output variable and the unscaled value it held before ScaleNoPerspectiveOutputs.
++using ScaledOutputs = std::vector<std::pair<Id, Id>>;
+ void ConvertDepthMode(EmitContext& ctx) {
+     const Id type{ctx.F32[1]};
+     const Id position{ctx.OpLoad(ctx.F32[4], ctx.output_position)};
+@@ -20,6 +25,45 @@ void ConvertDepthMode(EmitContext& ctx) {
+     ctx.OpStore(ctx.output_position, vector);
+ }
+ 
++/// Write screen-linear generic outputs times Position.w (see RuntimeInfo::noperspective_outputs).
++/// Returns the unscaled values so a geometry shader can restore them after EmitVertex.
++ScaledOutputs ScaleNoPerspectiveOutputs(EmitContext& ctx) {
++    ScaledOutputs saved;
++    if (ctx.runtime_info.noperspective_outputs.none() || !Sirit::ValidId(ctx.output_position)) {
++        return saved;
++    }
++    const Id position{ctx.OpLoad(ctx.F32[4], ctx.output_position)};
++    const Id w{ctx.OpCompositeExtract(ctx.F32[1], position, 3u)};
++    for (size_t index = 0; index < ctx.output_generics.size(); ++index) {
++        if (!ctx.runtime_info.noperspective_outputs.test(index)) {
++            continue;
++        }
++        Id last{};
++        for (const GenericElementInfo& element : ctx.output_generics[index]) {
++            if (!Sirit::ValidId(element.id) || element.id.value == last.value ||
++                element.num_components == 0) {
++                continue;
++            }
++            last = element.id;
++            const Id type{ctx.F32[element.num_components]};
++            const Id value{ctx.OpLoad(type, element.id)};
++            const Id scaled{element.num_components == 1 ? ctx.OpFMul(type, value, w)
++                                                        : ctx.OpVectorTimesScalar(type, value, w)};
++            ctx.OpStore(element.id, scaled);
++            saved.emplace_back(element.id, value);
++        }
++    }
++    return saved;
++}
++
++/// Geometry shaders keep output values across EmitVertex, so an output that is written once and
++/// emitted several times must not be scaled again: put the unscaled values back.
++void RestoreNoPerspectiveOutputs(EmitContext& ctx, const ScaledOutputs& saved) {
++    for (const auto& [id, value] : saved) {
++        ctx.OpStore(id, value);
++    }
++}
++
+ void SetFixedPipelinePointSize(EmitContext& ctx) {
+     if (ctx.runtime_info.fixed_state_point_size) {
+         const float point_size{*ctx.runtime_info.fixed_state_point_size};
+@@ -149,6 +193,9 @@ void EmitEpilogue(EmitContext& ctx) {
+         !ctx.profile.support_native_ndc) {
+         ConvertDepthMode(ctx);
+     }
++    if (ctx.stage == Stage::VertexB || ctx.stage == Stage::TessellationEval) {
++        ScaleNoPerspectiveOutputs(ctx);
++    }
+     if (ctx.stage == Stage::Fragment) {
+         AlphaTest(ctx);
+     }
+@@ -158,6 +205,7 @@ void EmitEmitVertex(EmitContext& ctx, const IR::Value& stream) {
+     if (ctx.runtime_info.convert_depth_mode && !ctx.profile.support_native_ndc) {
+         ConvertDepthMode(ctx);
+     }
++    const ScaledOutputs scaled{ScaleNoPerspectiveOutputs(ctx)};
+     // Stream 0 is the plain EmitVertex, which needs no GeometryStreams capability.
+     if (stream.IsImmediate() && stream.U32() == 0) {
+         ctx.OpEmitVertex();
+@@ -171,6 +219,7 @@ void EmitEmitVertex(EmitContext& ctx, const IR::Value& stream) {
+     }
+     // Restore fixed pipeline point size after emitting the vertex
+     SetFixedPipelinePointSize(ctx);
++    RestoreNoPerspectiveOutputs(ctx, scaled);
+ }
+ 
+ void EmitEndPrimitive(EmitContext& ctx, const IR::Value& stream) {
+diff --git a/src/shader_recompiler/backend/spirv/spirv_emit_context.cpp b/src/shader_recompiler/backend/spirv/spirv_emit_context.cpp
+index 7e017593aa..f7de3a1b4b 100644
+--- a/src/shader_recompiler/backend/spirv/spirv_emit_context.cpp
++++ b/src/shader_recompiler/backend/spirv/spirv_emit_context.cpp
+@@ -1757,8 +1757,13 @@ void EmitContext::DefineInputs(const IR::Program& program) {
+         layer = DefineInput(*this, U32[1], false, spv::BuiltIn::Layer);
+         Decorate(layer, spv::Decoration::Flat);
+     }
++    const bool noperspective_as_smooth{
++        stage == Stage::Fragment && runtime_info.scaled_noperspective_inputs &&
++        std::ranges::any_of(info.interpolation, [](Interpolation mode) {
++            return mode == Interpolation::NoPerspective;
++        })};
+     if (loads.AnyComponent(IR::Attribute::PositionX) ||
+-        info.passthrough.AnyComponent(IR::Attribute::PositionX)) {
++        info.passthrough.AnyComponent(IR::Attribute::PositionX) || noperspective_as_smooth) {
+         const bool is_fragment{stage == Stage::Fragment};
+         if (!is_fragment && profile.has_broken_spirv_position_input) {
+             need_input_position_indirect = true;
+@@ -1868,7 +1873,12 @@ void EmitContext::DefineInputs(const IR::Program& program) {
+             case Interpolation::Smooth:
+                 break;
+             case Interpolation::NoPerspective:
+-                Decorate(id, spv::Decoration::NoPerspective);
++                // The previous stage may write it times Position.w (noperspective_outputs).
++                if (!runtime_info.scaled_noperspective_inputs) {
++                    Decorate(id, spv::Decoration::NoPerspective);
++                } else {
++                    noperspective_as_smooth_inputs[index] = true;
++                }
+                 break;
+             case Interpolation::Flat:
+                 Decorate(id, spv::Decoration::Flat);
+diff --git a/src/shader_recompiler/backend/spirv/spirv_emit_context.h b/src/shader_recompiler/backend/spirv/spirv_emit_context.h
+index 019a34078d..67fb0bb22e 100644
+--- a/src/shader_recompiler/backend/spirv/spirv_emit_context.h
++++ b/src/shader_recompiler/backend/spirv/spirv_emit_context.h
+@@ -371,6 +371,8 @@ public:
+     bool need_input_position_indirect{};
+     Id input_position{};
+     std::array<InputGenericInfo, 32> input_generics{};
++    /// Screen-linear fragment inputs read through perspective interpolation, times FragCoord.w.
++    std::array<bool, 32> noperspective_as_smooth_inputs{};
+ 
+     Id output_point_size{};
+     Id output_position{};
+diff --git a/src/shader_recompiler/runtime_info.h b/src/shader_recompiler/runtime_info.h
+index 5f1b59251f..3dba8aae7a 100644
+--- a/src/shader_recompiler/runtime_info.h
++++ b/src/shader_recompiler/runtime_info.h
+@@ -88,6 +88,12 @@ struct RuntimeInfo {
+     VaryingState previous_stage_stores;
+     /// Fragment stage after a mesh program: generic inputs it writes per primitive.
+     std::bitset<32> per_primitive_generics{};
++    /// Last pre-rasterization stage: generic outputs the fragment stage reads screen-linear.
++    /// They are written times Position.w and the fragment stage reads them perspective-correct
++    /// times FragCoord.w, so clipping a primitive close to the camera interpolates them right.
++    std::bitset<32> noperspective_outputs{};
++    /// Fragment stage: the previous stage writes noperspective_outputs (not a mesh program).
++    bool scaled_noperspective_inputs{};
+     std::map<IR::Attribute, IR::Attribute> previous_stage_legacy_stores_mapping;
+ 
+     bool convert_depth_mode{};
+diff --git a/src/video_core/renderer_vulkan/vk_pipeline_cache.cpp b/src/video_core/renderer_vulkan/vk_pipeline_cache.cpp
+index e67721892d..bd3b814050 100644
+--- a/src/video_core/renderer_vulkan/vk_pipeline_cache.cpp
++++ b/src/video_core/renderer_vulkan/vk_pipeline_cache.cpp
+@@ -380,6 +380,33 @@ Shader::RuntimeInfo MakeRuntimeInfo(std::span<const Shader::IR::Program> program
+     }
+     info.force_early_z = key.state.early_z != 0;
+     info.y_negate = key.state.y_negate != 0;
++    // Transform feedback would capture the scaled values, a passthrough geometry shader doesn't
++    // scale the outputs it writes itself, and indexed attribute reads in the fragment stage don't
++    // undo the scaling, so all three keep native noperspective interpolation.
++    const bool geometry_passthrough{key.unique_hashes[4] != 0 &&
++                                    programs[4].is_geometry_passthrough};
++    if (key.unique_hashes[5] != 0 && !geometry_passthrough && key.state.xfb_enabled == 0 &&
++        !programs[5].info.loads_indexed_attributes) {
++        const bool has_tess{key.unique_hashes[3] != 0};
++        const bool last_pre_raster{
++            (stage == Shader::Stage::VertexB && !has_tess && !has_geometry) ||
++            (stage == Shader::Stage::TessellationEval && !has_geometry) ||
++            (stage == Shader::Stage::Geometry && has_geometry)};
++        if (stage == Shader::Stage::Fragment) {
++            info.scaled_noperspective_inputs =
++                previous_program && (previous_program->stage == Shader::Stage::VertexB ||
++                                     previous_program->stage == Shader::Stage::TessellationEval ||
++                                     previous_program->stage == Shader::Stage::Geometry);
++        }
++        if (last_pre_raster) {
++            const auto& fragment_info{programs[5].info};
++            for (size_t index = 0; index < 32; ++index) {
++                if (fragment_info.interpolation[index] == Shader::Interpolation::NoPerspective) {
++                    info.noperspective_outputs.set(index);
++                }
++            }
++        }
++    }
+     return info;
+ }
+ 
+-- 
+2.43.0
+

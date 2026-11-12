@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#2a1b4a"/>
+      <stop offset="1" stop-color="#120c24"/>
+    </linearGradient>
+    <linearGradient id="body" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ffe066"/>
+      <stop offset="1" stop-color="#ffb703"/>
+    </linearGradient>
+    <linearGradient id="wing" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ffc300"/>
+      <stop offset="1" stop-color="#f48c06"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="112" fill="url(#bg)"/>
+  <circle cx="256" cy="268" r="168" fill="#9d4edd" opacity="0.18"/>
+  <!-- branch -->
+  <path d="M86 392 C170 380 300 384 430 360" stroke="#7b4a2a" stroke-width="18" stroke-linecap="round" fill="none"/>
+  <path d="M352 372 q26 -30 62 -30" stroke="#7b4a2a" stroke-width="10" stroke-linecap="round" fill="none"/>
+  <ellipse cx="414" cy="338" rx="22" ry="11" transform="rotate(-20 414 338)" fill="#52b788"/>
+  <!-- tail -->
+  <path d="M168 318 L86 362 L104 312 Z" fill="url(#wing)"/>
+  <!-- body -->
+  <path d="M150 300 C150 214 214 168 284 172 C356 176 392 230 384 290 C376 352 318 384 248 382 C190 380 150 350 150 300 Z" fill="url(#body)"/>
+  <!-- belly highlight -->
+  <path d="M232 360 C290 368 352 334 362 284 C340 330 292 352 232 360 Z" fill="#fff3b0" opacity="0.8"/>
+  <!-- head -->
+  <circle cx="318" cy="186" r="68" fill="url(#body)"/>
+  <!-- crest -->
+  <path d="M300 122 q6 -36 30 -44 q-6 22 4 40 q10 -26 34 -28 q-14 18 -10 44 Z" fill="#ffb703"/>
+  <!-- wing -->
+  <path d="M196 262 C228 218 300 226 318 276 C300 318 238 334 186 318 C176 300 182 280 196 262 Z" fill="url(#wing)"/>
+  <path d="M214 286 q40 -10 82 4 M206 304 q40 -6 80 8" stroke="#e85d04" stroke-width="7" stroke-linecap="round" fill="none" opacity="0.7"/>
+  <!-- beak -->
+  <path d="M380 180 L424 196 L380 208 Z" fill="#fb8500"/>
+  <path d="M380 196 L420 197" stroke="#c2410c" stroke-width="3"/>
+  <!-- eye -->
+  <circle cx="346" cy="176" r="15" fill="#1b1033"/>
+  <circle cx="351" cy="171" r="5" fill="#ffffff"/>
+  <!-- cheek -->
+  <circle cx="340" cy="210" r="11" fill="#ff8fab" opacity="0.6"/>
+  <!-- feet -->
+  <path d="M236 380 v20 m-10 0 h22 M282 378 v22 m-10 0 h22" stroke="#e85d04" stroke-width="7" stroke-linecap="round"/>
+</svg>

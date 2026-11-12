@@ -1,0 +1,139 @@
+From 3ce73db825ed3f7164e19ca57e85638b0cd68cb2 Mon Sep 17 00:00:00 2001
+From: Alway-L <felipemoura2015078@gmail.com>
+Date: Fri, 6 Nov 2026 23:06:11 -0300
+Subject: [PATCH 02/29] nce: a failed PAC authentication (SIGILL with
+ FEAT_FPAC) is taken as passing, as Dynarmic does; other illegal instructions
+ are logged before the crash
+
+(cherry picked from commit 0c0669d07661cf001618d6b9905801669cf5fd82)
+(cherry picked from commit 17ca1f954d45867787e4a0ff3ca136633c317047)
+---
+ src/core/arm/nce/arm_nce.cpp | 98 ++++++++++++++++++++++++++++++++++++
+ 1 file changed, 98 insertions(+)
+
+diff --git a/src/core/arm/nce/arm_nce.cpp b/src/core/arm/nce/arm_nce.cpp
+index 438dd4d981..6e4d302f95 100644
+--- a/src/core/arm/nce/arm_nce.cpp
++++ b/src/core/arm/nce/arm_nce.cpp
+@@ -4,6 +4,7 @@
+ // SPDX-FileCopyrightText: Copyright 2023 yuzu Emulator Project
+ // SPDX-License-Identifier: GPL-2.0-or-later
+ 
++#include <atomic>
+ #include <cinttypes>
+ #include <memory>
+ 
+@@ -26,6 +27,97 @@ namespace {
+ 
+ struct sigaction g_orig_bus_action;
+ struct sigaction g_orig_segv_action;
++struct sigaction g_orig_ill_action;
++
++// AriseOS: Switch 2 code signs return addresses (PAC). Natively, on a CPU with FEAT_FPAC, a failed
++// authentication traps as SIGILL, and Ocarina of Time crashed 8 s in with NCE (Dynarmic, which runs
++// PAC instructions as hints, went on). As on the console's setup, a failed authentication is taken
++// as passing: the pointer is stripped and the instruction completed. The handler runs on guest
++// registers (TPIDR_EL0 is the guest's): no libc, no TLS, only a raw write for the log.
++u64 AriseStripPac(u64 pointer) {
++    register u64 lr asm("x30") = pointer;
++    asm volatile("hint #7" : "+r"(lr)); // xpaclri
++    return lr;
++}
++
++void AriseRawWrite(const char* text, size_t size) {
++    register long x0 asm("x0") = 2;
++    register const char* x1 asm("x1") = text;
++    register size_t x2 asm("x2") = size;
++    register long x8 asm("x8") = 64; // write
++    asm volatile("svc #0" : "+r"(x0) : "r"(x1), "r"(x2), "r"(x8) : "memory");
++}
++
++void AriseAppendHex(char*& out, u64 value) {
++    for (int shift = 60; shift >= 0; shift -= 4) {
++        *out++ = "0123456789abcdef"[(value >> shift) & 15];
++    }
++}
++
++void AriseIllegalInstructionHandler(int sig, siginfo_t* info, void* raw_context) {
++    static std::atomic<int> logs{0};
++    auto& mc = static_cast<ucontext_t*>(raw_context)->uc_mcontext;
++    const u64 pc = mc.pc;
++    const u32 insn = *reinterpret_cast<const u32*>(pc);
++    bool handled = true;
++    if (insn == 0xD65F0BFF || insn == 0xD65F0FFF) { // retaa, retab
++        mc.pc = AriseStripPac(mc.regs[30]);
++    } else if (insn == 0xD503219F || insn == 0xD50321DF) { // autia1716, autib1716
++        mc.regs[17] = AriseStripPac(mc.regs[17]);
++        mc.pc = pc + 4;
++    } else if (insn == 0xD503239F || insn == 0xD50323BF || insn == 0xD50323DF ||
++               insn == 0xD50323FF) { // autiaz, autiasp, autibz, autibsp
++        mc.regs[30] = AriseStripPac(mc.regs[30]);
++        mc.pc = pc + 4;
++    } else if ((insn & 0xFFFFC000) == 0xDAC10000 && (insn & 0x1000) != 0) { // autia/b, autda/b (+z)
++        const u32 rd = insn & 31;
++        if (rd != 31) {
++            mc.regs[rd] = AriseStripPac(mc.regs[rd]);
++        }
++        mc.pc = pc + 4;
++    } else if ((insn & 0xFEDFF800) == 0xD61F0800) { // braa/brab/blraa/blrab (+z)
++        const u32 rn = (insn >> 5) & 31;
++        const u64 target = AriseStripPac(rn == 31 ? mc.sp : mc.regs[rn]);
++        if ((insn & 0x00200000) != 0) {
++            mc.regs[30] = pc + 4;
++        }
++        mc.pc = target;
++    } else {
++        handled = false;
++    }
++    if (logs.fetch_add(1, std::memory_order_relaxed) < 16) {
++        char line[160];
++        char* out = line;
++        const char* head = handled ? "AriseOS: NCE took a failed PAC check as passing at pc "
++                                   : "AriseOS: NCE illegal instruction (not handled) at pc ";
++        while (*head) {
++            *out++ = *head++;
++        }
++        AriseAppendHex(out, pc);
++        for (const char* t = " insn "; *t;) {
++            *out++ = *t++;
++        }
++        AriseAppendHex(out, insn);
++        for (const char* t = " lr "; *t;) {
++            *out++ = *t++;
++        }
++        AriseAppendHex(out, mc.regs[30]);
++        *out++ = '\n';
++        AriseRawWrite(line, static_cast<size_t>(out - line));
++    }
++    if (!handled) {
++        // Let it crash as before (default action, or a handler that was there first).
++        if (g_orig_ill_action.sa_flags & SA_SIGINFO) {
++            if (g_orig_ill_action.sa_sigaction != nullptr) {
++                g_orig_ill_action.sa_sigaction(sig, info, raw_context);
++                return;
++            }
++        }
++        struct sigaction fallback {};
++        fallback.sa_handler = SIG_DFL;
++        sigaction(SIGILL, &fallback, nullptr);
++    }
++}
+ 
+ // Verify assembly offsets.
+ using NativeExecutionParameters = Kernel::KThread::NativeExecutionParameters;
+@@ -331,6 +423,12 @@ void ArmNce::Initialize() {
+             reinterpret_cast<HandlerType>(&ArmNce::GuestAccessFaultSignalHandler);
+         access_fault_action.sa_mask = signal_mask;
+         Common::SigAction(GuestAccessFaultSignal, &access_fault_action, &g_orig_segv_action);
++
++        struct sigaction illegal_instruction_action {};
++        illegal_instruction_action.sa_flags = SA_SIGINFO | SA_ONSTACK;
++        illegal_instruction_action.sa_sigaction = &AriseIllegalInstructionHandler;
++        illegal_instruction_action.sa_mask = signal_mask;
++        Common::SigAction(SIGILL, &illegal_instruction_action, &g_orig_ill_action);
+     });
+ }
+ 
+-- 
+2.43.0
+

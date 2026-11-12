@@ -1,0 +1,31 @@
+From 1fcd7f4f1700133a10d7f65e20f1c6dba8f18336 Mon Sep 17 00:00:00 2001
+From: Alway-L <felipemoura2015078@gmail.com>
+Date: Sat, 7 Nov 2026 15:24:00 -0300
+Subject: [PATCH 23/29] host_memory: guest memory paged out only below 768 MiB
+ free; pipeline preload flag reset on every exit
+
+(cherry picked from commit 39964c909da607cb5c2edbc5126a2e529a6ce76f)
+---
+ src/common/host_memory.cpp | 5 ++++-
+ 1 file changed, 4 insertions(+), 1 deletion(-)
+
+diff --git a/src/common/host_memory.cpp b/src/common/host_memory.cpp
+index f5400a38cf..cd76d2c182 100644
+--- a/src/common/host_memory.cpp
++++ b/src/common/host_memory.cpp
+@@ -806,8 +806,11 @@ static void AriseWatchMemory(u8* base, size_t size) {
+             // barely moved while 4.5 GiB of guest memory stayed in RAM). Below the threshold, page out
+             // a 256 MiB window of guest memory every half second, walking through all of it:
+             // pages the game is not using stay out, those it uses come back on their next touch.
++            // AriseOS: 768 MiB, an emergency only. With guest memory in a file the kernel can write
++            // it back by itself; paging 512 MiB windows out at 1.5 GiB free made the emulator
++            // threads read them back from storage hundreds of times a second.
+             const char* value = std::getenv("ARISE_PAGEOUT_BELOW_MIB");
+-            const size_t threshold = value != nullptr ? std::strtoull(value, nullptr, 10) : 1536;
++            const size_t threshold = value != nullptr ? std::strtoull(value, nullptr, 10) : 768;
+             if (threshold == 0) {
+                 return;
+             }
+-- 
+2.43.0
+

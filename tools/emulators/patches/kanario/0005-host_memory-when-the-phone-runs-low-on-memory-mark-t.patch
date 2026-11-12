@@ -1,0 +1,112 @@
+From 52653e375e0ab15cadbb0671bc84037bc40bb343 Mon Sep 17 00:00:00 2001
+From: Alway-L <felipemoura2015078@gmail.com>
+Date: Fri, 6 Nov 2026 23:47:21 -0300
+Subject: [PATCH 05/29] host_memory: when the phone runs low on memory, mark
+ the guest memory cold so the kernel swaps untouched guest pages first
+
+(cherry picked from commit 82ef85a31d585eeff4a32bd23d970667b9a5fbdc)
+(cherry picked from commit fba71c3b2728116300b463b9c517e201fb4a0c48)
+---
+ src/common/host_memory.cpp | 72 ++++++++++++++++++++++++++++++++++++++
+ 1 file changed, 72 insertions(+)
+
+diff --git a/src/common/host_memory.cpp b/src/common/host_memory.cpp
+index b08a4ea3f1..2f83409d40 100644
+--- a/src/common/host_memory.cpp
++++ b/src/common/host_memory.cpp
+@@ -4,6 +4,14 @@
+ // SPDX-FileCopyrightText: Copyright 2021 yuzu Emulator Project
+ // SPDX-License-Identifier: GPL-2.0-or-later
+ 
++#include <atomic>
++#include <chrono>
++#include <cstdio>
++#include <cstdlib>
++#include <cstring>
++#include <mutex>
++#include <thread>
++
+ #ifdef _WIN32
+ 
+ #include <iterator>
+@@ -683,6 +691,65 @@ static int shm_open_anon(int flags, mode_t mode) {
+ }
+ #endif
+ 
++#if defined(__linux__) && defined(ARCHITECTURE_arm64)
++// AriseOS: on a phone the guest's memory (12 GiB for Switch 2) can outgrow the free RAM, and Android
++// ends the app (LOW_MEMORY) when the kernel cannot reclaim fast enough. When the phone runs low, mark
++// the guest memory cold every few seconds: the kernel then compresses guest pages the game has not
++// touched lately into swap first, and the game's working set comes back as it touches it again.
++static std::atomic<u8*> g_arise_backing_base{};
++static std::atomic<size_t> g_arise_backing_size{};
++
++static size_t AriseAvailableMiB() {
++    FILE* info = std::fopen("/proc/meminfo", "r");
++    if (info == nullptr) {
++        return ~size_t{0};
++    }
++    char line[128];
++    size_t kib = ~size_t{0};
++    while (std::fgets(line, sizeof(line), info) != nullptr) {
++        if (std::sscanf(line, "MemAvailable: %zu kB", &kib) == 1) {
++            break;
++        }
++    }
++    std::fclose(info);
++    return kib == ~size_t{0} ? kib : kib / 1024;
++}
++
++static void AriseWatchMemory(u8* base, size_t size) {
++    g_arise_backing_base.store(base);
++    g_arise_backing_size.store(size);
++    static std::once_flag started;
++    std::call_once(started, [] {
++        std::thread([] {
++            const char* value = std::getenv("ARISE_COLD_BELOW_MIB");
++            const size_t threshold = value != nullptr ? std::strtoull(value, nullptr, 10) : 1536;
++            if (threshold == 0) {
++                return;
++            }
++            int notes = 0;
++            while (true) {
++                std::this_thread::sleep_for(std::chrono::seconds{2});
++                u8* const base = g_arise_backing_base.load();
++                const size_t size = g_arise_backing_size.load();
++                const size_t available = AriseAvailableMiB();
++                if (base == nullptr || available >= threshold) {
++                    continue;
++                }
++#ifndef MADV_COLD
++#define MADV_COLD 20
++#endif
++                const int result = madvise(base, size, MADV_COLD);
++                if (notes < 5) {
++                    ++notes;
++                    LOG_WARNING(HW_Memory, "AriseOS: {} MiB free on the phone, guest memory marked cold ({})",
++                                available, result == 0 ? "ok" : std::strerror(errno));
++                }
++            }
++        }).detach();
++    });
++}
++#endif
++
+ class HostMemory::Impl {
+ public:
+     explicit Impl(size_t backing_size_, size_t virtual_size_)
+@@ -765,6 +832,11 @@ public:
+         } else {
+             backing_base = static_cast<u8*>(mmap(nullptr, backing_size, PROT_READ | PROT_WRITE, MAP_SHARED | MAP_NOCORE, fd, 0));
+         }
++#if defined(__linux__) && defined(ARCHITECTURE_arm64)
++        if (backing_base != MAP_FAILED) {
++            AriseWatchMemory(backing_base, backing_size);
++        }
++#endif
+         if (backing_base == MAP_FAILED) {
+             LOG_CRITICAL(HW_Memory, "mmap failed: {}", strerror(errno));
+             return false;
+-- 
+2.43.0
+

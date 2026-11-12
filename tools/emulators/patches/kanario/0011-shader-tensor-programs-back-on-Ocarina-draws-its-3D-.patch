@@ -1,0 +1,80 @@
+From c14253e2fa902ad9354bb69056e72729c4a1670e Mon Sep 17 00:00:00 2001
+From: Alway-L <felipemoura2015078@gmail.com>
+Date: Sat, 7 Nov 2026 09:02:14 -0300
+Subject: [PATCH 11/29] shader: tensor programs back on (Ocarina draws its 3D
+ through its own network); ~/.config/arise/orchid.env sets variables for tests
+
+(cherry picked from commit 02fceda3dec07b0f8562ebc770ad5d18035314fb)
+(cherry picked from commit ae34934c8ce4581181aa7fabc22112e2d4bc650b)
+---
+ src/common/host_memory.cpp                    | 29 +++++++++++++++++++
+ .../maxwell/translate/impl/tensor_mul_add.cpp | 12 +++-----
+ 2 files changed, 33 insertions(+), 8 deletions(-)
+
+diff --git a/src/common/host_memory.cpp b/src/common/host_memory.cpp
+index 4ce03fe9fa..94af7b0290 100644
+--- a/src/common/host_memory.cpp
++++ b/src/common/host_memory.cpp
+@@ -718,6 +718,35 @@ static size_t AriseAvailableMiB() {
+     return kib == ~size_t{0} ? kib : kib / 1024;
+ }
+ 
++// AriseOS: settings for tests without a new build: KEY=VALUE lines in ~/.config/arise/orchid.env
++// (# comments) become environment variables when the emulator starts, unless already set.
++__attribute__((constructor)) static void AriseLoadEnvFile() {
++    const char* home = std::getenv("HOME");
++    if (home == nullptr) {
++        return;
++    }
++    const std::string path = std::string{home} + "/.config/arise/orchid.env";
++    FILE* file = std::fopen(path.c_str(), "r");
++    if (file == nullptr) {
++        return;
++    }
++    char line[512];
++    while (std::fgets(line, sizeof(line), file) != nullptr) {
++        std::string text{line};
++        while (!text.empty() && (text.back() == '\n' || text.back() == '\r' || text.back() == ' ')) {
++            text.pop_back();
++        }
++        const size_t equals = text.find('=');
++        if (text.empty() || text[0] == '#' || equals == std::string::npos || equals == 0) {
++            continue;
++        }
++        const std::string key = text.substr(0, equals);
++        setenv(key.c_str(), text.substr(equals + 1).c_str(), 0);
++        std::fprintf(stderr, "AriseOS: %s set from %s\n", key.c_str(), path.c_str());
++    }
++    std::fclose(file);
++}
++
+ static int AriseOpenGuestMemoryFile(size_t size) {
+     const char* toggle = std::getenv("ARISE_GUEST_MEMORY_FILE");
+     if (toggle != nullptr && toggle[0] == '0') {
+diff --git a/src/shader_recompiler/frontend/maxwell/translate/impl/tensor_mul_add.cpp b/src/shader_recompiler/frontend/maxwell/translate/impl/tensor_mul_add.cpp
+index 9916817a98..f636cdadae 100644
+--- a/src/shader_recompiler/frontend/maxwell/translate/impl/tensor_mul_add.cpp
++++ b/src/shader_recompiler/frontend/maxwell/translate/impl/tensor_mul_add.cpp
+@@ -26,15 +26,11 @@ void TranslatorVisitor::TENSOR_MUL_ADD(u64 insn) {
+     const u64 ci = static_cast<u64>(cr);
+     const u64 di = static_cast<u64>(dr);
+     const bool has_c = ci != 255;
+-    // AriseOS: off by default on ARM64. Emulated in software, the tensor (HMMA) programs of Ocarina
+-    // of Time's neural movie enhancement are so large that Turnip compiled three of them for
+-    // minutes and the game sat at "loading shaders 11/14" (Lichii for Android skips them too).
+-    // Rejected, those dispatches are dropped; EDEN_NX2_TENSOR_ON=1 brings them back.
+-#ifdef ARCHITECTURE_arm64
+-    static const bool disabled{std::getenv("EDEN_NX2_TENSOR_ON") == nullptr};
+-#else
++    // AriseOS: Ocarina of Time draws its 3D through its own neural network (matrix multiplies on
++    // every frame): with them rejected the world stayed black. They run emulated, as on PC; the
++    // first boot compiles them for a few minutes, then they come from the pipeline cache.
++    // EDEN_NX2_NO_TENSOR=1 turns them off.
+     static const bool disabled{std::getenv("EDEN_NX2_NO_TENSOR") != nullptr};
+-#endif
+     if (disabled || ((insn >> 48) & 1) == 0) {
+         throw NotImplementedException("Unsupported matrix multiply encoding");
+     }
+-- 
+2.43.0
+

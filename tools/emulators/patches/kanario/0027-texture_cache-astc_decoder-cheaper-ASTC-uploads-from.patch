@@ -1,0 +1,211 @@
+From d68925f9cd5fbda3fed2c3fcb1ded2a703964826 Mon Sep 17 00:00:00 2001
+From: justr4mzi <ramzihouhou8@gmail.com>
+Date: Sun, 8 Nov 2026 14:24:13 +0100
+Subject: [PATCH 27/29] texture_cache, astc_decoder: cheaper ASTC uploads (from
+ SmileyTatsu's fork) (#296)
+
+* texture_cache: scan new ASTC data where it is instead of copying it first
+
+The opacity scan copied the whole guest range into astc_scan_buffer and the
+upload then read it again. GpuGuestMemory hands out the guest memory directly
+when the range is in one piece and falls back to the scratch buffer when it is
+split, so the scan no longer copies in the common case.
+
+Assisted-by: Claude Sonnet 5.5 (implementation)
+(cherry picked from commit 87da314115bd91b7950b8597f68af0098b8fefc9)
+
+* astc_decoder: compute the weight scale and partition hash once per block
+
+The per-texel weight scale and the partition hash setup only depend on the
+block, so they are computed once per block instead of once per texel, and the
+colour range search (which had a TODO to try bisection) is a bisection now: the
+bit length never decreases with the encoding index. The output is bit-identical
+to the previous decoder on millions of random blocks of every footprint, which
+was compared on a GPU.
+
+Assisted-by: Claude Sonnet 5.5 (implementation and bit-exact comparison harness)
+(cherry picked from commit ab2fd96ded3196f7b7c593b083349904559d1733)
+
+---------
+
+Co-authored-by: SmileyTatsu <185381457+SmileyTatsu@users.noreply.github.com>
+(cherry picked from commit d590d51820f99447bd7056920e28eaeab510e4f1)
+(cherry picked from commit 13066e0042b21934f6915a4c4d2cbcbe79d9c4be)
+---
+ src/video_core/host_shaders/astc_decoder.comp | 84 ++++++++++++-------
+ src/video_core/texture_cache/texture_cache.h  |  9 +-
+ .../texture_cache/texture_cache_base.h        |  2 +-
+ 3 files changed, 63 insertions(+), 32 deletions(-)
+
+diff --git a/src/video_core/host_shaders/astc_decoder.comp b/src/video_core/host_shaders/astc_decoder.comp
+index 6e7dd2d935..9266fc8a7f 100644
+--- a/src/video_core/host_shaders/astc_decoder.comp
++++ b/src/video_core/host_shaders/astc_decoder.comp
+@@ -199,12 +199,14 @@ uint Hash52(uint p) {
+     return p;
+ }
+ 
+-uint Select2DPartition(uint seed, uint x, uint y, uint partition_count) {
+-    if ((block_dims.y * block_dims.x) < 32) {
+-        x <<= 1;
+-        y <<= 1;
+-    }
++// What Select2DPartition derives from the seed and the partition count alone, once per block.
++struct PartitionSetup {
++    uvec4 x_scale;
++    uvec4 y_scale;
++    uvec4 offset;
++};
+ 
++PartitionSetup SetupPartition(uint seed, uint partition_count) {
+     seed += (partition_count - 1) * 1024;
+ 
+     const uint rnum = Hash52(uint(seed));
+@@ -243,23 +245,36 @@ uint Select2DPartition(uint seed, uint x, uint y, uint partition_count) {
+     seed7 >>= sh1;
+     seed8 >>= sh2;
+ 
+-    uint a = seed1 * x + seed2 * y + (rnum >> 14);
+-    uint b = seed3 * x + seed4 * y + (rnum >> 10);
+-    uint c = seed5 * x + seed6 * y + (rnum >> 6);
+-    uint d = seed7 * x + seed8 * y + (rnum >> 2);
+-
+-    a &= 0x3F;
+-    b &= 0x3F;
+-    c &= 0x3F;
+-    d &= 0x3F;
+-
++    PartitionSetup setup;
++    setup.x_scale = uvec4(seed1, seed3, seed5, seed7);
++    setup.y_scale = uvec4(seed2, seed4, seed6, seed8);
++    setup.offset = uvec4(rnum >> 14, rnum >> 10, rnum >> 6, rnum >> 2);
++    // The unused partitions always compare as 0.
+     if (partition_count < 4) {
+-        d = 0;
++        setup.x_scale.w = 0;
++        setup.y_scale.w = 0;
++        setup.offset.w = 0;
+     }
+     if (partition_count < 3) {
+-        c = 0;
++        setup.x_scale.z = 0;
++        setup.y_scale.z = 0;
++        setup.offset.z = 0;
++    }
++    return setup;
++}
++
++uint Select2DPartition(PartitionSetup setup, uint x, uint y) {
++    if ((block_dims.y * block_dims.x) < 32) {
++        x <<= 1;
++        y <<= 1;
+     }
+ 
++    const uvec4 abcd = (setup.x_scale * x + setup.y_scale * y + setup.offset) & 0x3Fu;
++    const uint a = abcd.x;
++    const uint b = abcd.y;
++    const uint c = abcd.z;
++    const uint d = abcd.w;
++
+     if (a >= b && a >= c && a >= d) {
+         return 0;
+     } else if (b >= c && b >= d) {
+@@ -464,16 +479,19 @@ void DecodeColorValues(uvec4 modes, uint num_partitions, uint color_data_bits, o
+     for (uint i = 0; i < num_partitions; i++) {
+         num_values += ((modes[i] >> 2) + 1) << 1;
+     }
+-    // Find the largest encoding that's within color_data_bits
+-    // TODO(ameerj): profile with binary search
+-    int range = 0;
+-    while (++range < encoding_values.length()) {
+-        const uint bit_length = GetBitLength(num_values, range);
+-        if (bit_length > color_data_bits) {
+-            break;
++    // Find the largest encoding that's within color_data_bits. The bit length never decreases
++    // with the encoding index, so the first one past color_data_bits is found by bisection.
++    int range_low = 1;
++    int range_high = encoding_values.length();
++    while (range_low < range_high) {
++        const int range_middle = (range_low + range_high) >> 1;
++        if (GetBitLength(num_values, uint(range_middle)) > color_data_bits) {
++            range_high = range_middle;
++        } else {
++            range_low = range_middle + 1;
+         }
+     }
+-    DecodeIntegerSequence(range - 1, num_values);
++    DecodeIntegerSequence(range_low - 1, num_values);
+     uint out_index = 0;
+     for (int itr = 0; itr < result_index; ++itr) {
+         if (out_index >= num_values) {
+@@ -1005,9 +1023,13 @@ uint GetUnquantizedTexelWeight(uint offset_base, uint plane, bool is_dual_plane)
+     return result_vector[offset];
+ }
+ 
++// Scale from a texel position to the weight grid; they depend only on the block size.
++uint weight_scale_s;
++uint weight_scale_t;
++
+ uvec4 GetUnquantizedWeightVector(uint t, uint s, uvec2 size, uint plane_index, bool is_dual_plane) {
+-    const uint Ds = uint((block_dims.x * 0.5f + 1024) / (block_dims.x - 1));
+-    const uint Dt = uint((block_dims.y * 0.5f + 1024) / (block_dims.y - 1));
++    const uint Ds = weight_scale_s;
++    const uint Dt = weight_scale_t;
+     const uint area = size.x * size.y;
+ 
+     const uint cs = Ds * s;
+@@ -1360,11 +1382,17 @@ void DecompressBlock(ivec3 coord) {
+     DecodeIntegerSequence(max_weight, GetNumWeightValues(size_params, dual_plane));
+ 
+     UnquantizeTexelWeights(size_params, dual_plane);
++    weight_scale_s = uint((block_dims.x * 0.5f + 1024) / (block_dims.x - 1));
++    weight_scale_t = uint((block_dims.y * 0.5f + 1024) / (block_dims.y - 1));
++    PartitionSetup partition_setup;
++    if (num_partitions > 1) {
++        partition_setup = SetupPartition(partition_index, num_partitions);
++    }
+     for (uint j = 0; j < block_dims.y; j++) {
+         for (uint i = 0; i < block_dims.x; i++) {
+             uint local_partition = 0;
+             if (num_partitions > 1) {
+-                local_partition = Select2DPartition(partition_index, i, j, num_partitions);
++                local_partition = Select2DPartition(partition_setup, i, j);
+             }
+             const uint local_cem = color_endpoint_mode[local_partition];
+             const uvec4 weight_vec = GetUnquantizedWeightVector(j, i, size_params, plane_index, dual_plane);
+diff --git a/src/video_core/texture_cache/texture_cache.h b/src/video_core/texture_cache/texture_cache.h
+index b538f6b0df..6efede665d 100644
+--- a/src/video_core/texture_cache/texture_cache.h
++++ b/src/video_core/texture_cache/texture_cache.h
+@@ -3855,9 +3855,12 @@ ImageId TextureCache<P>::JoinImages(const ImageInfo& info, GPUVAddr gpu_addr, DA
+         if (IsPixelFormatASTC(new_info.format) && runtime.UseOpaqueAstcFormat()) {
+             const size_t scan_bytes = CalculateGuestSizeInBytes(new_info);
+             if (scan_bytes <= MaxScanBytes) {
+-                astc_scan_buffer.resize(scan_bytes);
+-                gpu_memory->ReadBlockUnsafe(gpu_addr, astc_scan_buffer.data(), scan_bytes);
+-                new_info.astc_opaque = AstcDataLooksOpaque(astc_scan_buffer);
++                // Scanned where it is when it is in one piece; only copied (into the scratch
++                // buffer) when the range is split.
++                Tegra::Memory::GpuGuestMemory<u8, Tegra::Memory::GuestMemoryFlags::UnsafeRead>
++                    scan_data(*gpu_memory, gpu_addr, scan_bytes, &astc_scan_buffer);
++                new_info.astc_opaque =
++                    AstcDataLooksOpaque(std::span<const u8>{scan_data.data(), scan_data.size()});
+                 ++(new_info.astc_opaque ? astc_opaque_images : astc_alpha_images);
+             }
+         }
+diff --git a/src/video_core/texture_cache/texture_cache_base.h b/src/video_core/texture_cache/texture_cache_base.h
+index 342d5dbfeb..e207bf4b1a 100644
+--- a/src/video_core/texture_cache/texture_cache_base.h
++++ b/src/video_core/texture_cache/texture_cache_base.h
+@@ -160,7 +160,7 @@ class TextureCache : public VideoCommon::ChannelSetupCaches<TextureCacheChannelI
+     u64 slack_margin{};           ///< Extra room for allocator block space the driver counts as used
+     u64 astc_opaque_images{};
+     u64 astc_alpha_images{};
+-    std::vector<u8> astc_scan_buffer;
++    Common::ScratchBuffer<u8> astc_scan_buffer;
+     u64 images_deleted{};
+     std::map<u64, std::pair<u32, GPUVAddr>> created_shapes;
+     bool debug_stats{true}; ///< Collect what only the debug statistics lines use
+-- 
+2.43.0
+
