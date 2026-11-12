@@ -1,0 +1,156 @@
+From 401b2dbc7cd83ad7f4ba0d3c0fb8b8fd9b859209 Mon Sep 17 00:00:00 2001
+From: Alway-L <felipemoura2015078@gmail.com>
+Date: Thu, 12 Nov 2026 20:39:21 -0300
+Subject: [PATCH] video_core: AriseOS freeze watchdog logs the renderer
+ threads' host stacks when frames stop for 8 s
+
+---
+ src/video_core/gpu_thread.cpp | 118 ++++++++++++++++++++++++++++++++++
+ 1 file changed, 118 insertions(+)
+
+diff --git a/src/video_core/gpu_thread.cpp b/src/video_core/gpu_thread.cpp
+index 060eff108c..4c076a2c98 100644
+--- a/src/video_core/gpu_thread.cpp
++++ b/src/video_core/gpu_thread.cpp
+@@ -33,6 +33,21 @@
+ #include "video_core/host1x/syncpoint_manager.h"
+ #include "video_core/renderer_base.h"
+ 
++#if defined(__linux__) && !defined(__ANDROID__)
++#include <atomic>
++#include <cerrno>
++#include <csignal>
++#include <cstdlib>
++#include <cstring>
++#include <fstream>
++#include <dirent.h>
++#include <dlfcn.h>
++#include <execinfo.h>
++#include <sys/syscall.h>
++#include <unistd.h>
++#define ARISE_HOST_STACKS 1
++#endif
++
+ namespace VideoCommon::GPUThread {
+ 
+ namespace {
+@@ -48,6 +63,106 @@ void SignalCommand(SynchState& state, u64 fence, bool block) {
+     }
+ }
+ 
++#ifdef ARISE_HOST_STACKS
++// AriseOS: a frozen game whose GPU threads never go idle gets no hang report above. A watchdog
++// logs where each renderer thread is (module + offset per frame) once frames stop for 8 s.
++struct AriseHostStack {
++    std::atomic<int> count{-1};
++    void* frames[40];
++};
++AriseHostStack g_arise_host_stack;
++
++void AriseHostStackHandler(int) {
++    const int saved = errno;
++    g_arise_host_stack.count.store(backtrace(g_arise_host_stack.frames, 40),
++                                   std::memory_order_release);
++    errno = saved;
++}
++
++void AriseLogHostStacks() {
++    const int signal_number = SIGRTMIN + 6;
++    static const bool installed = [signal_number] {
++        void* warm[2];
++        (void)backtrace(warm, 2); // loads the unwinder outside the handler
++        struct sigaction action {};
++        action.sa_handler = AriseHostStackHandler;
++        action.sa_flags = SA_RESTART;
++        sigemptyset(&action.sa_mask);
++        return sigaction(signal_number, &action, nullptr) == 0;
++    }();
++    if (!installed) {
++        return;
++    }
++    DIR* const dir = opendir("/proc/self/task");
++    if (dir == nullptr) {
++        return;
++    }
++    const pid_t self = static_cast<pid_t>(syscall(SYS_gettid));
++    while (const dirent* entry = readdir(dir)) {
++        const pid_t tid = static_cast<pid_t>(std::atoi(entry->d_name));
++        if (tid <= 0 || tid == self) {
++            continue;
++        }
++        std::string name;
++        std::getline(std::ifstream{fmt::format("/proc/self/task/{}/comm", tid)}, name);
++        if (!name.starts_with("GPU") && !name.starts_with("Vulkan") && !name.starts_with("VkPipeline")) {
++            continue;
++        }
++        g_arise_host_stack.count.store(-1, std::memory_order_release);
++        if (syscall(SYS_tgkill, getpid(), tid, signal_number) != 0) {
++            continue;
++        }
++        int count = -1;
++        for (int wait = 0; wait < 200 && count < 0; ++wait) {
++            std::this_thread::sleep_for(std::chrono::milliseconds{1});
++            count = g_arise_host_stack.count.load(std::memory_order_acquire);
++        }
++        std::string text;
++        for (int i = 0; i < count; ++i) {
++            Dl_info info{};
++            void* const frame = g_arise_host_stack.frames[i];
++            if (dladdr(frame, &info) != 0 && info.dli_fname != nullptr) {
++                const char* const slash = std::strrchr(info.dli_fname, '/');
++                text += fmt::format(" {}+{:#x}", slash != nullptr ? slash + 1 : info.dli_fname,
++                                    static_cast<u64>(static_cast<const char*>(frame) -
++                                                     static_cast<const char*>(info.dli_fbase)));
++                if (info.dli_sname != nullptr) {
++                    text += fmt::format("({})", info.dli_sname);
++                }
++            } else {
++                text += fmt::format(" {}", fmt::ptr(frame));
++            }
++        }
++        LOG_WARNING(HW_GPU, "AriseOS host stack: thread {} ({}), {} frames:{}", name, tid, count, text);
++    }
++    closedir(dir);
++}
++
++void AriseStartFreezeWatchdog() {
++    static std::jthread watchdog{[](std::stop_token stop) {
++        Common::SetCurrentThreadName("AriseWatchdog");
++        u64 last_presents = 0;
++        int still = 0;
++        int reports = 0;
++        while (!stop.stop_requested() && reports < 3) {
++            std::this_thread::sleep_for(std::chrono::seconds{1});
++            const u64 presents = Core::g_nx2_present_count.load(std::memory_order_relaxed);
++            if (presents != last_presents || presents == 0) {
++                last_presents = presents;
++                still = 0;
++                continue;
++            }
++            if (++still == 8) {
++                ++reports;
++                LOG_WARNING(HW_GPU, "AriseOS freeze report {}: no new frame for 8 s after {} presents",
++                            reports, presents);
++                AriseLogHostStacks();
++            }
++        }
++    }};
++}
++#endif
++
+ // AriseOS: no new frame for 20 s while the GPU thread waits for work. Logs every guest thread of
+ // the game (state, registers at its last interrupt) and, for runnable ones, the code around the PC
+ // and the memory its registers point at, so a guest loop waiting on something can be read back.
+@@ -155,6 +270,9 @@ ThreadManager::~ThreadManager() = default;
+ 
+ void ThreadManager::StartThread(VideoCore::RendererBase& renderer, Core::Frontend::GraphicsContext& context, Tegra::Control::Scheduler& scheduler) {
+     rasterizer = renderer.ReadRasterizer();
++#ifdef ARISE_HOST_STACKS
++    AriseStartFreezeWatchdog();
++#endif
+     thread = std::jthread([&](std::stop_token stop_token) {
+         const Common::DkbCpuTrace::Registration cpu_trace{Common::DkbCpuTrace::Role::GpuCommand};
+         Common::SetCurrentThreadName("GPU");
+-- 
+2.43.0
+
