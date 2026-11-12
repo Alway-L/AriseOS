@@ -13,6 +13,6 @@ TEST_CASE("Lichii keeps its data apart from Eden's", "[fs]") {
         SKIP("portable user directory in use");
     }
     CHECK(data.filename() == "fritchii");
-    CHECK(GetLegacyPath(LegacyEdenDir).filename() == "eden");
+    CHECK(GetLegacyPath(LegacyEdenDir).filename() == "fritchii");
     CHECK(GetLegacyPath(LegacyEdenDir).parent_path() == data.parent_path());
 }

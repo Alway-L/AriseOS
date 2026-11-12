@@ -10,8 +10,9 @@
 
 // Fritchii keeps its own profile (v5.8, the owner's call): imported from eden (Eden, Lichii
 // before build 150, earlier Fritchii) or lichii (Lichii 150+) on the first launch.
-#define EDEN_DIR "fritchii"
-#define EDEN_LEGACY_DIR "eden"
+// AriseOS Kanario keeps the eden folder: saves, settings and shader caches stay where they were.
+#define EDEN_DIR "eden"
+#define EDEN_LEGACY_DIR "fritchii"
 #define LICHII_DIR "lichii"
 #define PORTABLE_DIR "user"
 

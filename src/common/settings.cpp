@@ -449,7 +449,8 @@ bool SpeedLimitEnabled() {
     // Fritchii: Ocarina of Time's logic takes one fixed step per frame (1/60 s, or 1/30 with the
     // 30 FPS mode), so "Unlocked" above 60 FPS ran the whole game fast, not just smoother
     // (2026-11-09). It stays at its speed; Turbo and Slow remain the deliberate speed changes.
-    static const bool fritchii = std::string_view{Common::g_build_name} == "Fritchii";
+    static const bool fritchii = std::string_view{Common::g_build_name} == "Fritchii" ||
+                                 std::string_view{Common::g_build_name} == "Kanario";
     constexpr u64 OcarinaOfTime = 0x0400486024DEC000ULL;
     if (!fritchii || GetCurrentProgramID() != OcarinaOfTime) {
         return false;

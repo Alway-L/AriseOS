@@ -217,7 +217,9 @@ std::string BuildVersionString() {
     const auto build_id = std::string(Common::g_build_id);
 
     const auto yuzu_build =
-        std::string_view{Common::g_build_name} == "Fritchii"
+        std::string_view{Common::g_build_name} == "Kanario"
+            ? fmt::format("Kanario {} | {}-{}", Common::g_build_version, branch_name, description)
+        : std::string_view{Common::g_build_name} == "Fritchii"
             ? fmt::format("Fritchii {} | {}-{}", Common::g_build_version, branch_name, description)
             : fmt::format("Lichii Development Build | {}-{}", branch_name, description);
     const auto override_build =
