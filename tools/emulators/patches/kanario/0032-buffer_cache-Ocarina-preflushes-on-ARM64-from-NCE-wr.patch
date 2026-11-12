@@ -1,0 +1,52 @@
+From 740ca87c3c39f382f6604e63b1aef81fbae6dc9e Mon Sep 17 00:00:00 2001
+From: Alway-L <felipemoura2015078@gmail.com>
+Date: Thu, 12 Nov 2026 20:06:54 -0300
+Subject: [PATCH] buffer_cache: Ocarina preflushes on ARM64, from NCE write
+ faults too (456 host GPU waits a second in its forest on an S25)
+
+---
+ src/video_core/buffer_cache/buffer_cache.h | 13 +++++++++++--
+ src/video_core/gpu.cpp                     |  3 +++
+ 2 files changed, 14 insertions(+), 2 deletions(-)
+
+diff --git a/src/video_core/buffer_cache/buffer_cache.h b/src/video_core/buffer_cache/buffer_cache.h
+index e53921a4ce..b6f7797ea9 100644
+--- a/src/video_core/buffer_cache/buffer_cache.h
++++ b/src/video_core/buffer_cache/buffer_cache.h
+@@ -358,8 +358,17 @@ std::optional<VideoCore::RasterizerDownloadArea> BufferCache<P>::GetFlushArea(DA
+         }
+         return std::nullopt;
+     }();
+-    const bool preflush =
+-        forced_preflush.value_or(!Tegra::g_nx2_ampere.load(std::memory_order_relaxed));
++#ifdef ARCHITECTURE_arm64
++    // NCE takes a fault for every guest write to a cached page, and each one waited for the host
++    // GPU to download the page (456 waits a second in Ocarina's forest on an S25, 45% of the GPU
++    // thread's time). Preflushed, the data is in guest memory when the fault arrives (Hokkaido
++    // 8a1f9e1e8f: 500 waits a second -> 5).
++    const bool phone_preflush = Settings::GetCurrentProgramID() == 0x0400486024DEC000ULL;
++#else
++    const bool phone_preflush = false;
++#endif
++    const bool preflush = forced_preflush.value_or(
++        phone_preflush || !Tegra::g_nx2_ampere.load(std::memory_order_relaxed));
+     if (!area->preemtive) {
+         if (Nx2DownloadTrace::g_enabled) [[unlikely]] {
+             Nx2DownloadTrace::Marked(device_addr_start_aligned,
+diff --git a/src/video_core/gpu.cpp b/src/video_core/gpu.cpp
+index fdb10e9da2..fdab823bb5 100644
+--- a/src/video_core/gpu.cpp
++++ b/src/video_core/gpu.cpp
+@@ -369,6 +369,9 @@ struct GPU::Impl {
+                 const u64 fence = RequestSyncOperation([rasterizer, addr, size] {
+                     const VideoCommon::Nx2Profile::Scope read_scope{
+                         VideoCommon::Nx2Profile::Zone::ReadFlush};
++                    // Marks the pages Preflushable where the buffer cache preflushes, as a read's
++                    // flush does: the next write fault there finds the data in guest memory.
++                    (void)rasterizer->GetFlushArea(addr, size);
+                     rasterizer->FlushRegion(addr, size, VideoCommon::CacheType::BufferCache);
+                     rasterizer->OnCacheInvalidation(addr, size);
+                 });
+-- 
+2.43.0
+
