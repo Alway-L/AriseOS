@@ -202,6 +202,21 @@ while True:
                 print("      busy threads: " + ", ".join("%s %d%% (%s)" % (c, b, st) for b, c, st in hot[:8]))
         top = ", ".join("%s %d MiB (anon %d, shm %d, swap %d, cpu %d%%, %d threads)" % (n, r >> 10, a >> 10, sh >> 10,
                         sw >> 10, b, t) for r, n, a, sh, sw, b, t, _ in procs[:5])
+        # The biggest process (the emulator): how much of its memory is file pages (guest memory lives in a
+        # file) and how many bytes it really read from storage in 15 s, which is what its major faults cost.
+        if procs:
+            try:
+                st = open("/proc/%s/status" % procs[0][7]).read()
+                io = dict(line.split(": ") for line in open("/proc/%s/io" % procs[0][7]).read().splitlines())
+                read = int(io.get("read_bytes", 0))
+                wrote = int(io.get("write_bytes", 0))
+                print("      %s: file pages %d MiB, storage read %d MiB, written %d MiB in 15 s" % (
+                    procs[0][1], kb(st, "RssFile") >> 10, (read - last.get("io_r", read)) >> 20,
+                    (wrote - last.get("io_w", wrote)) >> 20))
+                last["io_r"] = read
+                last["io_w"] = wrote
+            except (OSError, ValueError):
+                pass
         # Major faults (pages read back from storage or swap) every 15 s: guest memory lives in a
         # file, and a working set Android evicted shows up here as stalls of the emulated cores.
         try:
@@ -236,8 +251,8 @@ while True:
             try:
                 cur = int(open(base + "scaling_cur_freq").read()) // 1000
                 cap = int(open(base + "scaling_max_freq").read()) // 1000
-                top = int(open(base + "cpuinfo_max_freq").read()) // 1000
-                clusters.append("cpu%d %d/%d of %d MHz" % (cpu, cur, cap, top))
+                hw = int(open(base + "cpuinfo_max_freq").read()) // 1000
+                clusters.append("cpu%d %d/%d of %d MHz" % (cpu, cur, cap, hw))
             except (OSError, ValueError):
                 pass
         try:

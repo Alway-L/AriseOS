@@ -1,0 +1,55 @@
+From 56db46e7276327b00094786206521b9d11c080ce Mon Sep 17 00:00:00 2001
+From: Alway-L <felipemoura2015078@gmail.com>
+Date: Thu, 12 Nov 2026 19:32:45 -0300
+Subject: [PATCH] settings: GPU accuracy Low on phones again, reactive flushing
+ stays (High cost 355 ms a second of read flushes on the GPU thread); settings
+ revision 13 applies it
+
+---
+ src/common/frizti_settings.h |  4 +++-
+ src/common/settings.h        | 13 ++++++-------
+ 2 files changed, 9 insertions(+), 8 deletions(-)
+
+diff --git a/src/common/frizti_settings.h b/src/common/frizti_settings.h
+index f22b03866d..ac8834c873 100644
+--- a/src/common/frizti_settings.h
++++ b/src/common/frizti_settings.h
+@@ -15,7 +15,9 @@
+ namespace Settings::Frizti {
+ 
+ // Bump when the tuned values change, so every player gets them once more.
+-inline constexpr u32 Revision = 12; // 12: Fritchii v5.8.4 (8: v5.8, own data folder, DLSS modes)
++// 13: AriseOS Kanario, GPU accuracy back to Low on phones (12: Fritchii v5.8.4; 8: v5.8, own data
++// folder, DLSS modes)
++inline constexpr u32 Revision = 13;
+ inline constexpr u64 OcarinaOfTimeProgramId = 0x0400486024DEC000ULL;
+ 
+ // The tuned settings. Frizti's value is each setting's default in settings.h.
+diff --git a/src/common/settings.h b/src/common/settings.h
+index 805e75e2e3..aa3b0375db 100644
+--- a/src/common/settings.h
++++ b/src/common/settings.h
+@@ -573,14 +573,13 @@ struct Values {
+ 
+     SwitchableSetting<GpuAccuracy, true> gpu_accuracy{linkage,
+                                                       // Low on desktop too: the Frizti builds are
+-                                                      // tuned for Ocarina of Time there. High on
+-                                                      // AriseOS phones (with reactive flushing): the
+-                                                      // forest fog was washed out white at Low.
+-#ifdef ARCHITECTURE_arm64
+-                                                      GpuAccuracy::High,
+-#else
++                                                      // tuned for Ocarina of Time there. Low on
++                                                      // AriseOS phones too: reactive flushing is
++                                                      // what un-whitens the forest fog, and High
++                                                      // spent 355 ms of every GPU-thread second
++                                                      // flushing for CPU writes (337 a second, 0
++                                                      // bytes downloaded) on an Adreno 830.
+                                                       GpuAccuracy::Low,
+-#endif
+                                                       "gpu_accuracy",
+                                                       Category::RendererAdvanced,
+                                                       Specialization::Default,
+-- 
+2.43.0
+
