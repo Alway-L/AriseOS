@@ -245,6 +245,11 @@ const CPUCaps g_cpu_caps = [] {
 
 #else
 
+std::optional<int> GetProcessorCount() {
+    const unsigned count = std::thread::hardware_concurrency();
+    return count != 0 ? std::optional<int>{static_cast<int>(count)} : std::nullopt;
+}
+
 #endif
 
 #if defined(ARCHITECTURE_x86_64)
