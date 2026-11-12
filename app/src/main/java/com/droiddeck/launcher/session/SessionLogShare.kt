@@ -197,7 +197,8 @@ object SessionLogShare {
         val home = File(LinuxRuntime.rootDir(context), "root")
         val since = System.currentTimeMillis() - RECENT_DAYS * 86_400_000L
         return listOf("eden", "eglantine").flatMap { dir ->
-            val logs = File(home, ".local/share/$dir/log").listFiles { f -> f.isFile && f.lastModified() >= since && f.length() <= STEAM_LOG_MAX_BYTES }
+            // No size cap here: a long emulator session writes more than 8 MiB, and addEntry trims it.
+            val logs = File(home, ".local/share/$dir/log").listFiles { f -> f.isFile && f.lastModified() >= since }
                 .orEmpty().sortedByDescending { it.lastModified() }.take(3).map { "emulators/$dir/${it.name}" to it }
             val config = File(home, ".config/$dir/qt-config.ini").takeIf { it.isFile }?.let { listOf("emulators/$dir/qt-config.ini" to it) }.orEmpty()
             logs + config
