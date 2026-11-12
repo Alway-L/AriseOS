@@ -213,7 +213,7 @@ object LogUpload {
                     if (!line.contains("\\default=") && key in SETTING_KEYS) settings.put(key, line.substringAfter('='))
                 }
             }
-            val name = if (entry.name.contains("/eden/")) "orchid" else entry.name.removePrefix("emulators/").substringBefore('/')
+            val name = if (entry.name.contains("/eden/")) "kanario" else entry.name.removePrefix("emulators/").substringBefore('/')
             name to settings
         }
     }.getOrNull()

@@ -12,6 +12,8 @@ object ExtraEmulators {
     class Extra(
         val id: String, val name: String, val system: String, val repo: String, val iconRes: Int,
         val source: UserApps.Source,
+        /** Earlier names of this emulator: an install under one of them updates to this one and takes its name. */
+        val formerNames: List<String> = emptyList(),
     )
 
     val all = listOf(
@@ -20,16 +22,14 @@ object ExtraEmulators {
             "kytyps5", "KytyPS5", "PS5 · experimental, x86-64 via FEX", "KytyPS5/KytyPS5", R.drawable.emu_kytyps5,
             UserApps.Source.GitHubArchive("KytyPS5/KytyPS5", Regex("Linux-x86_64\\.tar\\.gz$"), "kyty_launcher"),
         ),
-        // Switch 2: only AriseOS's own Orchid, which takes the useful parts of the other forks (Lichii, Frizti's
-        // Lichii, Eglantine) as patches (tools/emulators/patches/orchid). Those builds stay in the repo as sources.
-        // Orchid, built by AriseOS from its source (.github/workflows/build-orchid.yml) with AriseOS patches: the
-        // upstream ARM64 binary of v0.8.1 cannot decompress Switch 2 game code, and the 256 GiB address block falls
-        // back to a kernel-chosen place when the fixed hints are taken.
+        // Switch 2: AriseOS's own Kanario (formerly Orchid), Frizti's Fritchii core with AriseOS patches and
+        // Hokkaido ports (tools/emulators/patches/kanario, .github/workflows/build-kanario.yml).
         Extra(
-            "orchid", "Orchid", "Switch 2 · build AriseOS · ARM64", "Alway-L/AriseOS", R.drawable.emu_orchid,
+            "kanario", "Kanario", "Switch 2 · build AriseOS · ARM64", "Alway-L/AriseOS", R.drawable.emu_kanario,
             UserApps.Source.GitHubAppImage(
-                "Alway-L/AriseOS", Regex("^orchid-arise-linux-aarch64\\.AppImage$"), Regex("^orchid-arise-"), previews = true,
+                "Alway-L/AriseOS", Regex("^kanario-arise-linux-aarch64\\.AppImage$"), Regex("^kanario-arise-"), previews = true,
             ),
+            formerNames = listOf("Orchid"),
         ),
     )
 
@@ -37,7 +37,10 @@ object ExtraEmulators {
     fun installed(apps: List<UserApps.App>, extra: Extra): UserApps.App? {
         // AriseOS's repo also held Lichii and Lichii Frizti, still installed for some: match those by name too.
         val shared = extra.repo.equals("Alway-L/AriseOS", ignoreCase = true) || all.count { it.repo.equals(extra.repo, ignoreCase = true) } > 1
-        return apps.firstOrNull { it.repo.equals(extra.repo, ignoreCase = true) && (!shared || it.name.equals(extra.name, ignoreCase = true)) }
+        val names = listOf(extra.name) + extra.formerNames
+        return apps.firstOrNull { app ->
+            app.repo.equals(extra.repo, ignoreCase = true) && (!shared || names.any { app.name.equals(it, ignoreCase = true) })
+        }
     }
 
     fun request(context: Context, extra: Extra): UserApps.Request {

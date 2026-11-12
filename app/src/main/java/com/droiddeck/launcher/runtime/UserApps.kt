@@ -507,8 +507,21 @@ object UserApps {
 
     fun update(context: Context, app: App, release: Release, onProgress: (String, Int) -> Unit): String? {
         val repo = app.repo ?: return context.getString(R.string.user_apps_update_failed)
+        val renamed = ExtraEmulators.all.firstOrNull { extra ->
+            extra.formerNames.any { app.name.equals(it, ignoreCase = true) } && ExtraEmulators.installed(listOf(app), extra) != null
+        }
+        val meta = githubMeta(repo, release) + (renamed?.let { mapOf("name" to it.name) } ?: emptyMap())
+        val id = app.key.substringAfter(':')
         return withDownload(context, release, onProgress) { file ->
-            AppImageManager.replace(context, app.key.substringAfter(':'), file, githubMeta(repo, release)) { onProgress(it, -1) }
+            AppImageManager.replace(context, id, file, meta) { onProgress(it, -1) }
+        }.also { error ->
+            if (error == null && renamed != null) {
+                runCatching {
+                    context.resources.openRawResource(renamed.iconRes).use { input ->
+                        File(AppImageManager.dir(context, id), "icon.png").outputStream().use { input.copyTo(it) }
+                    }
+                }
+            }
         }
     }
 
