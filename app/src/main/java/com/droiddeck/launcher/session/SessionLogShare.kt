@@ -51,11 +51,11 @@ object SessionLogShare {
         val stores = recent(File(logs, STORES_DIR))
         val tools = recent(File(logs, SessionPaths.TOOLS_DIR))
         val battleNet = battleNetLogs(context) + emulatorLogs(context)
-        val total = (files + live + stores + tools + battleNet.map { it.second }).sumOf { it.length() }.coerceAtLeast(1L)
+        val total = (files + live + stores + tools + battleNet.map { it.second }).sumOf { shareSize(it) }.coerceAtLeast(1L)
         var done = 0L
         var shown = -1
         fun advance(f: File) {
-            done += f.length()
+            done += shareSize(f)
             val percent = (done * 100 / total).toInt()
             if (percent != shown) { shown = percent; onProgress?.invoke(percent / 100f) }
         }
@@ -78,9 +78,64 @@ object SessionLogShare {
     private fun addEntry(z: ZipOutputStream, name: String, f: File) {
         z.putNextEntry(ZipEntry(name))
         val w = z.bufferedWriter()
-        LogRedactor.scrubForShare(f, w)
+        when {
+            isBinary(f) -> w.write("<binary file withheld, ${f.length()} bytes>\n")
+            f.length() > SHARE_MAX_BYTES -> {
+                // Head and tail only: scrubbing hundreds of MiB of emulator trace line by line took minutes
+                // and the share button sat at 0 %.
+                val trimmed = runCatching { trimmedCopy(f) }.getOrNull()
+                if (trimmed != null) {
+                    try {
+                        LogRedactor.scrubForShare(trimmed, w)
+                    } finally {
+                        trimmed.delete()
+                    }
+                } else {
+                    w.write("<file of ${f.length()} bytes withheld: could not trim it>\n")
+                }
+            }
+            else -> LogRedactor.scrubForShare(f, w)
+        }
         w.flush()
         z.closeEntry()
+    }
+
+    private const val SHARE_MAX_BYTES = 24L * 1024 * 1024
+    private const val SHARE_HEAD_BYTES = 4L * 1024 * 1024
+
+    private fun shareSize(f: File): Long = minOf(f.length(), SHARE_MAX_BYTES)
+
+    /** NUL bytes in the first 64 KiB: a dump or a binary, not a log. */
+    private fun isBinary(f: File): Boolean = runCatching {
+        f.inputStream().use { input ->
+            val buffer = ByteArray(64 * 1024)
+            val read = input.read(buffer)
+            read > 0 && (0 until read).any { buffer[it] == 0.toByte() }
+        }
+    }.getOrDefault(false)
+
+    private fun trimmedCopy(f: File): File {
+        val out = File.createTempFile("share-cut", ".log")
+        java.io.RandomAccessFile(f, "r").use { raf ->
+            out.outputStream().buffered().use { o ->
+                val buffer = ByteArray(256 * 1024)
+                fun copy(from: Long, count: Long) {
+                    raf.seek(from)
+                    var left = count
+                    while (left > 0) {
+                        val n = raf.read(buffer, 0, minOf(buffer.size.toLong(), left).toInt())
+                        if (n <= 0) break
+                        o.write(buffer, 0, n)
+                        left -= n
+                    }
+                }
+                val tail = SHARE_MAX_BYTES - SHARE_HEAD_BYTES
+                copy(0, SHARE_HEAD_BYTES)
+                o.write("\n<... ${f.length() - SHARE_MAX_BYTES} bytes cut from the middle of this log ...>\n".toByteArray())
+                copy(f.length() - tail, tail)
+            }
+        }
+        return out
     }
 
     private fun liveSteamLogs(context: Context, folder: File): List<File> {
