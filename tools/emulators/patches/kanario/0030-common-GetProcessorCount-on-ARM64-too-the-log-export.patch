@@ -1,0 +1,29 @@
+From ba839edb5b093eca2f521ab41da33da6ca327ede Mon Sep 17 00:00:00 2001
+From: Alway-L <felipemoura2015078@gmail.com>
+Date: Thu, 12 Nov 2026 11:05:42 -0300
+Subject: [PATCH] common: GetProcessorCount on ARM64 too (the log export calls
+ it on every architecture)
+
+---
+ src/common/cpu_features.cpp | 5 +++++
+ 1 file changed, 5 insertions(+)
+
+diff --git a/src/common/cpu_features.cpp b/src/common/cpu_features.cpp
+index c7f6e6f036..2ec2605a73 100644
+--- a/src/common/cpu_features.cpp
++++ b/src/common/cpu_features.cpp
+@@ -245,6 +245,11 @@ const CPUCaps g_cpu_caps = [] {
+ 
+ #else
+ 
++std::optional<int> GetProcessorCount() {
++    const unsigned count = std::thread::hardware_concurrency();
++    return count != 0 ? std::optional<int>{static_cast<int>(count)} : std::nullopt;
++}
++
+ #endif
+ 
+ #if defined(ARCHITECTURE_x86_64)
+-- 
+2.43.0
+
