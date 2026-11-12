@@ -51,10 +51,11 @@ class SessionLogShareZipTest {
                     }
                     assertEquals(expected, String(prefix, StandardCharsets.UTF_8))
                     input.bufferedReader().use { reader ->
-                        val trailing = requireNotNull(reader.readLine())
-                        assertFalse("trailing secret survived", trailing.contains(trailingSecret))
-                        assertEquals("refresh_token=<redacted:token>", trailing)
-                        assertEquals(null, reader.readLine())
+                        // Over the share limit the middle is cut: a marker, the rest of the long line, then the tail.
+                        val rest = reader.readLines()
+                        assertTrue(rest.first().startsWith("<... "))
+                        assertFalse("trailing secret survived", rest.any { it.contains(trailingSecret) })
+                        assertEquals("refresh_token=<redacted:token>", rest.last())
                     }
                 }
             }
