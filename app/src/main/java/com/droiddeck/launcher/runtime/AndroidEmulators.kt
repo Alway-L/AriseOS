@@ -7,10 +7,11 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.core.content.FileProvider
+import com.droiddeck.launcher.R
 import com.droiddeck.launcher.core.Downloader
 import com.droiddeck.launcher.core.Hashes
-import org.json.JSONArray
 import java.io.File
+import org.json.JSONArray
 
 /**
  * AriseOS: emulators that have a native Android build. They run as their own Android app, straight on the
