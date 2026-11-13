@@ -7,7 +7,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.core.content.FileProvider
-import com.droiddeck.launcher.R
 import com.droiddeck.launcher.core.Downloader
 import com.droiddeck.launcher.core.Hashes
 import org.json.JSONArray
@@ -25,13 +24,8 @@ object AndroidEmulators {
         val asset: Regex, val tag: Regex, val packages: List<String>,
     )
 
-    val all = listOf(
-        Extra(
-            "lichii-android", "Lichii Android", "Switch / Switch 2 · Android nativo", "pavelgajdo/Lichii-Android",
-            R.drawable.emu_lichii, Regex("\\.apk$"), Regex("^android-"),
-            listOf("dev.lichii.android", "dev.lichii.android.nightly"),
-        ),
-    )
+    // Lichii Android (pavelgajdo/Lichii-Android) left the list: Kanario is the Switch 2 emulator in use.
+    val all = emptyList<Extra>()
 
     var working by mutableStateOf<String?>(null)
         private set
