@@ -38,7 +38,8 @@ concurrency:
 jobs:
   source:
     name: Pin source tree
-    if: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft }}
+    # Not in the private backup copy of this repository, which has no signing keys.
+    if: ${{ github.repository == 'Alway-L/AriseOS' && (github.event_name != 'pull_request' || !github.event.pull_request.draft) }}
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     outputs:
