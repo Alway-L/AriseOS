@@ -369,6 +369,9 @@ struct GPU::Impl {
                 const u64 fence = RequestSyncOperation([rasterizer, addr, size] {
                     const VideoCommon::Nx2Profile::Scope read_scope{
                         VideoCommon::Nx2Profile::Zone::ReadFlush};
+                    // Marks the pages Preflushable where the buffer cache preflushes, as a read's
+                    // flush does: the next write fault there finds the data in guest memory.
+                    (void)rasterizer->GetFlushArea(addr, size);
                     rasterizer->FlushRegion(addr, size, VideoCommon::CacheType::BufferCache);
                     rasterizer->OnCacheInvalidation(addr, size);
                 });

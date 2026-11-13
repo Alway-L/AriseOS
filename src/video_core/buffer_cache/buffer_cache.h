@@ -358,8 +358,17 @@ std::optional<VideoCore::RasterizerDownloadArea> BufferCache<P>::GetFlushArea(DA
         }
         return std::nullopt;
     }();
-    const bool preflush =
-        forced_preflush.value_or(!Tegra::g_nx2_ampere.load(std::memory_order_relaxed));
+#ifdef ARCHITECTURE_arm64
+    // NCE takes a fault for every guest write to a cached page, and each one waited for the host
+    // GPU to download the page (365-469 waits a second in Ocarina's forest on an S25, 42-50% of
+    // the GPU thread's time). Preflushed, the data is in guest memory when the fault arrives
+    // (Hokkaido 8a1f9e1e8f: 500 waits a second -> 5).
+    const bool phone_preflush = Settings::GetCurrentProgramID() == 0x0400486024DEC000ULL;
+#else
+    const bool phone_preflush = false;
+#endif
+    const bool preflush = forced_preflush.value_or(
+        phone_preflush || !Tegra::g_nx2_ampere.load(std::memory_order_relaxed));
     if (!area->preemtive) {
         if (Nx2DownloadTrace::g_enabled) [[unlikely]] {
             Nx2DownloadTrace::Marked(device_addr_start_aligned,
