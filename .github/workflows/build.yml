@@ -31,6 +31,13 @@ permissions:
   actions: read
   pull-requests: write
 
+# The jobs fetch from origin without stored credentials, which only a public repository allows. In a
+# private copy (the backup) git gets the run's read token for github.com instead.
+env:
+  GIT_CONFIG_COUNT: 1
+  GIT_CONFIG_KEY_0: ${{ github.event.repository.private && format('url.https://x-access-token:{0}@github.com/.insteadOf', github.token) || 'arise.publicrepository' }}
+  GIT_CONFIG_VALUE_0: https://github.com/
+
 concurrency:
   group: build-${{ github.event.pull_request.number || (github.event_name == 'push' && 'main') || github.run_id }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' || github.event_name == 'push' }}
