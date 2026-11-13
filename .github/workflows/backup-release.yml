@@ -1,0 +1,35 @@
+name: copy the newest release into the private backup
+# Runs in the private backup repository only: it takes the newest AriseOS APK and Kanario AppImage
+# published by Alway-L/AriseOS and keeps them as one release here.
+on:
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  copy:
+    if: github.repository != 'Alway-L/AriseOS'
+    runs-on: ubuntu-latest
+    env:
+      SOURCE: Alway-L/AriseOS
+      GH_TOKEN: ${{ github.token }}
+    steps:
+    - name: Download the newest APK and Kanario build
+      run: |
+        set -euo pipefail
+        gh api "repos/$SOURCE/releases?per_page=100" > releases.json
+        app=$(jq -r '[.[] | select(.tag_name | test("^v[0-9]"))] | sort_by(.published_at) | last | .tag_name' releases.json)
+        emu=$(jq -r '[.[] | select(.tag_name | test("^kanario-arise-b"))] | sort_by(.published_at) | last | .tag_name' releases.json)
+        mkdir files
+        gh release download "$app" --repo "$SOURCE" --dir files
+        gh release download "$emu" --repo "$SOURCE" --dir files
+        ls -la files
+        echo "APP=$app" >> "$GITHUB_ENV"
+        echo "EMU=$emu" >> "$GITHUB_ENV"
+    - name: Publish them here
+      run: |
+        set -euo pipefail
+        tag="backup-$APP-$EMU"
+        gh release delete "$tag" --repo "$GITHUB_REPOSITORY" --yes --cleanup-tag 2>/dev/null || true
+        gh release create "$tag" files/* --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+          --title "AriseOS $APP + $EMU" \
+          --notes "Copia de seguranca dos arquivos publicados em $SOURCE: $APP e $EMU."
