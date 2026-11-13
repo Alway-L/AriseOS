@@ -1,0 +1,191 @@
+// SPDX-FileCopyrightText: Copyright 2026 Eden Emulator Project
+// SPDX-License-Identifier: GPL-3.0-or-later
+
+// SPDX-FileCopyrightText: Copyright 2018 yuzu Emulator Project
+// SPDX-License-Identifier: GPL-2.0-or-later
+
+#pragma once
+
+#include <array>
+#include <map>
+#include <memory>
+#include <optional>
+#include <span>
+#include <string>
+#include "common/common_types.h"
+#include "core/file_sys/nca_metadata.h"
+#include "core/file_sys/vfs/vfs_types.h"
+#include "core/memory/dmnt_cheat_types.h"
+
+namespace Core {
+class System;
+}
+
+namespace Service::FileSystem {
+class FileSystemController;
+}
+
+namespace FileSys {
+
+class ContentProvider;
+class NCA;
+class NACP;
+
+enum class PatchType { Update, DLC, Mod };
+
+enum class PatchSource {
+    Unknown,
+    NAND,
+    SDMC,
+    External,
+    Packed,
+};
+
+struct Patch {
+    bool enabled;
+    std::string name;
+    std::string version;
+    PatchType type;
+    u64 program_id;
+    u64 title_id;
+    PatchSource source;
+    std::string location;
+    u32 numeric_version{0};
+};
+
+// A centralized class to manage patches to games.
+class PatchManager {
+public:
+    using BuildID = std::array<u8, 0x20>;
+    using Metadata = std::pair<std::unique_ptr<NACP>, VirtualFile>;
+
+    explicit PatchManager(u64 title_id_,
+                          const Service::FileSystem::FileSystemController& fs_controller_,
+                          const ContentProvider& content_provider_);
+    ~PatchManager();
+
+    [[nodiscard]] u64 GetTitleID() const;
+
+    // Currently tracked ExeFS patches:
+    // - Game Updates
+    [[nodiscard]] VirtualDir PatchExeFS(VirtualDir exefs) const;
+
+    // Currently tracked NSO patches:
+    // - IPS
+    // - IPSwitch
+    // - Built-in patches, keyed by title and build id
+    [[nodiscard]] std::vector<u8> PatchNSO(const std::vector<u8>& nso,
+                                           const std::string& name) const;
+
+    // Checks to see if PatchNSO() will have any effect given the NSO's build ID.
+    // Used to prevent expensive copies in NSO loader.
+    [[nodiscard]] bool HasNSOPatch(const BuildID& build_id, std::string_view name) const;
+
+    // Creates a CheatList object with all
+    [[nodiscard]] std::vector<Core::Memory::CheatEntry> CreateCheatList(
+        const BuildID& build_id) const;
+
+    // Currently tracked RomFS patches:
+    // - Game Updates
+    // - LayeredFS
+    [[nodiscard]] VirtualFile PatchRomFS(const NCA* base_nca, VirtualFile base_romfs,
+                                         ContentRecordType type = ContentRecordType::Program,
+                                         VirtualFile packed_update_raw = nullptr,
+                                         bool apply_layeredfs = true) const;
+
+    // Returns a vector of patches
+    [[nodiscard]] std::vector<Patch> GetPatches(VirtualFile update_raw = nullptr) const;
+
+    // If the game update exists, returns the u32 version field in its Meta-type NCA. If that fails,
+    // it will fallback to the Meta-type NCA of the base game. If that fails, the result will be
+    // std::nullopt
+    [[nodiscard]] std::optional<u32> GetGameVersion() const;
+
+    // Given title_id of the program, attempts to get the control data of the update and parse
+    // it, falling back to the base control data.
+    [[nodiscard]] Metadata GetControlMetadata() const;
+
+    // Version of GetControlMetadata that takes an arbitrary NCA
+    [[nodiscard]] Metadata ParseControlNCA(const NCA& nca) const;
+    [[nodiscard]] static Metadata ParseControlRomFS(const VirtualFile& romfs);
+
+    /// @brief Gets NACP metadata (accounting for any patches or updates)
+    [[nodiscard]] static PatchManager::Metadata GetMetadataFromBaseOrUpdate(Core::System& system, u64 application_id) noexcept;
+
+private:
+    [[nodiscard]] VirtualDir GetModificationLoadRoot(bool sdmc = false) const;
+    [[nodiscard]] std::vector<std::string> GetDisabledAddons() const;
+    void ApplyLayeredFS(VirtualFile& romfs, ContentRecordType type) const;
+    [[nodiscard]] std::vector<VirtualFile> CollectPatches(const std::vector<VirtualDir>& patch_dirs,
+                                                          const std::string& build_id) const;
+
+    u64 title_id;
+    std::optional<u64> parent_title_id;
+    const Service::FileSystem::FileSystemController& fs_controller;
+    const ContentProvider& content_provider;
+};
+
+/// When `code` (a module's code, from the offset after its NSO header) holds Ocarina of Time's
+/// "High refresh rate (built-in, experimental)" routine, the offset in it of the routine's speed
+/// scale word (a float, 1.0 at 100% speed), else nullopt.
+[[nodiscard]] std::optional<size_t> OotHighRefreshScaleOffset(std::span<const u8> code);
+
+/// The parts of Ocarina of Time's main (offsets after its NSO header) that its high refresh rate
+/// mode changes. Dark's 120-byte routine stays at main+0x3C46200 in both modes: other mods (the
+/// Hyrule Cheat Menu at main+0x3C46280..0x3C46398) put their code right after it, so ours lives in
+/// its own cave at the free end of that page. Off (Dark's Dynamic FPS, the default): the frame
+/// step's call to Dark's routine, the water renderer's own fcvtzs, our cave zero. On: the call to
+/// the high refresh routine at the start of our cave (its speed scale word at +0x88), a zero word,
+/// the water ripple accumulator at +0x90, and a branch to it in place of that fcvtzs.
+struct OotHighRefreshCode {
+    static constexpr size_t CallOffset = 0x6E6CC4;
+    static constexpr size_t WaterOffset = 0x475F8;
+    static constexpr size_t DarkOffset = 0x3C46200;
+    static constexpr size_t DarkSize = 120;
+    static constexpr size_t CaveOffset = 0x3C46E00;
+    static constexpr size_t CaveSize = 0x110;
+    static constexpr size_t ScaleOffset = CaveOffset + 0x88;
+
+    std::array<u8, 4> call{};
+    std::array<u8, 4> water{};
+    std::array<u8, DarkSize> dark{};
+    std::array<u8, CaveSize> cave{};
+};
+
+enum class OotHighRefreshLayout {
+    Off,
+    On,
+    Unknown, ///< neither: a user mod, Dark's routine off in Add-Ons, a cave word in use...
+};
+
+/// Those parts of `code` (a module's code after its NSO header); nullopt when it is too small.
+[[nodiscard]] std::optional<OotHighRefreshCode> ReadOotHighRefreshCode(std::span<const u8> code);
+/// Which mode `code` holds (On whatever its speed scale word holds).
+[[nodiscard]] OotHighRefreshLayout GetOotHighRefreshLayout(const OotHighRefreshCode& code);
+/// `code` switched to the mode `on`: the bytes to write. `code` itself when it already is in that
+/// mode (its speed scale word kept), nullopt when it holds neither mode. `ripples`: whether
+/// Dark's mode keeps the water hook and cave (the "Water ripples at any frame rate" built-in,
+/// on unless turned off in Add-Ons); without it switching off clears them as before v5.8.
+[[nodiscard]] std::optional<OotHighRefreshCode> SwitchOotHighRefreshCode(
+    const OotHighRefreshCode& code, bool on, bool ripples = true);
+/// Whether the high refresh routine's state (Dark's timer state and the water ripple slots) lies
+/// in the module's BSS, [bss_start, bss_end) in module offsets.
+[[nodiscard]] bool OotHighRefreshStateInBss(u64 bss_start, u64 bss_end);
+
+enum class OotHighRefreshSwitch {
+    Switched,         ///< in that mode now (or already was)
+    NotRunning,       ///< no Ocarina of Time main that can switch (other game, its BSS differs)
+    DisabledInAddOns, ///< the high refresh patch is off in Add-Ons (switching on only)
+    UnknownCode,      ///< its code holds neither mode
+    Busy,             ///< a guest thread kept stopping inside the cave; try again
+};
+
+/// Switches the running Ocarina of Time between Dark's routine and the high refresh rate mode
+/// (Ctrl+U) without a restart: with every guest thread of the application stopped
+/// (System::StallApplication) and none of them inside the cave, writes the cave and the water hook,
+/// invalidates the translated code of both on every core, and updates the process's speed scale
+/// address and Settings::OotHighRefreshPatched (pacing and the speed limit follow). Call it from a
+/// host thread that is not an emulated core (the UI thread). Leaves Settings::values alone.
+[[nodiscard]] OotHighRefreshSwitch SwitchOotHighRefreshLive(Core::System& system, bool on);
+
+} // namespace FileSys
