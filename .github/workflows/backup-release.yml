@@ -1,6 +1,6 @@
 name: copy the newest release into the private backup
 # Runs in the private backup repository only: it takes the newest AriseOS APK and Kanario AppImage
-# published by Alway-L/AriseOS and keeps them as one release here.
+# published by Alway-L/AriseOS, with the proot and comet packs the app downloads, and keeps them as one release here.
 on:
   workflow_dispatch:
 permissions:
@@ -22,6 +22,12 @@ jobs:
         mkdir files
         gh release download "$app" --repo "$SOURCE" --dir files
         gh release download "$emu" --repo "$SOURCE" --dir files
+        for pack in pack-proot- pack-comet-; do
+          tag=$(jq -r --arg p "^$pack" '[.[] | select(.tag_name | test($p))] | sort_by(.published_at) | last | .tag_name // empty' releases.json)
+          [ -z "$tag" ] || gh release download "$tag" --repo "$SOURCE" --dir "files/$tag"
+        done
+        find files -mindepth 2 -type f | while read -r f; do mv "$f" "files/$(basename "$(dirname "$f")")-$(basename "$f")"; done
+        find files -mindepth 1 -type d -empty -delete
         ls -la files
         echo "APP=$app" >> "$GITHUB_ENV"
         echo "EMU=$emu" >> "$GITHUB_ENV"
@@ -32,4 +38,4 @@ jobs:
         gh release delete "$tag" --repo "$GITHUB_REPOSITORY" --yes --cleanup-tag 2>/dev/null || true
         gh release create "$tag" files/* --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
           --title "AriseOS $APP + $EMU" \
-          --notes "Copia de seguranca dos arquivos publicados em $SOURCE: $APP e $EMU."
+          --notes "Copia de seguranca dos arquivos publicados em $SOURCE: $APP, $EMU e os pacotes proot e comet."
