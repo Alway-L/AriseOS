@@ -222,12 +222,17 @@ program_cores() {
   [ "${BL_PIN_CORES:-1}" = 0 ] && return 0
   command -v taskset >/dev/null 2>&1 || return 0
   if [ -n "${BL_GAME_CPUS:-}" ]; then echo "$BL_GAME_CPUS"; return 0; fi
-  local f n max min= list=
+  local f n max min= top=0 list=
   for f in /sys/devices/system/cpu/cpu[0-9]*/cpufreq/cpuinfo_max_freq; do
     max=$(cat "$f" 2>/dev/null) || continue
     [ -z "$min" ] || [ "$max" -lt "$min" ] && min=$max
+    [ "$max" -gt "$top" ] && top=$max
   done
   [ -n "$min" ] || return 0
+  # AriseOS: no little cores (Snapdragon 8 Elite: 6 x 3.5 GHz + 2 x 4.5 GHz): every core is worth using.
+  # Leaving the slowest cluster out put a ~70-thread emulator on the two prime cores of a Galaxy S25,
+  # both at 80-96% while the other six sat at 15-40%.
+  [ $((min * 100)) -ge $((top * 60)) ] && return 0
   for f in /sys/devices/system/cpu/cpu[0-9]*/cpufreq/cpuinfo_max_freq; do
     max=$(cat "$f" 2>/dev/null) || continue
     n=${f#/sys/devices/system/cpu/cpu}; n=${n%%/*}
