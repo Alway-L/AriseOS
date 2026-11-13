@@ -144,7 +144,7 @@ void AriseStartFreezeWatchdog() {
         u64 last_presents = 0;
         int still = 0;
         int reports = 0;
-        while (!stop.stop_requested() && reports < 3) {
+        while (!stop.stop_requested() && reports < 5) {
             std::this_thread::sleep_for(std::chrono::seconds{1});
             const u64 presents = Core::g_nx2_present_count.load(std::memory_order_relaxed);
             if (presents != last_presents || presents == 0) {
@@ -152,10 +152,11 @@ void AriseStartFreezeWatchdog() {
                 still = 0;
                 continue;
             }
-            if (++still == 8) {
+            // Again every 15 s: the same stacks mean stuck, different ones mean slow.
+            if (++still >= 8 && (still - 8) % 15 == 0) {
                 ++reports;
-                LOG_WARNING(HW_GPU, "AriseOS freeze report {}: no new frame for 8 s after {} presents",
-                            reports, presents);
+                LOG_WARNING(HW_GPU, "AriseOS freeze report {}: no new frame for {} s after {} presents",
+                            reports, still, presents);
                 AriseLogHostStacks();
             }
         }
