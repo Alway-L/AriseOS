@@ -1,0 +1,28 @@
+From 96e319cd13cc7cc7af6e984030cc00d32f66bb6e Mon Sep 17 00:00:00 2001
+From: Alway-L <felipemoura2015078@gmail.com>
+Date: Fri, 13 Nov 2026 17:20:04 -0300
+Subject: [PATCH] buffer_cache: no Ocarina preflush at GPU accuracy High
+
+---
+ src/video_core/buffer_cache/buffer_cache.h | 5 ++++-
+ 1 file changed, 4 insertions(+), 1 deletion(-)
+
+diff --git a/src/video_core/buffer_cache/buffer_cache.h b/src/video_core/buffer_cache/buffer_cache.h
+index 19c3f17ddc..e2b2661760 100644
+--- a/src/video_core/buffer_cache/buffer_cache.h
++++ b/src/video_core/buffer_cache/buffer_cache.h
+@@ -363,7 +363,10 @@ std::optional<VideoCore::RasterizerDownloadArea> BufferCache<P>::GetFlushArea(DA
+     // GPU to download the page (365-469 waits a second in Ocarina's forest on an S25, 42-50% of
+     // the GPU thread's time). Preflushed, the data is in guest memory when the fault arrives
+     // (Hokkaido 8a1f9e1e8f: 500 waits a second -> 5).
+-    const bool phone_preflush = Settings::GetCurrentProgramID() == 0x0400486024DEC000ULL;
++    // Not at GPU accuracy High (ACCURATE in the status bar), set before the game starts: the way to
++    // tell whether preflushing is behind a scene that renders black under the HUD (S25, build 13).
++    const bool phone_preflush = Settings::GetCurrentProgramID() == 0x0400486024DEC000ULL &&
++                                !Settings::IsGPULevelHigh();
+ #else
+     const bool phone_preflush = false;
+ #endif
+-- 
+2.43.0
+
