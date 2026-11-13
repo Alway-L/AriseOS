@@ -6,9 +6,9 @@ on:
   workflow_dispatch:
     inputs:
       ref:
-        description: Commit, tag or branch of Frizti/Lichii (Fritchii v5.8.4 by default)
+        description: Commit or branch of this repository holding the emulator source (kanario-base, Fritchii v5.8.4)
         required: true
-        default: 4f5c53149b7e17d1c24445f68d79a83a3b2a17f9
+        default: kanario-base
 permissions:
   contents: write
 jobs:
@@ -31,8 +31,8 @@ jobs:
     - name: Check out source
       uses: actions/checkout@v5
       with:
-        # Frizti/Lichii went away on 2026-11-13; its commits are still served by the repository it was forked from.
-        repository: zortos293/Lichii
+        # Frizti/Lichii went away on 2026-11-13. Branch kanario-base of this repository is a snapshot of
+        # its commit 4f5c53149b (Fritchii v5.8.4); branch kanario is that plus tools/emulators/patches/kanario.
         ref: ${{ inputs.ref }}
     - name: Check out the AriseOS patches
       uses: actions/checkout@v5
@@ -456,7 +456,7 @@ jobs:
         else
           gh release create "$tag" "$asset" -R "$GITHUB_REPOSITORY" --prerelease --latest=false \
             --title "Kanario AriseOS b${{ github.run_number }} Linux ARM64" \
-            --notes "AriseOS Kanario on Frizti/Lichii ${{ inputs.ref }} (Fritchii), built for Linux ARM64 with tools/emulators/patches/kanario and arise_patches.py."
+            --notes "AriseOS Kanario on ${{ inputs.ref }} (Fritchii v5.8.4, Frizti/Lichii 4f5c53149b), built for Linux ARM64 with tools/emulators/patches/kanario and arise_patches.py."
         fi
         echo "Published $asset on $tag" >> "$GITHUB_STEP_SUMMARY"
     timeout-minutes: 150
