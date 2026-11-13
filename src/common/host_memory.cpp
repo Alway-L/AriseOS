@@ -762,10 +762,12 @@ __attribute__((constructor(102))) static void AriseDiagnosticDefaults() {
 #endif
 
 static int AriseOpenGuestMemoryFile(size_t size) {
-    // RAM (memfd) unless ARISE_GUEST_MEMORY_FILE=1: with the file, Ocarina had the kernel write
-    // 1.5-3 GiB of dirtied guest pages to storage every 15 s on an S25 (heat, flash wear).
+    // The file unless ARISE_GUEST_MEMORY_FILE=0. With it Ocarina has the kernel write 1.5-3 GiB of
+    // dirtied guest pages to storage every 15 s on an S25, but in RAM (memfd, build 10) the same
+    // pages went to the phone's storage-backed swap (840 MiB read back in 15 s) and Android ended
+    // the app (LOW_MEMORY) when an area load took GPU memory from 2.2 to 3.9 GiB.
     const char* toggle = std::getenv("ARISE_GUEST_MEMORY_FILE");
-    if (toggle == nullptr || toggle[0] != '1') {
+    if (toggle != nullptr && toggle[0] == '0') {
         LOG_INFO(HW_Memory, "AriseOS: guest memory ({} MiB) stays in RAM (memfd)", size >> 20);
         return -1;
     }
@@ -816,7 +818,7 @@ static void AriseWatchMemory(u8* base, size_t size) {
             // In RAM (the default) only this paging gets guest pages into swap ahead of Android's
             // low-memory killer, so it starts earlier than with the file.
             const char* file_toggle = std::getenv("ARISE_GUEST_MEMORY_FILE");
-            const bool in_file = file_toggle != nullptr && file_toggle[0] == '1';
+            const bool in_file = file_toggle == nullptr || file_toggle[0] != '0';
             const size_t threshold =
                 value != nullptr ? std::strtoull(value, nullptr, 10) : in_file ? 768 : 1280;
             if (threshold == 0) {
@@ -918,8 +920,7 @@ public:
         // app (LOW_MEMORY) when a Switch 2 game loading an area pushed guest memory past the free
         // RAM. A file's pages are page cache, which the kernel writes back and drops under pressure
         // and Android counts as available (as nxnative keeps Mario Kart World under 6.5 GB on
-        // iPhone with file-backed memory). Only with ARISE_GUEST_MEMORY_FILE=1 now (see
-        // AriseOpenGuestMemoryFile).
+        // iPhone with file-backed memory). ARISE_GUEST_MEMORY_FILE=0 goes back to memfd.
         fd = AriseOpenGuestMemoryFile(backing_size);
         if (fd < 0) {
             fd = memfd_create("HostMemory", 0);
