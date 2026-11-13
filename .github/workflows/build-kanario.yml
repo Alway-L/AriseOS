@@ -31,7 +31,8 @@ jobs:
     - name: Check out source
       uses: actions/checkout@v5
       with:
-        repository: Frizti/Lichii
+        # Frizti/Lichii went away on 2026-11-13; its commits are still served by the repository it was forked from.
+        repository: zortos293/Lichii
         ref: ${{ inputs.ref }}
     - name: Check out the AriseOS patches
       uses: actions/checkout@v5
