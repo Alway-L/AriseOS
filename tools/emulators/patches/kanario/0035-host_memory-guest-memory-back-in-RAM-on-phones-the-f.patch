@@ -1,0 +1,84 @@
+From da01f81de6fb0050c1f3f8c8b0b9182b1eb4c3e3 Mon Sep 17 00:00:00 2001
+From: Alway-L <felipemoura2015078@gmail.com>
+Date: Fri, 13 Nov 2026 10:54:29 -0300
+Subject: [PATCH] host_memory: guest memory back in RAM on phones (the file had
+ 1.5-3 GiB written to storage every 15 s); freeze watchdog reports again every
+ 15 s
+
+---
+ src/common/host_memory.cpp    | 15 ++++++++++++---
+ src/video_core/gpu_thread.cpp |  9 +++++----
+ 2 files changed, 17 insertions(+), 7 deletions(-)
+
+diff --git a/src/common/host_memory.cpp b/src/common/host_memory.cpp
+index cd76d2c182..be8cfa94a5 100644
+--- a/src/common/host_memory.cpp
++++ b/src/common/host_memory.cpp
+@@ -762,8 +762,11 @@ __attribute__((constructor(102))) static void AriseDiagnosticDefaults() {
+ #endif
+ 
+ static int AriseOpenGuestMemoryFile(size_t size) {
++    // RAM (memfd) unless ARISE_GUEST_MEMORY_FILE=1: with the file, Ocarina had the kernel write
++    // 1.5-3 GiB of dirtied guest pages to storage every 15 s on an S25 (heat, flash wear).
+     const char* toggle = std::getenv("ARISE_GUEST_MEMORY_FILE");
+-    if (toggle != nullptr && toggle[0] == '0') {
++    if (toggle == nullptr || toggle[0] != '1') {
++        LOG_INFO(HW_Memory, "AriseOS: guest memory ({} MiB) stays in RAM (memfd)", size >> 20);
+         return -1;
+     }
+     std::string dir;
+@@ -810,7 +813,12 @@ static void AriseWatchMemory(u8* base, size_t size) {
+             // it back by itself; paging 512 MiB windows out at 1.5 GiB free made the emulator
+             // threads read them back from storage hundreds of times a second.
+             const char* value = std::getenv("ARISE_PAGEOUT_BELOW_MIB");
+-            const size_t threshold = value != nullptr ? std::strtoull(value, nullptr, 10) : 768;
++            // In RAM (the default) only this paging gets guest pages into swap ahead of Android's
++            // low-memory killer, so it starts earlier than with the file.
++            const char* file_toggle = std::getenv("ARISE_GUEST_MEMORY_FILE");
++            const bool in_file = file_toggle != nullptr && file_toggle[0] == '1';
++            const size_t threshold =
++                value != nullptr ? std::strtoull(value, nullptr, 10) : in_file ? 768 : 1280;
+             if (threshold == 0) {
+                 return;
+             }
+@@ -910,7 +918,8 @@ public:
+         // app (LOW_MEMORY) when a Switch 2 game loading an area pushed guest memory past the free
+         // RAM. A file's pages are page cache, which the kernel writes back and drops under pressure
+         // and Android counts as available (as nxnative keeps Mario Kart World under 6.5 GB on
+-        // iPhone with file-backed memory). ARISE_GUEST_MEMORY_FILE=0 goes back to memfd.
++        // iPhone with file-backed memory). Only with ARISE_GUEST_MEMORY_FILE=1 now (see
++        // AriseOpenGuestMemoryFile).
+         fd = AriseOpenGuestMemoryFile(backing_size);
+         if (fd < 0) {
+             fd = memfd_create("HostMemory", 0);
+diff --git a/src/video_core/gpu_thread.cpp b/src/video_core/gpu_thread.cpp
+index 4c076a2c98..20dd214e86 100644
+--- a/src/video_core/gpu_thread.cpp
++++ b/src/video_core/gpu_thread.cpp
+@@ -144,7 +144,7 @@ void AriseStartFreezeWatchdog() {
+         u64 last_presents = 0;
+         int still = 0;
+         int reports = 0;
+-        while (!stop.stop_requested() && reports < 3) {
++        while (!stop.stop_requested() && reports < 5) {
+             std::this_thread::sleep_for(std::chrono::seconds{1});
+             const u64 presents = Core::g_nx2_present_count.load(std::memory_order_relaxed);
+             if (presents != last_presents || presents == 0) {
+@@ -152,10 +152,11 @@ void AriseStartFreezeWatchdog() {
+                 still = 0;
+                 continue;
+             }
+-            if (++still == 8) {
++            // Again every 15 s: the same stacks mean stuck, different ones mean slow.
++            if (++still >= 8 && (still - 8) % 15 == 0) {
+                 ++reports;
+-                LOG_WARNING(HW_GPU, "AriseOS freeze report {}: no new frame for 8 s after {} presents",
+-                            reports, presents);
++                LOG_WARNING(HW_GPU, "AriseOS freeze report {}: no new frame for {} s after {} presents",
++                            reports, still, presents);
+                 AriseLogHostStacks();
+             }
+         }
+-- 
+2.43.0
+
