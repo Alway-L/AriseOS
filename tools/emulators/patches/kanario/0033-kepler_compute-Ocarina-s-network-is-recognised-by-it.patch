@@ -1,0 +1,120 @@
+From bf2f1ce1928957363d53b319b09e301f08399855 Mon Sep 17 00:00:00 2001
+From: Alway-L <felipemoura2015078@gmail.com>
+Date: Fri, 13 Nov 2026 09:01:27 -0300
+Subject: [PATCH] kepler_compute: Ocarina's network is recognised by its
+ dispatch, not only by two keys (two more builds at the Great Deku Tree froze
+ an S25 in Turnip's compile)
+
+---
+ src/video_core/engines/kepler_compute.cpp | 57 +++++++++++++++++------
+ 1 file changed, 44 insertions(+), 13 deletions(-)
+
+diff --git a/src/video_core/engines/kepler_compute.cpp b/src/video_core/engines/kepler_compute.cpp
+index 192efc2810..9b6d2b8f89 100644
+--- a/src/video_core/engines/kepler_compute.cpp
++++ b/src/video_core/engines/kepler_compute.cpp
+@@ -2128,7 +2128,11 @@ bool KeplerCompute::ProcessOcarinaMovie(u64 program_id, u64 native_key) {
+ // The input handle is not in the constant buffers on every dispatch, so the last one found for
+ // each network is reused.
+ bool KeplerCompute::ProcessOcarinaNetwork(u64 program_id, u64 native_key) {
+-    static constexpr std::array<u64, 2> NetworkKeys{0xd8efd9f0c95abd80ULL, 0x6f9367bd41dc0b58ULL};
++    // The game has more builds of the network than the two keys seen in Kokiri Forest (two more
++    // at the Great Deku Tree: 0x5bb12e1ef721b75f, 0xe4cda162ff6009e2), all dispatched alike.
++    static constexpr size_t MaxNetworks = 8;
++    static std::array<u64, MaxNetworks> NetworkKeys{0xd8efd9f0c95abd80ULL, 0x6f9367bd41dc0b58ULL};
++    static size_t network_count = 2;
+ #ifdef ARCHITECTURE_arm64
+     static const bool enabled = [] {
+         const char* value = std::getenv("EDEN_NX2_OOT_NETWORK");
+@@ -2140,13 +2144,34 @@ bool KeplerCompute::ProcessOcarinaNetwork(u64 program_id, u64 native_key) {
+         return value != nullptr && std::string_view{value} == "blit";
+     }();
+ #endif
+-    const auto key_it = std::ranges::find(NetworkKeys, native_key);
+-    if (!enabled || program_id != VideoCommon::OcarinaMovie::ProgramId ||
+-        key_it == NetworkKeys.end()) {
++    if (!enabled || program_id != VideoCommon::OcarinaMovie::ProgramId) {
+         return false;
+     }
+-    const size_t key_index = static_cast<size_t>(key_it - NetworkKeys.begin());
+     using namespace Tegra::Texture;
++    const auto known_end = NetworkKeys.begin() + network_count;
++    auto key_it = std::find(NetworkKeys.begin(), known_end, native_key);
++    if (key_it == known_end) {
++        const auto& qmd = launch_description;
++        const bool network_blocks = qmd.block_dim_x == 128 && qmd.block_dim_y == 1 &&
++                                    qmd.block_dim_z == 1 && qmd.grid_dim_z == 1;
++        const bool network_grid = (qmd.grid_dim_x == 43 && qmd.grid_dim_y == 24) ||
++                                  (qmd.grid_dim_x == 30 && qmd.grid_dim_y == 34);
++        const auto out = ComputeImageHandle(0xd0);
++        const auto in = ComputeImageHandle(0xc0);
++        const bool network_images =
++            out && in && out->format == TextureFormat::B10G11R11 && out->Width() >= 1280 &&
++            in->format == TextureFormat::E5B9G9R9 && in->Width() <= out->Width() &&
++            in->Height() <= out->Height() && in->Address() != out->Address() &&
++            u64{qmd.grid_dim_x} * u64{qmd.grid_dim_y} >= 512;
++        if (!network_blocks || !(network_grid || network_images) || network_count == MaxNetworks) {
++            return false;
++        }
++        NetworkKeys[network_count++] = native_key;
++        LOG_INFO(HW_GPU, "AriseOS Ocarina network {:#018x}: recognised by its dispatch (grid {}x{}, "
++                         "images {})",
++                 native_key, qmd.grid_dim_x, qmd.grid_dim_y, network_images);
++    }
++    const size_t key_index = static_cast<size_t>(key_it - NetworkKeys.begin());
+     const auto target_format = [](const TICEntry& tic) -> std::optional<Tegra::RenderTargetFormat> {
+         const bool float_types = tic.r_type == ComponentType::FLOAT;
+         const bool unorm_types = tic.r_type == ComponentType::UNORM;
+@@ -2231,7 +2256,7 @@ bool KeplerCompute::ProcessOcarinaNetwork(u64 program_id, u64 native_key) {
+         }
+         return memory_manager.Read<u32>(cb0_address + offset);
+     };
+-    static std::array<u32, 2> logged{};
++    static std::array<u32, MaxNetworks> logged{};
+     if (logged[key_index] < 3) {
+         ++logged[key_index];
+         std::string list;
+@@ -2260,9 +2285,12 @@ bool KeplerCompute::ProcessOcarinaNetwork(u64 program_id, u64 native_key) {
+             output = &c;
+         }
+     }
+-    static std::array<std::optional<TICEntry>, 2> last_output{};
+-    static std::array<std::optional<TICEntry>, 2> last_input{};
+-    std::optional<TICEntry> out_tic = output ? std::optional{output->tic} : last_output[key_index];
++    static std::array<std::optional<TICEntry>, MaxNetworks> last_output{};
++    static std::optional<TICEntry> any_output;
++    static std::optional<TICEntry> any_input;
++    static std::array<std::optional<TICEntry>, MaxNetworks> last_input{};
++    std::optional<TICEntry> out_tic = output ? std::optional{output->tic}
++                                             : last_output[key_index] ? last_output[key_index] : any_output;
+     if (!out_tic) {
+         return false;
+     }
+@@ -2284,9 +2312,10 @@ bool KeplerCompute::ProcessOcarinaNetwork(u64 program_id, u64 native_key) {
+         (render_w == 0 || (tic->Width() >= render_w && tic->Height() >= render_h))) {
+         input_tic = *tic;
+     }
+-    std::optional<TICEntry> in_tic = input_tic ? input_tic : last_input[key_index];
+-    static std::array<u64, 2> replaced{};
+-    static std::array<u64, 2> native{};
++    std::optional<TICEntry> in_tic =
++        input_tic ? input_tic : last_input[key_index] ? last_input[key_index] : any_input;
++    static std::array<u64, MaxNetworks> replaced{};
++    static std::array<u64, MaxNetworks> native{};
+     const auto count = [&](bool was_replaced) {
+         auto& counter = was_replaced ? replaced[key_index] : native[key_index];
+         ++counter;
+@@ -2340,7 +2369,9 @@ bool KeplerCompute::ProcessOcarinaNetwork(u64 program_id, u64 native_key) {
+     }
+     last_output[key_index] = out_tic;
+     last_input[key_index] = in_tic;
+-    static std::array<bool, 2> announced{};
++    any_output = out_tic;
++    any_input = in_tic;
++    static std::array<bool, MaxNetworks> announced{};
+     if (!std::exchange(announced[key_index], true)) {
+         LOG_INFO(HW_GPU, "AriseOS Ocarina network {:#018x} replaced: {:#x} {}x{} (source {}x{}) "
+                          "scaled into {:#x} {}x{}",
+-- 
+2.43.0
+
