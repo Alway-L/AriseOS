@@ -240,7 +240,8 @@ android {
             }
             // Robolectric keeps a sandbox per SDK level the tests ask for; seven no longer fit in Gradle's default 512 MB.
             maxHeapSize = '2g'
-            maxParallelForks = 2
+            // -PtestForks=1 on runners with 7 GB (a private repository's): two 2 GB forks beside the 4 GB daemon got that runner shut down.
+            maxParallelForks = (project.findProperty('testForks') ?: 2) as int
             def logTarget = providers.systemProperty('robolectric.logging').orNull
             if (logTarget != null) systemProperty 'robolectric.logging', logTarget
         }
