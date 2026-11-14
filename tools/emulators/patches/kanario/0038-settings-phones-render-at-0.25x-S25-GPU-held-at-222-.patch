@@ -1,0 +1,40 @@
+From d508ac21312962f69686164969b2506383f8dc7b Mon Sep 17 00:00:00 2001
+From: Alway-L <felipemoura2015078@gmail.com>
+Date: Fri, 13 Nov 2026 22:19:17 -0300
+Subject: [PATCH] settings: phones render at 0.25x (S25: GPU held at 222 MHz,
+ 93% busy outside the Great Deku Tree)
+
+---
+ src/common/frizti_settings.h | 2 +-
+ src/common/settings.h        | 2 +-
+ 2 files changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/src/common/frizti_settings.h b/src/common/frizti_settings.h
+index ac8834c873..dbf3588edf 100644
+--- a/src/common/frizti_settings.h
++++ b/src/common/frizti_settings.h
+@@ -17,7 +17,7 @@ namespace Settings::Frizti {
+ // Bump when the tuned values change, so every player gets them once more.
+ // 13: AriseOS Kanario, GPU accuracy back to Low on phones (12: Fritchii v5.8.4; 8: v5.8, own data
+ // folder, DLSS modes)
+-inline constexpr u32 Revision = 13;
++inline constexpr u32 Revision = 14;
+ inline constexpr u64 OcarinaOfTimeProgramId = 0x0400486024DEC000ULL;
+ 
+ // The tuned settings. Frizti's value is each setting's default in settings.h.
+diff --git a/src/common/settings.h b/src/common/settings.h
+index aa3b0375db..53a64d540a 100644
+--- a/src/common/settings.h
++++ b/src/common/settings.h
+@@ -361,7 +361,7 @@ struct Values {
+     ResolutionScalingInfo resolution_info{};
+     SwitchableSetting<ResolutionSetup> resolution_setup{linkage,
+ #ifdef ARCHITECTURE_arm64
+-                                                        ResolutionSetup::Res1_2X,
++                                                        ResolutionSetup::Res1_4X,
+ #else
+                                                         ResolutionSetup::Res1X,
+ #endif
+-- 
+2.43.0
+
