@@ -17,7 +17,7 @@ namespace Settings::Frizti {
 // Bump when the tuned values change, so every player gets them once more.
 // 13: AriseOS Kanario, GPU accuracy back to Low on phones (12: Fritchii v5.8.4; 8: v5.8, own data
 // folder, DLSS modes)
-inline constexpr u32 Revision = 13;
+inline constexpr u32 Revision = 14;
 inline constexpr u64 OcarinaOfTimeProgramId = 0x0400486024DEC000ULL;
 
 // The tuned settings. Frizti's value is each setting's default in settings.h.

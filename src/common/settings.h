@@ -361,7 +361,7 @@ struct Values {
     ResolutionScalingInfo resolution_info{};
     SwitchableSetting<ResolutionSetup> resolution_setup{linkage,
 #ifdef ARCHITECTURE_arm64
-                                                        ResolutionSetup::Res1_2X,
+                                                        ResolutionSetup::Res1_4X,
 #else
                                                         ResolutionSetup::Res1X,
 #endif
