@@ -1,0 +1,67 @@
+From c3627b49efd6fddb386686f4444823e45511a17f Mon Sep 17 00:00:00 2001
+From: Alway-L <felipemoura2015078@gmail.com>
+Date: Sun, 15 Nov 2026 12:41:41 -0300
+Subject: [PATCH] texture_cache: phones keep 128 MiB of pooled images for 60
+ frames (466 MiB held after an Ocarina area load on an S25); memory trace
+ every 15 s on phones
+
+---
+ src/video_core/renderer_vulkan/vk_texture_cache.h | 10 ++++++++++
+ src/video_core/texture_cache/texture_cache.h      | 13 +++++++++++--
+ 2 files changed, 21 insertions(+), 2 deletions(-)
+
+diff --git a/src/video_core/renderer_vulkan/vk_texture_cache.h b/src/video_core/renderer_vulkan/vk_texture_cache.h
+index ebe7636724..f25a915438 100644
+--- a/src/video_core/renderer_vulkan/vk_texture_cache.h
++++ b/src/video_core/renderer_vulkan/vk_texture_cache.h
+@@ -398,12 +398,22 @@ public:
+         u64 bytes;
+         u64 frame;
+     };
++#ifdef ARCHITECTURE_arm64
++    // Phones: device memory is the phone's RAM, and the pool's images are deleted ones. Leaving an
++    // area in Ocarina on an S25 left 466 MiB in it, which the collector does not count.
++    static constexpr u64 ImagePoolMaxBytes = u64{128} << 20;
++#else
+     static constexpr u64 ImagePoolMaxBytes = u64{512} << 20;
++#endif
+     /// EXP42=2 pools the big dedicated render targets too (a 2560x1440 one is ~30 MiB): 512 MiB
+     /// held ~17 of them and evicted 1,150-1,400 images a 600 frames in Castle Town (2026-11-10).
+     static constexpr u64 ImagePoolMaxBytesDedicated = u64{1536} << 20;
+     [[nodiscard]] static u64 ImagePoolCap();
++#ifdef ARCHITECTURE_arm64
++    static constexpr u64 ImagePoolMaxFrames = 60;
++#else
+     static constexpr u64 ImagePoolMaxFrames = 180;
++#endif
+     std::deque<PooledImage> image_pool;
+     u64 image_pool_bytes{};
+     u64 image_pool_frame{};
+diff --git a/src/video_core/texture_cache/texture_cache.h b/src/video_core/texture_cache/texture_cache.h
+index 6efede665d..fe2f965ea2 100644
+--- a/src/video_core/texture_cache/texture_cache.h
++++ b/src/video_core/texture_cache/texture_cache.h
+@@ -640,9 +640,18 @@ void TextureCache<P>::TickFrame() {
+     }
+     // EDEN_NX2_MEM_TRACE=1 (from zortos293/Lichii#951): every 2 s, what the cache holds next to
+     // what the process and the driver report (memory climbs).
+-    static const bool mem_trace = std::getenv("EDEN_NX2_MEM_TRACE") != nullptr;
++    // On phones every 15 s by default: device memory is RAM there, and the cache's images and
++    // buffers explained under half of the 3.3 GiB an Ocarina session reached on an S25.
++    static const bool mem_trace_env = std::getenv("EDEN_NX2_MEM_TRACE") != nullptr;
++#ifdef ARCHITECTURE_arm64
++    static constexpr bool mem_trace_default = true;
++#else
++    static constexpr bool mem_trace_default = false;
++#endif
++    static const bool mem_trace = mem_trace_env || mem_trace_default;
++    const auto mem_trace_interval = mem_trace_env ? std::chrono::seconds{2} : std::chrono::seconds{15};
+     if (const auto now = std::chrono::steady_clock::now();
+-        mem_trace && now - mem_trace_time >= std::chrono::seconds{2}) {
++        mem_trace && now - mem_trace_time >= mem_trace_interval) {
+         mem_trace_time = now;
+         u64 image_bytes{};
+         u64 gpu_written_bytes{};
+-- 
+2.43.0
+
