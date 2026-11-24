@@ -533,15 +533,28 @@ public final class LinuxRuntimeInstaller {
     }
 
     static boolean extract(Context context, File archive, File destination, File linkRoot, ProgressListener listener) {
+        try {
+            return extractStream(context, new ZstdCompressorInputStream(
+                    new BufferedInputStream(new FileInputStream(archive), 1 << 16)), destination, linkRoot, null, listener);
+        } catch (IOException e) {
+            Log.e(TAG, "extract", e);
+            return false;
+        }
+    }
+
+    /** A tar stream whose entries may all sit under {@code strip}/, which is dropped. */
+    public static boolean extractStream(Context context, InputStream compressed, File destination, File linkRoot, String strip,
+                                        ProgressListener listener) {
         long entries = 0;
         String extracting = context.getString(R.string.rtinst_extracting);
         java.util.LinkedHashMap<File, String> links = new java.util.LinkedHashMap<>();
-        try (InputStream in = new ZstdCompressorInputStream(
-                new BufferedInputStream(new FileInputStream(archive), 1 << 16));
+        try (InputStream in = compressed;
              TarArchiveInputStream tar = new TarArchiveInputStream(in)) {
             TarArchiveEntry entry;
             while ((entry = tar.getNextTarEntry()) != null) {
-                File file = ArchivePaths.inside(destination, entry.getName());
+                String name = stripped(entry.getName(), strip);
+                if (name == null) continue;
+                File file = ArchivePaths.inside(destination, name);
                 if (file == null) {
                     Log.w(TAG, "skipping entry outside the rootfs: " + entry.getName());
                     continue;
@@ -557,7 +570,8 @@ public final class LinuxRuntimeInstaller {
                     links.remove(file);
                     links.put(file, entry.getLinkName());
                 } else if (entry.isLink()) {
-                    File target = hardLinkTarget(destination, entry.getLinkName());
+                    String linkName = stripped(entry.getLinkName(), strip);
+                    File target = linkName == null ? null : hardLinkTarget(destination, linkName);
                     if (target == null) {
                         Log.w(TAG, "skipping hard link outside the rootfs: " + entry.getLinkName());
                         continue;
@@ -607,6 +621,13 @@ public final class LinuxRuntimeInstaller {
             Log.e(TAG, "extract", e);
             return false;
         }
+    }
+
+    static String stripped(String name, String strip) {
+        if (strip == null) return name;
+        String n = name.startsWith("./") ? name.substring(2) : name;
+        if (n.equals(strip) || n.equals(strip + "/")) return null;
+        return n.startsWith(strip + "/") ? n.substring(strip.length() + 1) : n;
     }
 
     static File hardLinkTarget(File destination, String name) throws IOException {

@@ -3595,4 +3595,24 @@
     <string name="dash_downloads">Downloads in progress: %1$d</string>
     <string name="dash_update">Update available</string>
     <string name="dash_update_hint">Tap to see what is new</string>
+    <string name="kali_title">Kali Linux</string>
+    <string name="kali_intro">The official Kali NetHunter system for ARM64 phones, running apart from the AriseOS Linux: it does not touch Steam or the desktop, and you can remove it at any time. It opens a Kali terminal with root inside Kali, so apt install works.</string>
+    <string name="kali_minimal">Minimal (recommended)</string>
+    <string name="kali_minimal_hint">About 150 MB to download. A clean Kali; install the tools you want with apt.</string>
+    <string name="kali_full">Full</string>
+    <string name="kali_full_hint">About 2 GB to download and much more space once installed. Comes with most Kali tools.</string>
+    <string name="kali_install">Install</string>
+    <string name="kali_downloading">Downloading Kali</string>
+    <string name="kali_extracting">Unpacking</string>
+    <string name="kali_configuring">Getting it ready</string>
+    <string name="kali_removing">Removing Kali</string>
+    <string name="kali_keep_open">You can leave this screen; it keeps going in the background.</string>
+    <string name="kali_failed">It did not finish: %1$s. Check your connection and try again.</string>
+    <string name="kali_limits">Without root on Android, Wi-Fi monitor mode and packet injection are not available, and raw-socket scans (such as nmap -sS) are limited. Use these tools only on networks and systems you are allowed to test.</string>
+    <string name="kali_remove">Remove</string>
+    <string name="kali_remove_title">Remove Kali Linux?</string>
+    <string name="kali_remove_text">Everything inside Kali, including the tools you installed and your files in /root, will be deleted.</string>
+    <string name="kali_session_ended">The Kali shell ended. Tap here to open a new one.</string>
+    <string name="kali_row_ready">Installed · open the terminal</string>
+    <string name="kali_row_install">Separate Linux for security tools</string>
 </resources>

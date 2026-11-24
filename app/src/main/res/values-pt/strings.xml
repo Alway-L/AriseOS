@@ -3511,4 +3511,24 @@
     <string name="dash_downloads">Downloads em andamento: %1$d</string>
     <string name="dash_update">Atualização disponível</string>
     <string name="dash_update_hint">Toque para ver as novidades</string>
+    <string name="kali_title">Kali Linux</string>
+    <string name="kali_intro">O sistema oficial Kali NetHunter para celulares ARM64, rodando separado do Linux do AriseOS: não mexe na Steam nem na área de trabalho, e dá para remover quando quiser. Abre um terminal do Kali com root dentro do Kali, então o apt install funciona.</string>
+    <string name="kali_minimal">Mínimo (recomendado)</string>
+    <string name="kali_minimal_hint">Cerca de 150 MB para baixar. Um Kali limpo; instale as ferramentas que quiser com apt.</string>
+    <string name="kali_full">Completo</string>
+    <string name="kali_full_hint">Cerca de 2 GB para baixar e bem mais espaço depois de instalado. Vem com a maioria das ferramentas do Kali.</string>
+    <string name="kali_install">Instalar</string>
+    <string name="kali_downloading">Baixando o Kali</string>
+    <string name="kali_extracting">Descompactando</string>
+    <string name="kali_configuring">Preparando</string>
+    <string name="kali_removing">Removendo o Kali</string>
+    <string name="kali_keep_open">Pode sair desta tela; continua em segundo plano.</string>
+    <string name="kali_failed">Não terminou: %1$s. Confira a internet e tente de novo.</string>
+    <string name="kali_limits">Sem root no Android, o modo monitor do Wi‑Fi e a injeção de pacotes não funcionam, e varreduras com raw sockets (como nmap -sS) são limitadas. Use essas ferramentas só em redes e sistemas que você tem permissão para testar.</string>
+    <string name="kali_remove">Remover</string>
+    <string name="kali_remove_title">Remover o Kali Linux?</string>
+    <string name="kali_remove_text">Tudo dentro do Kali, incluindo as ferramentas instaladas e seus arquivos em /root, será apagado.</string>
+    <string name="kali_session_ended">O terminal do Kali foi fechado. Toque aqui para abrir outro.</string>
+    <string name="kali_row_ready">Instalado · abrir o terminal</string>
+    <string name="kali_row_install">Linux separado para ferramentas de segurança</string>
 </resources>

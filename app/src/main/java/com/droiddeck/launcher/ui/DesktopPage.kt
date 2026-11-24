@@ -166,6 +166,7 @@ internal fun DesktopPage(s: FrontEndState, a: FrontEndActions, modifier: Modifie
             ) {
                 WorkspaceShortcuts(s)
                 HeroIconButton(Icons.Outlined.Storefront, stringResource(R.string.flathub_name), FlathubTeal, "desktop:flathub") { at -> openFrom(at, null, "store") }
+                HeroIconButton(Icons.Outlined.Terminal, stringResource(R.string.kali_title), null, "desktop:kali") { ctx.startActivity(android.content.Intent(ctx, com.droiddeck.launcher.KaliActivity::class.java)) }
                 HeroIconButton(Icons.Filled.Add, stringResource(R.string.user_apps_add), null, "desktop:add") { if (!s.busy) adding = true }
                 if (s.desktopPresent) UninstallDesktop(enabled = !s.runtimeActionsBlocked, onUninstall = a.onRemoveDesktop)
             }
