@@ -244,6 +244,9 @@ android {
             maxParallelForks = (project.findProperty('testForks') ?: 2) as int
             def logTarget = providers.systemProperty('robolectric.logging').orNull
             if (logTarget != null) systemProperty 'robolectric.logging', logTarget
+            // repo1.maven.org answers 429 to the parallel downloads from shared CI runners; Google's mirror of Maven Central does not.
+            systemProperty 'robolectric.dependency.repo.url',
+                providers.systemProperty('robolectric.dependency.repo.url').orElse('https://maven-central.storage-download.googleapis.com/maven2').get()
         }
     }
 
