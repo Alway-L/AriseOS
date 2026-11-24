@@ -126,7 +126,7 @@ object KaliLinux {
         Xtigervnc :1 -geometry ${width}x${height} -depth 24 -rfbport $DESKTOP_PORT -localhost=1 -SecurityTypes None -AlwaysShared -AcceptSetDesktopSize=0 &
         x=${'$'}!
         for i in ${'$'}(seq 1 50); do [ -e /tmp/.X11-unix/X1 ] && break; sleep 0.2; done
-        dbus-launch --exit-with-session startxfce4
+        dbus-launch --exit-with-session startxfce4 || startxfce4
         kill ${'$'}x 2>/dev/null
     """.trimIndent()
 
@@ -147,6 +147,8 @@ object KaliLinux {
         val binds = mutableListOf("/dev", "/proc", "/sys", "/dev/urandom:/dev/random", "/proc/self/fd:/dev/fd",
             "/proc/self/fd/0:/dev/stdin", "/proc/self/fd/1:/dev/stdout", "/proc/self/fd/2:/dev/stderr",
             "${File(root, "tmp").path}:/dev/shm")
+        val noSelinux = File(dir(context), ".no-selinux").apply { mkdirs() }
+        binds += "${noSelinux.path}:/sys/fs/selinux"
         Environment.getExternalStorageDirectory().takeIf { it.isDirectory }?.let { binds += "${it.path}:/sdcard" }
         binds.forEach { cmd.add("-b"); cmd.add(it) }
         cmd += listOf(
