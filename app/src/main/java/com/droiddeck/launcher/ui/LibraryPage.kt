@@ -261,7 +261,8 @@ internal fun LibraryPage(s: FrontEndState, a: FrontEndActions, selected: String,
             runCatching { Library.steamLibraryArt(ctx).filter { it.first !in installedSteam }.sortedBy { it.first } }.getOrDefault(emptyList())
         }
     }
-    val sources = if (itchSignedIn && Store.ITCH.id !in listed) listed + Store.ITCH.id else listed
+    val withSteam = if ((steamSignedIn || ownedSteam.isNotEmpty()) && Library.SOURCE_STEAM !in listed) listOf(Library.SOURCE_STEAM) + listed else listed
+    val sources = if (itchSignedIn && Store.ITCH.id !in withSteam) withSteam + Store.ITCH.id else withSteam
     val source = LibraryView.source.takeIf { it == LIBRARY_ALL || it == LIBRARY_BY_STORE || it in sources } ?: LIBRARY_BY_STORE
     val q = LibraryView.query.trim().lowercase()
     val xboxFilter = if (source == Store.XBOX.id) XboxLibraryFilter.current else XboxLibraryFilter.ALL
@@ -500,6 +501,7 @@ private fun LibraryGrid(
             }
         }
         val empty = R.string.stores_nothing_matches
+        val ownedSteamShown = source == Library.SOURCE_STEAM && LibraryView.query.isBlank() && ownedSteam.isNotEmpty()
         if (source == LIBRARY_BY_STORE) {
             val searching = LibraryView.query.isNotBlank()
             val groups = (sections + sources.filter { it !in sections }).mapNotNull { src ->
@@ -521,12 +523,18 @@ private fun LibraryGrid(
                 SecondaryButton(stringResource(R.string.library_browse_owned), modifier = Modifier.testTag("library-browse-owned")) { onShowUninstalled(true) }
             }
         }
-        else if (split == 0) libraryGrid(visible, empty, tile)
+        else if (split == 0) { if (!(visible.isEmpty() && ownedSteamShown)) libraryGrid(visible, empty, tile) }
         else {
             item(key = "installed-label", span = { GridItemSpan(maxLineSpan) }) { SectionLabel(stringResource(R.string.stores_section_installed)) }
             libraryGrid(visible.take(split), empty, tile)
             item(key = "not-installed-label", span = { GridItemSpan(maxLineSpan) }) { SectionLabel(stringResource(R.string.stores_section_not_installed)) }
             libraryGrid(visible.drop(split), empty, tile)
+        }
+        if (ownedSteamShown) {
+            item(key = "steam-owned-label", span = { GridItemSpan(maxLineSpan) }) { SectionLabel(stringResource(R.string.stores_section_not_installed)) }
+            items(ownedSteam, key = { "owned-${it.first}" }, contentType = { "owned" }) { (appId, art) ->
+                OwnedSteamTile(appId, art, tileWidth, enabled = !s.busy, onClick = a.onPlay)
+            }
         }
     }
 }
