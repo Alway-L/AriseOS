@@ -241,6 +241,7 @@ internal fun TopTabs(
 }
 
 @Composable
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 private fun PrismaTab(
     number: Int, label: String, icon: ImageVector, key: String, current: Boolean,
     badge: Boolean, count: Int, onFocus: () -> Unit, onClick: () -> Unit,
