@@ -602,6 +602,9 @@
     <string name="perf_seccomp">Rodar o proot sem seccomp</string>
     <string name="perf_seccomp_hint">Pode corrigir erros de syscall ausente em alguns kernels. Pode reduzir o desempenho.</string>
     <string name="perf_fastpath">Caminho rápido do proot</string>
+    <string name="perf_native_userland">Rodar sem proot (experimental)</string>
+    <string name="perf_native_userland_hint">Inicia o lado Linux direto no Android. Vale a partir da próxima sessão. Desligue se algo não abrir.</string>
+    <string name="perf_fastpath_needs_proot">Não é usado sem o proot.</string>
     <string name="perf_fastpath_needs_seccomp">Requer o filtro seccomp do proot.</string>
     <string name="perf_fastpath_hint">Buscas de arquivos mais rápidas e menos engasgos. Desative se um programa não encontrar os arquivos dele.</string>
     <string name="perf_cursor_composite">Desenhar o cursor dentro do gamescope</string>
