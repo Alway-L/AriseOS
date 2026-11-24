@@ -18,10 +18,6 @@ object ExtraEmulators {
 
     val all = listOf(
         Extra("pcsx2", "PCSX2", "PS2 · x86-64 via FEX", "PCSX2/pcsx2", R.drawable.emu_pcsx2, UserApps.Source.GitHub("PCSX2/pcsx2")),
-        Extra(
-            "kytyps5", "KytyPS5", "PS5 · experimental, x86-64 via FEX", "KytyPS5/KytyPS5", R.drawable.emu_kytyps5,
-            UserApps.Source.GitHubArchive("KytyPS5/KytyPS5", Regex("Linux-x86_64\\.tar\\.gz$"), "kyty_launcher"),
-        ),
         // Switch 2: AriseOS's own Kanario (formerly Orchid), Frizti's Fritchii core with AriseOS patches and
         // Hokkaido ports (tools/emulators/patches/kanario, .github/workflows/build-kanario.yml).
         Extra(
