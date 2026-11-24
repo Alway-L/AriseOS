@@ -3538,7 +3538,7 @@
     <string name="kali_desktop_title">Área de trabalho do Kali</string>
     <string name="kali_desktop_intro">A área de trabalho XFCE, a mesma do Kali no PC, com o menu de todas as ferramentas instaladas. Abre aqui, com o celular deitado.</string>
     <string name="kali_desktop_starting">Iniciando a área de trabalho… na primeira vez pode levar um minuto.</string>
-    <string name="kali_desktop_missing">Este Kali ainda não tem a área de trabalho. Instale uma vez (cerca de 1 GB); roda na aba Terminal.</string>
+    <string name="kali_desktop_missing">Faltam partes da área de trabalho neste Kali (XFCE, o servidor de tela ou os ícones). Instale uma vez (cerca de 1 GB); roda na aba Terminal.</string>
     <string name="kali_desktop_install">Instalar a área de trabalho</string>
     <string name="kali_desktop_failed">A área de trabalho não abriu:
 %1$s</string>

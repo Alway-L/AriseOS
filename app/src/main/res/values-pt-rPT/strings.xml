@@ -3538,7 +3538,7 @@
     <string name="kali_desktop_title">Ambiente de trabalho do Kali</string>
     <string name="kali_desktop_intro">O ambiente de trabalho XFCE, o mesmo do Kali no PC, com o menu de todas as ferramentas instaladas. Abre aqui, com o telemóvel na horizontal.</string>
     <string name="kali_desktop_starting">A iniciar o ambiente de trabalho… da primeira vez pode demorar um minuto.</string>
-    <string name="kali_desktop_missing">Este Kali ainda não tem o ambiente de trabalho. Instale uma vez (cerca de 1 GB); corre no separador Terminal.</string>
+    <string name="kali_desktop_missing">Faltam partes do ambiente de trabalho neste Kali (XFCE, o servidor de ecrã ou os ícones). Instale uma vez (cerca de 1 GB); corre no separador Terminal.</string>
     <string name="kali_desktop_install">Instalar o ambiente de trabalho</string>
     <string name="kali_desktop_failed">O ambiente de trabalho não abriu:
 %1$s</string>

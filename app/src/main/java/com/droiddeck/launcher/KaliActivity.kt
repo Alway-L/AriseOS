@@ -201,7 +201,7 @@ class KaliActivity : ComponentActivity() {
                         }
                     }
                 }, "kali-desktop-log").apply { isDaemon = true; start() }
-                val deadline = System.currentTimeMillis() + 90_000
+                val deadline = System.currentTimeMillis() + 180_000
                 var up = false
                 while (System.currentTimeMillis() < deadline && process.isAlive) {
                     up = runCatching { java.net.Socket().use { it.connect(java.net.InetSocketAddress("127.0.0.1", KaliLinux.DESKTOP_PORT), 500) } }.isSuccess

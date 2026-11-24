@@ -3622,7 +3622,7 @@
     <string name="kali_desktop_title">Kali desktop</string>
     <string name="kali_desktop_intro">The XFCE desktop, the same one Kali uses on a PC, with the menu of every installed tool. It opens here, in landscape.</string>
     <string name="kali_desktop_starting">Starting the desktop… the first time can take a minute.</string>
-    <string name="kali_desktop_missing">This Kali does not have the desktop yet. Install it once (about 1 GB); it runs in the Terminal tab.</string>
+    <string name="kali_desktop_missing">This Kali is missing parts of the desktop (XFCE, the screen server or its icons). Install them once (about 1 GB); it runs in the Terminal tab.</string>
     <string name="kali_desktop_install">Install the desktop</string>
     <string name="kali_desktop_failed">The desktop did not start:
 %1$s</string>

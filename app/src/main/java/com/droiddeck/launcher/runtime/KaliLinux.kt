@@ -115,20 +115,45 @@ object KaliLinux {
 
     const val DESKTOP_PORT = 5901
     const val NEEDS_PACKAGES = 3
-    const val DESKTOP_PACKAGES = "kali-desktop-xfce tigervnc-standalone-server dbus-x11"
+    const val DESKTOP_PACKAGES = "kali-desktop-xfce tigervnc-standalone-server dbus-x11 adwaita-icon-theme librsvg2-common"
 
-    /** Xtigervnc on :1 for the in-app viewer, with Kali's XFCE desktop inside; exits 3 when those packages are missing. */
+    /**
+     * Xtigervnc on :1 for the in-app viewer, with Kali's XFCE desktop inside; exits 3 when those packages are missing.
+     * apt's triggers can skip the GTK icon and pixbuf-loader caches under proot, and libwnck aborts xfce4-panel without them.
+     * The desktop lives as long as Xtigervnc: a part of XFCE that dies is started again.
+     */
     fun desktopScript(width: Int, height: Int): String = """
-        command -v Xtigervnc >/dev/null 2>&1 && command -v startxfce4 >/dev/null 2>&1 || exit $NEEDS_PACKAGES
+        command -v Xtigervnc >/dev/null 2>&1 && command -v startxfce4 >/dev/null 2>&1 && [ -d /usr/share/icons/Adwaita ] || exit $NEEDS_PACKAGES
+        ls /usr/lib/*/gdk-pixbuf-2.0/2.10.0/loaders/*svg* >/dev/null 2>&1 || exit $NEEDS_PACKAGES
         export HOME=/root USER=root DISPLAY=:1 XDG_RUNTIME_DIR=/tmp/runtime-root XKL_XMODMAP_DISABLE=1 NO_AT_BRIDGE=1
         unset SESSION_MANAGER DBUS_SESSION_BUS_ADDRESS
-        mkdir -p /tmp/.X11-unix /tmp/runtime-root && chmod 1777 /tmp/.X11-unix && chmod 700 /tmp/runtime-root
+        mkdir -p /tmp/.X11-unix /tmp/.ICE-unix /tmp/runtime-root && chmod 1777 /tmp/.X11-unix /tmp/.ICE-unix && chmod 700 /tmp/runtime-root
+        if [ ! -e /root/.cache/arise-gtk-caches ]; then
+          echo "preparing icon caches (first time only)"
+          for q in /usr/lib/*/gdk-pixbuf-2.0/gdk-pixbuf-query-loaders; do [ -x "${'$'}q" ] && "${'$'}q" --update-cache; done
+          if command -v gtk-update-icon-cache >/dev/null 2>&1; then
+            for d in /usr/share/icons/*/; do [ -f "${'$'}d/index.theme" ] && gtk-update-icon-cache -f -q "${'$'}d" 2>/dev/null; done
+          fi
+          command -v fc-cache >/dev/null 2>&1 && fc-cache -f >/dev/null 2>&1
+          mkdir -p /root/.cache && touch /root/.cache/arise-gtk-caches
+        fi
         rm -f /tmp/.X1-lock /tmp/.X11-unix/X1
         Xtigervnc :1 -geometry ${width}x${height} -depth 24 -rfbport $DESKTOP_PORT -localhost=1 -SecurityTypes None -AlwaysShared -AcceptSetDesktopSize=0 &
         x=${'$'}!
         for i in ${'$'}(seq 1 50); do [ -e /tmp/.X11-unix/X1 ] && break; sleep 0.2; done
-        dbus-launch --exit-with-session startxfce4 || startxfce4
-        kill ${'$'}x 2>/dev/null
+        eval "${'$'}(dbus-launch --sh-syntax 2>/dev/null)" || true
+        startxfce4 &
+        sleep 8
+        command -v xfconf-query >/dev/null 2>&1 && xfconf-query -c xfwm4 -p /general/use_compositing -n -t bool -s false 2>/dev/null
+        while kill -0 ${'$'}x 2>/dev/null; do
+          if ! pgrep -x xfce4-session >/dev/null 2>&1; then
+            pgrep -x xfwm4 >/dev/null 2>&1 || { xfwm4 --replace >/dev/null 2>&1 & }
+            pgrep -x xfdesktop >/dev/null 2>&1 || { xfdesktop >/dev/null 2>&1 & }
+          fi
+          pgrep -x xfce4-panel >/dev/null 2>&1 || { echo "restarting the panel"; xfce4-panel >/dev/null 2>&1 & }
+          sleep 4
+        done
+        [ -n "${'$'}{DBUS_SESSION_BUS_PID:-}" ] && kill ${'$'}DBUS_SESSION_BUS_PID 2>/dev/null
     """.trimIndent()
 
     fun desktopProcess(context: Context, width: Int, height: Int): ProcessBuilder {
