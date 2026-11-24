@@ -587,6 +587,7 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
     ) {
         val bottomNavigation = maxHeight > maxWidth
         val topNavigation = !bottomNavigation && !s.dualScreen && pal.id == Themes.PRISMA
+        val prismaPortrait = bottomNavigation && !s.dualScreen && pal.id == Themes.PRISMA
         LaunchedEffect(processSettingsPageVisible) {
             if (processSettingsPageVisible) return@LaunchedEffect
             snapshotFlow { window.isWindowFocused }.first { it }
@@ -682,14 +683,17 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
             topNavigation = topNavigation,
             navigation = {
                 if (s.dualScreen) Unit
+                else if (prismaPortrait) PrismaLineBar(s, railSelection, onRailSelect, onRailFocus, railFocus)
                 else if (bottomNavigation) BottomBar(s, railSelection, onRailSelect, onRailFocus, a, railFocus)
                 else if (topNavigation) TopTabs(s, railSelection, onRailSelect, onRailFocus, a, railFocus)
                 else SideRail(s, railSelection, onRailSelect, onRailFocus, a, railFocus.fillMaxHeight())
             },
         ) {
+            Column(Modifier.fillMaxSize()) {
+                if (prismaPortrait) PrismaHeader(s, a)
                 Pane(
                     s, selected, a, page,
-                    Modifier.fillMaxSize().then(paneFocus).pageSwipe({ !processSettingsPageVisible && appToChooseDisplay == null }) { dir ->
+                    Modifier.fillMaxWidth().weight(1f).then(paneFocus).pageSwipe({ !processSettingsPageVisible && appToChooseDisplay == null }) { dir ->
                         val keys = navigationKeys(s)
                         val at = keys.indexOf(railSelectionNow.value)
                         if (at >= 0) keys.getOrNull(at + dir)?.let { key ->
@@ -706,6 +710,7 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
                     onRequestWirelessAdb = requestWirelessAdbFix,
                     onPairWirelessDebugging = startGuidedPairing,
                 )
+            }
         }
 
         }

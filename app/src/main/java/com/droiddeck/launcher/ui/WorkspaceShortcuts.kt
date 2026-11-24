@@ -42,7 +42,7 @@ import androidx.compose.ui.unit.sp
 import com.droiddeck.launcher.R
 
 /** Pages without a tab of their own, and the tab each belongs to: Steam and the stores live in the Library. */
-internal val WORKSPACE_PAGES = mapOf("steam" to "games", "stores" to "games", "android-apps" to "desktop")
+internal val WORKSPACE_PAGES = mapOf("steam" to "games", "stores" to "games", "android-apps" to "desktop", DESKTOP_PAGE to "desktop")
 
 internal const val WORKSPACE_TAB = "desktop"
 
