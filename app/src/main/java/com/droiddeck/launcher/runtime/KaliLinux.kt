@@ -120,7 +120,8 @@ object KaliLinux {
     /** Xtigervnc on :1 for the in-app viewer, with Kali's XFCE desktop inside; exits 3 when those packages are missing. */
     fun desktopScript(width: Int, height: Int): String = """
         command -v Xtigervnc >/dev/null 2>&1 && command -v startxfce4 >/dev/null 2>&1 || exit $NEEDS_PACKAGES
-        export HOME=/root USER=root DISPLAY=:1 XDG_RUNTIME_DIR=/tmp/runtime-root
+        export HOME=/root USER=root DISPLAY=:1 XDG_RUNTIME_DIR=/tmp/runtime-root XKL_XMODMAP_DISABLE=1 NO_AT_BRIDGE=1
+        unset SESSION_MANAGER DBUS_SESSION_BUS_ADDRESS
         mkdir -p /tmp/.X11-unix /tmp/runtime-root && chmod 1777 /tmp/.X11-unix && chmod 700 /tmp/runtime-root
         rm -f /tmp/.X1-lock /tmp/.X11-unix/X1
         Xtigervnc :1 -geometry ${width}x${height} -depth 24 -rfbport $DESKTOP_PORT -localhost=1 -SecurityTypes None -AlwaysShared -AcceptSetDesktopSize=0 &
@@ -144,6 +145,7 @@ object KaliLinux {
         val root = rootfs(context)
         val cmd = LinuxRuntime.prootPrefix(context, root, "/root", true)
         cmd.add(1, "--link2symlink")
+        cmd.add(2, "--sysvipc")
         val binds = mutableListOf("/dev", "/proc", "/sys", "/dev/urandom:/dev/random", "/proc/self/fd:/dev/fd",
             "/proc/self/fd/0:/dev/stdin", "/proc/self/fd/1:/dev/stdout", "/proc/self/fd/2:/dev/stderr",
             "${File(root, "tmp").path}:/dev/shm")

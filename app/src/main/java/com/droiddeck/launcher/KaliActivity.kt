@@ -175,16 +175,21 @@ class KaliActivity : ComponentActivity() {
     private var deskProcess: Process? = null
     private var vnc: com.droiddeck.launcher.ui.VncView? = null
 
+    private val deskTail = ArrayDeque<String>()
+
+    private fun deskLog(fallback: String): String = synchronized(deskTail) { deskTail.joinToString("\n") }.ifBlank { fallback }
+
     private fun startDesktop() {
         if (desk == Desk.Starting || desk == Desk.On) return
         desk = Desk.Starting
+        synchronized(deskTail) { deskTail.clear() }
         val m = resources.displayMetrics
         fun even(v: Float) = (v.toInt() / 2) * 2
         val w = even(maxOf(m.widthPixels, m.heightPixels) / 1.5f).coerceAtLeast(1024)
         val h = even(minOf(m.widthPixels, m.heightPixels) / 1.5f).coerceAtLeast(600)
         requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
         Thread({
-            val tail = ArrayDeque<String>()
+            val tail = deskTail
             try {
                 val process = KaliLinux.desktopProcess(this, w, h).start()
                 deskProcess = process
@@ -192,7 +197,7 @@ class KaliActivity : ComponentActivity() {
                     runCatching {
                         process.inputStream.bufferedReader().forEachLine { line ->
                             Log.i("KaliDesktop", line)
-                            synchronized(tail) { tail.addLast(line); while (tail.size > 6) tail.removeFirst() }
+                            synchronized(tail) { tail.addLast(line); while (tail.size > 8) tail.removeFirst() }
                         }
                     }
                 }, "kali-desktop-log").apply { isDaemon = true; start() }
@@ -214,7 +219,14 @@ class KaliActivity : ComponentActivity() {
                     }
                 }
                 val code = process.waitFor()
-                runOnUiThread { if (desk == Desk.On) { desk = if (code == KaliLinux.NEEDS_PACKAGES) Desk.NeedsPackages else Desk.Off; vnc?.disconnect() } }
+                Thread.sleep(300)
+                runOnUiThread {
+                    if (desk == Desk.On) {
+                        vnc?.disconnect()
+                        desk = if (code == KaliLinux.NEEDS_PACKAGES) Desk.NeedsPackages else Desk.Failed(deskLog("exit $code"))
+                        requestedOrientation = com.droiddeck.launcher.core.AppUiPrefs.orientation(this)
+                    }
+                }
             } catch (e: Exception) {
                 runOnUiThread { desk = Desk.Failed(e.message ?: e.toString()) }
             }
@@ -299,7 +311,9 @@ class KaliActivity : ComponentActivity() {
                 AndroidView(
                     factory = { ctx -> com.droiddeck.launcher.ui.VncView(ctx).also { v ->
                         vnc = v
-                        v.onState = { connected, error -> if (!connected && desk == Desk.On) desk = if (error != null) Desk.Failed(error) else Desk.Off }
+                        v.onState = { connected, error ->
+                            if (!connected && desk == Desk.On && deskProcess?.isAlive == true) desk = Desk.Failed(deskLog(error ?: ""))
+                        }
                     } },
                     update = { it.visibility = if (tab == 1 && desk == Desk.On) android.view.View.VISIBLE else android.view.View.GONE },
                     modifier = Modifier.fillMaxSize(),
