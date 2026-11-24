@@ -312,7 +312,7 @@ class KaliActivity : ComponentActivity() {
                     factory = { ctx -> com.droiddeck.launcher.ui.VncView(ctx).also { v ->
                         vnc = v
                         v.onState = { connected, error ->
-                            if (!connected && desk == Desk.On && deskProcess?.isAlive == true) desk = Desk.Failed(deskLog(error ?: ""))
+                            if (!connected && desk == Desk.On && deskProcess?.isAlive == true) { desk = Desk.Failed(deskLog(error ?: "")); stopDesktop(keepState = true) }
                         }
                     } },
                     update = { it.visibility = if (tab == 1 && desk == Desk.On) android.view.View.VISIBLE else android.view.View.GONE },
