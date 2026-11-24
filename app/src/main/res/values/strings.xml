@@ -3597,10 +3597,10 @@
     <string name="dash_update_hint">Tap to see what is new</string>
     <string name="kali_title">Kali Linux</string>
     <string name="kali_intro">The official Kali NetHunter system for ARM64 phones, running apart from the AriseOS Linux: it does not touch Steam or the desktop, and you can remove it at any time. It opens a Kali terminal with root inside Kali, so apt install works.</string>
-    <string name="kali_minimal">Minimal (recommended)</string>
-    <string name="kali_minimal_hint">About 150 MB to download. A clean Kali; install the tools you want with apt.</string>
-    <string name="kali_full">Full</string>
-    <string name="kali_full_hint">About 2 GB to download and much more space once installed. Comes with most Kali tools.</string>
+    <string name="kali_minimal">Minimal</string>
+    <string name="kali_minimal_hint">About 150 MB to download. A clean Kali; add the desktop and tools later with apt.</string>
+    <string name="kali_full">Full (recommended)</string>
+    <string name="kali_full_hint">About 2 GB to download. Kali as on a PC: the XFCE desktop and most of the tools.</string>
     <string name="kali_install">Install</string>
     <string name="kali_downloading">Downloading Kali</string>
     <string name="kali_extracting">Unpacking</string>
@@ -3615,4 +3615,17 @@
     <string name="kali_session_ended">The Kali shell ended. Tap here to open a new one.</string>
     <string name="kali_row_ready">Installed · open the terminal</string>
     <string name="kali_row_install">Separate Linux for security tools</string>
+    <string name="kali_tab_terminal">Terminal</string>
+    <string name="kali_tab_desktop">Desktop</string>
+    <string name="kali_all_tools">All tools</string>
+    <string name="kali_desktop_stop">Stop desktop</string>
+    <string name="kali_desktop_title">Kali desktop</string>
+    <string name="kali_desktop_intro">The XFCE desktop, the same one Kali uses on a PC, with the menu of every installed tool. It opens here, in landscape.</string>
+    <string name="kali_desktop_starting">Starting the desktop… the first time can take a minute.</string>
+    <string name="kali_desktop_missing">This Kali does not have the desktop yet. Install it once (about 1 GB); it runs in the Terminal tab.</string>
+    <string name="kali_desktop_install">Install the desktop</string>
+    <string name="kali_desktop_failed">The desktop did not start:
+%1$s</string>
+    <string name="kali_desktop_start">Open the desktop</string>
+    <string name="kali_desktop_touch">Tap to click, long press for right click, drag to move or select, two fingers to scroll. Use Keyboard to type.</string>
 </resources>

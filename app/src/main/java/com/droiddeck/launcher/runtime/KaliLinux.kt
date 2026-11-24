@@ -101,6 +101,8 @@ object KaliLinux {
         File(root, "etc/hostname").writeText("kali\n")
         File(root, "root").mkdirs()
         File(root, "tmp").apply { mkdirs(); setWritable(true, false) }
+        File(root, "etc/apt/apt.conf.d").mkdirs()
+        File(root, "etc/apt/apt.conf.d/99arise").writeText("APT::Sandbox::User \"root\";\nDpkg::Use-Pty \"0\";\n")
         File(root, "root/.hushlogin").createNewFile()
         File(root, "etc/profile.d").mkdirs()
         File(root, "etc/profile.d/arise-kali.sh").writeText(
@@ -109,7 +111,36 @@ object KaliLinux {
     }
 
     /** The shell command and the host environment for a Kali terminal. */
-    fun command(context: Context): Pair<List<String>, Array<String>> {
+    fun command(context: Context): Pair<List<String>, Array<String>> = prootCommand(context, listOf("/bin/bash", "--login"))
+
+    const val DESKTOP_PORT = 5901
+    const val NEEDS_PACKAGES = 3
+    const val DESKTOP_PACKAGES = "kali-desktop-xfce tigervnc-standalone-server dbus-x11"
+
+    /** Xtigervnc on :1 for the in-app viewer, with Kali's XFCE desktop inside; exits 3 when those packages are missing. */
+    fun desktopScript(width: Int, height: Int): String = """
+        command -v Xtigervnc >/dev/null 2>&1 && command -v startxfce4 >/dev/null 2>&1 || exit $NEEDS_PACKAGES
+        export HOME=/root USER=root DISPLAY=:1 XDG_RUNTIME_DIR=/tmp/runtime-root
+        mkdir -p /tmp/.X11-unix /tmp/runtime-root && chmod 1777 /tmp/.X11-unix && chmod 700 /tmp/runtime-root
+        rm -f /tmp/.X1-lock /tmp/.X11-unix/X1
+        Xtigervnc :1 -geometry ${width}x${height} -depth 24 -rfbport $DESKTOP_PORT -localhost=1 -SecurityTypes None -AlwaysShared -AcceptSetDesktopSize=0 &
+        x=${'$'}!
+        for i in ${'$'}(seq 1 50); do [ -e /tmp/.X11-unix/X1 ] && break; sleep 0.2; done
+        dbus-launch --exit-with-session startxfce4
+        kill ${'$'}x 2>/dev/null
+    """.trimIndent()
+
+    fun desktopProcess(context: Context, width: Int, height: Int): ProcessBuilder {
+        val (cmd, env) = prootCommand(context, listOf("/bin/sh", "-c", desktopScript(width, height)))
+        return ProcessBuilder(cmd).redirectErrorStream(true).directory(rootfs(context)).also { b ->
+            b.environment().apply {
+                clear()
+                env.forEach { e -> e.indexOf('=').takeIf { it > 0 }?.let { put(e.substring(0, it), e.substring(it + 1)) } }
+            }
+        }
+    }
+
+    private fun prootCommand(context: Context, guest: List<String>): Pair<List<String>, Array<String>> {
         val root = rootfs(context)
         val cmd = LinuxRuntime.prootPrefix(context, root, "/root", true)
         cmd.add(1, "--link2symlink")
@@ -120,8 +151,8 @@ object KaliLinux {
         binds.forEach { cmd.add("-b"); cmd.add(it) }
         cmd += listOf(
             "/usr/bin/env", "-i", "HOME=/root", "USER=root", "LOGNAME=root", "TERM=xterm-256color", "LANG=C.UTF-8", "COLORTERM=truecolor",
-            "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin", "/bin/bash", "--login",
-        )
+            "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+        ) + guest
         val env = LinkedHashMap(System.getenv())
         env["PROOT_LOADER"] = LinuxRuntime.prootLoader(context).path
         env["PROOT_TMP_DIR"] = LinuxRuntime.prootTempDir(context).path

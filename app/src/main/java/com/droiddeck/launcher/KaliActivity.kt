@@ -89,6 +89,7 @@ class KaliActivity : ComponentActivity() {
     }
 
     override fun onDestroy() {
+        stopDesktop(keepState = true)
         session?.finishIfRunning()
         session = null
         super.onDestroy()
@@ -130,11 +131,11 @@ class KaliActivity : ComponentActivity() {
                     if (state is KaliLinux.State.Failed) Text(
                         stringResource(R.string.kali_failed, state.reason), fontSize = 13.sp, color = colors.error,
                     )
-                    EditionCard(stringResource(R.string.kali_minimal), stringResource(R.string.kali_minimal_hint), true) {
-                        KaliLinux.clearFailure(); KaliLinux.install(this@KaliActivity, KaliLinux.Edition.MINIMAL)
-                    }
-                    EditionCard(stringResource(R.string.kali_full), stringResource(R.string.kali_full_hint), false) {
+                    EditionCard(stringResource(R.string.kali_full), stringResource(R.string.kali_full_hint), true) {
                         KaliLinux.clearFailure(); KaliLinux.install(this@KaliActivity, KaliLinux.Edition.FULL)
+                    }
+                    EditionCard(stringResource(R.string.kali_minimal), stringResource(R.string.kali_minimal_hint), false) {
+                        KaliLinux.clearFailure(); KaliLinux.install(this@KaliActivity, KaliLinux.Edition.MINIMAL)
                     }
                     Text(stringResource(R.string.kali_limits), fontSize = 12.sp, color = colors.onSurfaceVariant)
                 }
@@ -161,6 +162,83 @@ class KaliActivity : ComponentActivity() {
         }
     }
 
+    private sealed class Desk {
+        object Off : Desk()
+        object Starting : Desk()
+        object On : Desk()
+        object NeedsPackages : Desk()
+        class Failed(val detail: String) : Desk()
+    }
+
+    private var desk by mutableStateOf<Desk>(Desk.Off)
+    private var tab by mutableStateOf(0)
+    private var deskProcess: Process? = null
+    private var vnc: com.droiddeck.launcher.ui.VncView? = null
+
+    private fun startDesktop() {
+        if (desk == Desk.Starting || desk == Desk.On) return
+        desk = Desk.Starting
+        val m = resources.displayMetrics
+        fun even(v: Float) = (v.toInt() / 2) * 2
+        val w = even(maxOf(m.widthPixels, m.heightPixels) / 1.5f).coerceAtLeast(1024)
+        val h = even(minOf(m.widthPixels, m.heightPixels) / 1.5f).coerceAtLeast(600)
+        requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+        Thread({
+            val tail = ArrayDeque<String>()
+            try {
+                val process = KaliLinux.desktopProcess(this, w, h).start()
+                deskProcess = process
+                Thread({
+                    runCatching {
+                        process.inputStream.bufferedReader().forEachLine { line ->
+                            Log.i("KaliDesktop", line)
+                            synchronized(tail) { tail.addLast(line); while (tail.size > 6) tail.removeFirst() }
+                        }
+                    }
+                }, "kali-desktop-log").apply { isDaemon = true; start() }
+                val deadline = System.currentTimeMillis() + 90_000
+                var up = false
+                while (System.currentTimeMillis() < deadline && process.isAlive) {
+                    up = runCatching { java.net.Socket().use { it.connect(java.net.InetSocketAddress("127.0.0.1", KaliLinux.DESKTOP_PORT), 500) } }.isSuccess
+                    if (up) break
+                    Thread.sleep(500)
+                }
+                runOnUiThread {
+                    when {
+                        up -> { desk = Desk.On; vnc?.connect(KaliLinux.DESKTOP_PORT) }
+                        !process.isAlive && process.exitValue() == KaliLinux.NEEDS_PACKAGES -> desk = Desk.NeedsPackages
+                        else -> {
+                            desk = Desk.Failed(synchronized(tail) { tail.joinToString("\n") })
+                            stopDesktop(keepState = true)
+                        }
+                    }
+                }
+                val code = process.waitFor()
+                runOnUiThread { if (desk == Desk.On) { desk = if (code == KaliLinux.NEEDS_PACKAGES) Desk.NeedsPackages else Desk.Off; vnc?.disconnect() } }
+            } catch (e: Exception) {
+                runOnUiThread { desk = Desk.Failed(e.message ?: e.toString()) }
+            }
+        }, "kali-desktop").apply { isDaemon = true; start() }
+    }
+
+    private fun stopDesktop(keepState: Boolean = false) {
+        vnc?.disconnect()
+        deskProcess?.let { p ->
+            val pid = com.droiddeck.launcher.core.HostProcess.pidOf(p)
+            if (pid > 0) runCatching { android.system.Os.kill(pid, android.system.OsConstants.SIGQUIT) } else p.destroy()
+            Thread { if (!p.waitFor(3, java.util.concurrent.TimeUnit.SECONDS)) p.destroyForcibly() }.start()
+        }
+        deskProcess = null
+        if (!keepState) desk = Desk.Off
+        requestedOrientation = com.droiddeck.launcher.core.AppUiPrefs.orientation(this)
+    }
+
+    private fun runInTerminal(command: String) {
+        tab = 0
+        session?.write(command + "\n")
+        terminalView?.post { showKeyboard() }
+    }
+
     @Composable
     private fun Terminal() {
         val pal = LocalPalette.current
@@ -169,16 +247,28 @@ class KaliActivity : ComponentActivity() {
         Column(Modifier.fillMaxSize()) {
             Row(
                 verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp),
-                modifier = Modifier.fillMaxWidth().background(colors.surface).padding(horizontal = 12.dp, vertical = 8.dp),
+                modifier = Modifier.fillMaxWidth().background(colors.surface).horizontalScroll(rememberScrollState()).padding(horizontal = 12.dp, vertical = 8.dp),
             ) {
-                Text(
-                    stringResource(R.string.kali_title) + (KaliLinux.edition(this@KaliActivity)?.let { " · $it" } ?: ""),
-                    fontSize = 16.sp, fontWeight = FontWeight.Bold, color = colors.onBackground, modifier = Modifier.weight(1f),
-                )
-                SecondaryButton(stringResource(R.string.drawer_keyboard), compact = true) { showKeyboard() }
-                SecondaryButton(stringResource(R.string.kali_remove), compact = true) { confirmRemove = true }
+                Text(stringResource(R.string.kali_title), fontSize = 16.sp, fontWeight = FontWeight.Bold, color = colors.onBackground)
+                Key(stringResource(R.string.kali_tab_terminal), tab == 0) { tab = 0 }
+                Key(stringResource(R.string.kali_tab_desktop), tab == 1) { tab = 1 }
+                if (tab == 0) {
+                    SecondaryButton(stringResource(R.string.drawer_keyboard), compact = true) { showKeyboard() }
+                    SecondaryButton(stringResource(R.string.kali_all_tools), compact = true) { runInTerminal("apt update && apt install -y kali-linux-default") }
+                    SecondaryButton(stringResource(R.string.kali_remove), compact = true) { confirmRemove = true }
+                } else if (desk == Desk.On) {
+                    SecondaryButton(stringResource(R.string.drawer_keyboard), compact = true) {
+                        vnc?.let { v -> v.requestFocus(); (getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager).showSoftInput(v, InputMethodManager.SHOW_IMPLICIT) }
+                    }
+                    Key("ESC") { vnc?.tapKey(0xff1b) }
+                    Key("TAB") { vnc?.tapKey(0xff09) }
+                    Key("CTRL+C") { vnc?.tapKey('c'.code, 0xffe3) }
+                    Key("CTRL+V") { vnc?.tapKey('v'.code, 0xffe3) }
+                    Key("ALT+TAB") { vnc?.tapKey(0xff09, 0xffe9) }
+                    SecondaryButton(stringResource(R.string.kali_desktop_stop), compact = true) { stopDesktop() }
+                }
             }
-            Row(
+            if (tab == 0) Row(
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
                 modifier = Modifier.fillMaxWidth().background(colors.surface).horizontalScroll(rememberScrollState()).padding(horizontal = 8.dp, vertical = 6.dp),
             ) {
@@ -196,14 +286,26 @@ class KaliActivity : ComponentActivity() {
                 Key("/") { send("/") }
                 Key("-") { send("-") }
             }
-            if (finished) Text(
+            if (tab == 0 && finished) Text(
                 stringResource(R.string.kali_session_ended), fontSize = 13.sp, color = pal.signal,
                 modifier = Modifier.fillMaxWidth().background(colors.surface).clickable { restart() }.padding(12.dp),
             )
-            AndroidView(
-                factory = { ctx -> createTerminal(ctx) },
-                modifier = Modifier.fillMaxWidth().weight(1f).background(Color.Black),
-            )
+            Box(Modifier.fillMaxWidth().weight(1f)) {
+                AndroidView(
+                    factory = { ctx -> createTerminal(ctx) },
+                    update = { it.visibility = if (tab == 0) android.view.View.VISIBLE else android.view.View.GONE },
+                    modifier = Modifier.fillMaxSize().background(Color.Black),
+                )
+                AndroidView(
+                    factory = { ctx -> com.droiddeck.launcher.ui.VncView(ctx).also { v ->
+                        vnc = v
+                        v.onState = { connected, error -> if (!connected && desk == Desk.On) desk = if (error != null) Desk.Failed(error) else Desk.Off }
+                    } },
+                    update = { it.visibility = if (tab == 1 && desk == Desk.On) android.view.View.VISIBLE else android.view.View.GONE },
+                    modifier = Modifier.fillMaxSize(),
+                )
+                if (tab == 1 && desk != Desk.On) DesktopPanel()
+            }
         }
         if (confirmRemove) AlertDialog(
             onDismissRequest = { confirmRemove = false },
@@ -212,6 +314,7 @@ class KaliActivity : ComponentActivity() {
             confirmButton = {
                 TextButton(onClick = {
                     confirmRemove = false
+                    stopDesktop()
                     session?.finishIfRunning()
                     session = null
                     terminalView = null
@@ -221,6 +324,33 @@ class KaliActivity : ComponentActivity() {
             },
             dismissButton = { TextButton(onClick = { confirmRemove = false }) { Text(stringResource(R.string.common_cancel)) } },
         )
+    }
+
+    @Composable
+    private fun DesktopPanel() {
+        val colors = MaterialTheme.colorScheme
+        Column(
+            verticalArrangement = Arrangement.spacedBy(14.dp),
+            modifier = Modifier.fillMaxSize().background(colors.background).verticalScroll(rememberScrollState()).padding(24.dp),
+        ) {
+            Text(stringResource(R.string.kali_desktop_title), fontSize = 22.sp, fontWeight = FontWeight.Bold, color = colors.onBackground)
+            Text(stringResource(R.string.kali_desktop_intro), fontSize = 14.sp, color = colors.onSurfaceVariant)
+            when (val d = desk) {
+                Desk.Starting -> {
+                    Text(stringResource(R.string.kali_desktop_starting), fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground)
+                    LinearProgressIndicator(Modifier.fillMaxWidth().height(6.dp))
+                }
+                Desk.NeedsPackages -> {
+                    Text(stringResource(R.string.kali_desktop_missing), fontSize = 14.sp, color = colors.onBackground)
+                    PrimaryButton(stringResource(R.string.kali_desktop_install)) { desk = Desk.Off; runInTerminal("apt update && apt install -y ${KaliLinux.DESKTOP_PACKAGES}") }
+                }
+                else -> {
+                    if (d is Desk.Failed) Text(stringResource(R.string.kali_desktop_failed, d.detail), fontSize = 13.sp, color = colors.error)
+                    PrimaryButton(stringResource(R.string.kali_desktop_start)) { startDesktop() }
+                    Text(stringResource(R.string.kali_desktop_touch), fontSize = 13.sp, color = colors.onSurfaceVariant)
+                }
+            }
+        }
     }
 
     @Composable
