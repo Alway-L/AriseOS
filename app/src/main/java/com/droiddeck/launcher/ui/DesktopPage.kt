@@ -123,7 +123,10 @@ internal fun DesktopPage(s: FrontEndState, a: FrontEndActions, modifier: Modifie
         onOpen = a.onDesktopSettings, onPrimary = a.onDesktop,
         modifier = modifier.clipToBounds(),
         start = if (narrow) 20.dp else 44.dp, bottom = 44.dp,
-        background = { AriseWallpaper(Modifier.fillMaxSize(), markX = if (narrow) 0.5f else 0.72f, markY = if (narrow) 0.34f else 0.44f) },
+        background = {
+            if (prismaLook()) PrismaWallpaper(Modifier.fillMaxSize())
+            else AriseWallpaper(Modifier.fillMaxSize(), markX = if (narrow) 0.5f else 0.72f, markY = if (narrow) 0.34f else 0.44f)
+        },
         scrim = { lifted ->
             WallFade()
             Box(Modifier.graphicsLayer { val v = lifted(); alpha = 1f - v; translationY = -12.dp.toPx() * v }) {
@@ -133,6 +136,11 @@ internal fun DesktopPage(s: FrontEndState, a: FrontEndActions, modifier: Modifie
         words = {
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 val pal = LocalPalette.current
+                remember { UserName.load(ctx) }
+                if (UserName.name.isNotBlank()) Text(
+                    greeting(UserName.name), fontSize = if (short) 15.sp else 18.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground,
+                    maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                )
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Box(Modifier.size(8.dp).background(androidx.compose.ui.graphics.Brush.linearGradient(listOf(pal.primary, pal.signal)), androidx.compose.foundation.shape.CircleShape))
                     Text(stringResource(R.string.workspace_desktop).uppercase(), fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 1.6.sp, color = colors.onSurfaceVariant)

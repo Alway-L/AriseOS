@@ -42,6 +42,7 @@ class Palette(
 )
 
 object Themes {
+    const val PRISMA = "prisma"
     const val GRAPHITE = "graphite"
     const val PAPER = "paper"
     const val ICON_BLUE = "blue"
@@ -106,6 +107,13 @@ object Themes {
 
     val all: List<Palette> = listOf(
         Palette(
+            PRISMA, R.string.theme_prisma, R.string.theme_prisma_detail,
+            background = Color(0xFF070915), surface = Color(0xFF0E1124), surfaceVariant = Color(0xFF151935), line = Color(0xFF262B4E), line2 = Color(0xFF343A66),
+            onBackground = Color(0xFFF2F4FF), onSurfaceVariant = Color(0xFF8D94BE),
+            primary = Color(0xFF2563EB), primary2 = Color(0xFF9333EA), onPrimary = Color(0xFFFFFFFF), signal = Color(0xFFA970FF),
+            good = Color(0xFF4CD37F),
+        ),
+        Palette(
             GRAPHITE, R.string.theme_graphite, R.string.theme_graphite_detail,
             background = Color(0xFF0B0717), surface = Color(0xFF130D24), surfaceVariant = Color(0xFF1B1331), line = Color(0xFF2A1F47), line2 = Color(0xFF3A2D5E),
             onBackground = Color(0xFFF4F1FB), onSurfaceVariant = Color(0xFFA79CC4),
@@ -144,7 +152,7 @@ object Themes {
     }
 }
 
-val LocalPalette = staticCompositionLocalOf { Themes.byId(Themes.GRAPHITE) }
+val LocalPalette = staticCompositionLocalOf { Themes.byId(Themes.PRISMA) }
 
 val Palette.onSignal: Color get() = if (signal.luminance() > 0.18f) Color(0xFF03111F) else Color.White
 

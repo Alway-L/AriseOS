@@ -3476,4 +3476,14 @@
     <string name="game_booster_hint">Abre o Gaming Hub: adicione o AriseOS lá e escolha Desempenho no painel do Game Booster para mais MHz de CPU e GPU.</string>
     <string name="game_booster_open">Abrir</string>
     <string name="game_booster_toast">Adicione o AriseOS na Biblioteca e escolha Desempenho no Game Booster.</string>
+    <string name="theme_prisma">Prisma</string>
+    <string name="theme_prisma_detail">Azul para roxo, cortes angulares, feixes de luz e separadores no topo.</string>
+    <string name="greet_morning">Bom dia, %1$s</string>
+    <string name="greet_afternoon">Boa tarde, %1$s</string>
+    <string name="greet_night">Boa noite, %1$s</string>
+    <string name="setup_profile">Perfil</string>
+    <string name="setup_name">Nome</string>
+    <string name="setup_name_hint">Aparece na saudação do ecrã inicial.</string>
+    <string name="setup_name_add">Adicionar</string>
+    <string name="setup_name_change">Alterar</string>
 </resources>

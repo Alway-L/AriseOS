@@ -3560,4 +3560,14 @@
     <string name="game_booster_hint">Opens Gaming Hub: add AriseOS there and pick Performance in the Game Booster panel for higher CPU and GPU clocks.</string>
     <string name="game_booster_open">Open</string>
     <string name="game_booster_toast">Add AriseOS in the Library, then choose Performance in Game Booster.</string>
+    <string name="theme_prisma">Prisma</string>
+    <string name="theme_prisma_detail">Blue to purple, angled cuts, light beams and tabs on top.</string>
+    <string name="greet_morning">Good morning, %1$s</string>
+    <string name="greet_afternoon">Good afternoon, %1$s</string>
+    <string name="greet_night">Good evening, %1$s</string>
+    <string name="setup_profile">Profile</string>
+    <string name="setup_name">Name</string>
+    <string name="setup_name_hint">Shown in the greeting on the home page.</string>
+    <string name="setup_name_add">Add</string>
+    <string name="setup_name_change">Change</string>
 </resources>

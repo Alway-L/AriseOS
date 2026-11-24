@@ -467,7 +467,7 @@ class FrontEndActivity : ComponentActivity() {
     private var bootMovieCustomName by mutableStateOf<String?>(null)
     private var bootMovieImporting by mutableStateOf(false)
     private var bootMovieProgress by mutableStateOf(-1)
-    private var theme by mutableStateOf("graphite")
+    private var theme by mutableStateOf(com.droiddeck.launcher.ui.Themes.PRISMA)
     private var appScale by mutableStateOf(com.droiddeck.launcher.core.AppUiPrefs.DEFAULT_SCALE)
     private var hdrOn by mutableStateOf(false)
     private var upscaler by mutableStateOf(0)

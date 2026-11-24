@@ -178,6 +178,13 @@ internal fun SetupPanel(
     var editSgdbKey by remember { mutableStateOf(false) }
     var editDownloadPrefix by remember { mutableStateOf(false) }
     var editDownloadProxy by remember { mutableStateOf(false) }
+    var editName by remember { mutableStateOf(false) }
+    remember { UserName.load(ctx) }
+    if (editName) TextEntryDialog(
+        stringResource(R.string.setup_name), UserName.name,
+        onDismiss = { editName = false },
+        onSave = { UserName.set(ctx, it); editName = false },
+    )
     if (editSgdbKey) SgdbKeyDialog(s.sgdbUserKey, onSave = { a.onSgdbKey(it); editSgdbKey = false }, onDismiss = { editSgdbKey = false })
 
     if (editDownloadPrefix) TextEntryDialog(
@@ -233,6 +240,14 @@ internal fun SetupPanel(
             Column(modifier = Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).padding(bottom = 24.dp)) {
                 when (tab) {
                     0 -> {
+                        SettingsGroup(stringResource(R.string.setup_profile)) {
+                            ActionRow(
+                                stringResource(R.string.setup_name),
+                                UserName.name.ifBlank { stringResource(R.string.setup_name_hint) },
+                                stringResource(if (UserName.name.isBlank()) R.string.setup_name_add else R.string.setup_name_change),
+                                { editName = true },
+                            )
+                        }
                         val gpuCheck: @Composable (Boolean) -> Unit = { divider ->
                             CheckRow(
                                 if (gpuOk) CheckState.OK else CheckState.WARN,

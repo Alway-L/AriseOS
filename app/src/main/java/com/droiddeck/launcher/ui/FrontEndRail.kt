@@ -40,6 +40,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.ui.graphics.drawscope.scale as drawScale
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.relocation.BringIntoViewRequester
@@ -141,6 +143,152 @@ internal object RailLabels {
     fun set(context: android.content.Context, show: Boolean) {
         shown = show
         SessionPrefs.setRailLabels(context, show)
+    }
+}
+
+internal object UserName {
+    var name by mutableStateOf("")
+        private set
+
+    fun load(context: android.content.Context) {
+        name = SessionPrefs.userName(context)
+    }
+
+    fun set(context: android.content.Context, value: String) {
+        SessionPrefs.setUserName(context, value)
+        name = SessionPrefs.userName(context)
+    }
+}
+
+@Composable
+internal fun greeting(name: String): String {
+    val hour = remember { java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY) }
+    return stringResource(
+        when {
+            hour in 5..11 -> R.string.greet_morning
+            hour in 12..17 -> R.string.greet_afternoon
+            else -> R.string.greet_night
+        },
+        name,
+    )
+}
+
+private val prismaA = androidx.compose.ui.graphics.vector.PathParser().parsePathString("M64 22 L103 104 H84 L64 60 L44 104 H25 Z")
+private val prismaNotch = androidx.compose.ui.graphics.vector.PathParser().parsePathString("M64 76 L75 98 H53 Z")
+
+@Composable
+internal fun PrismaMark(size: Dp, modifier: Modifier = Modifier) {
+    val pal = LocalPalette.current
+    androidx.compose.foundation.Canvas(modifier.size(size)) {
+        val k = this.size.minDimension / 128f
+        drawScale(k, k, androidx.compose.ui.geometry.Offset.Zero) {
+            val corner = androidx.compose.ui.graphics.Path().apply { moveTo(0f, 0f); lineTo(108f, 0f); lineTo(128f, 20f); lineTo(128f, 128f); lineTo(20f, 128f); lineTo(0f, 108f); close() }
+            drawPath(corner, Color(0xFF0E1124))
+            val brush = androidx.compose.ui.graphics.Brush.linearGradient(listOf(Color(0xFF3B82F6), Color(0xFF6366F1), Color(0xFFA855F7)), androidx.compose.ui.geometry.Offset(0f, 128f), androidx.compose.ui.geometry.Offset(128f, 0f))
+            drawPath(prismaA.toPath(), brush)
+            drawPath(prismaNotch.toPath(), pal.onBackground)
+            drawPath(androidx.compose.ui.graphics.Path().apply { moveTo(108f, 0f); lineTo(128f, 20f); lineTo(108f, 20f); close() }, brush)
+        }
+    }
+}
+
+@Composable
+internal fun TopTabs(
+    s: FrontEndState, selected: String,
+    onSelect: (String) -> Unit, onFocusSelect: (String) -> Unit, a: FrontEndActions, modifier: Modifier,
+) {
+    val pal = LocalPalette.current
+    val colors = MaterialTheme.colorScheme
+    val shown = Hops.railPreview ?: selected
+    val needsAttention = setupNeedsAttention(s)
+    val ctx = LocalContext.current
+    remember { UserName.load(ctx) }
+    Row(
+        modifier.fillMaxWidth().height(52.dp).background(pal.background.copy(alpha = 0.78f)).padding(horizontal = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        PrismaMark(26.dp)
+        Row(Modifier.padding(start = 8.dp, end = 12.dp)) {
+            Text("ARISE", fontSize = 15.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.6.sp, color = colors.onBackground, maxLines = 1)
+            Text("OS", fontSize = 15.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.6.sp, color = pal.signal, maxLines = 1)
+        }
+        Row(Modifier.weight(1f).horizontalScroll(rememberScrollState()).selectableGroup(), verticalAlignment = Alignment.CenterVertically) {
+            navigationKeys(s).forEachIndexed { index, key ->
+                val (label, icon) = railLabelIcon(key)
+                key(key) {
+                    PrismaTab(
+                        index + 1, stringResource(label), icon, key, shown == key,
+                        badge = (key == "setup" && needsAttention) || (key == "updates" && s.updates.hasUpdate),
+                        count = if (key == "games") s.storeDownloadsActive else 0,
+                        onFocus = { onFocusSelect(key) },
+                    ) { onSelect(key) }
+                }
+            }
+        }
+        val name = UserName.name
+        if (name.isNotBlank() && !isNarrowScreen()) Row(
+            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = Modifier.padding(start = 8.dp),
+        ) {
+            Box(
+                Modifier.size(28.dp).clip(CircleShape).background(androidx.compose.ui.graphics.Brush.linearGradient(listOf(pal.primary, pal.primary2))),
+                contentAlignment = Alignment.Center,
+            ) { Text(name.take(1).uppercase(), fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White) }
+            Text(name, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.widthIn(max = 120.dp))
+        }
+        if (s.running != null) ResumeRailItem(s.running, compact = true, iconOnly = true, a.onResume)
+    }
+}
+
+@Composable
+private fun PrismaTab(
+    number: Int, label: String, icon: ImageVector, key: String, current: Boolean,
+    badge: Boolean, count: Int, onFocus: () -> Unit, onClick: () -> Unit,
+) {
+    val colors = MaterialTheme.colorScheme
+    val pal = LocalPalette.current
+    val frontFocus = LocalFrontFocus.current
+    val src = remember { MutableInteractionSource() }
+    val focused by src.collectIsFocusedAsState()
+    val hovered by src.collectIsHoveredAsState()
+    if (frontFocus != null) LaunchedEffect(focused) {
+        if (focused) {
+            frontFocus.focusedRail = key
+            onFocus()
+        } else if (frontFocus.focusedRail == key) frontFocus.focusedRail = null
+    }
+    val fg by animateColorAsState(
+        if (current || focused || hovered) colors.onBackground else colors.onSurfaceVariant, Motion.tw(220), label = "tabFg",
+    )
+    val line by animateFloatAsState(if (current) 1f else if (focused) 0.4f else 0f, Motion.sp(0.7f), label = "tabLine")
+    val bringIntoView = remember { BringIntoViewRequester() }
+    LaunchedEffect(current) { if (current) bringIntoView.bringIntoView() }
+    Box(
+        modifier = Modifier
+            .then(if (frontFocus != null) Modifier.focusRequester(frontFocus.railFor(key)) else Modifier)
+            .testTag("rail-$key")
+            .onGloballyPositioned { Hops.railBounds[key] = it.boundsInRoot() }
+            .height(52.dp)
+            .bringIntoViewRequester(bringIntoView)
+            .hoverable(src)
+            .selectable(selected = current, interactionSource = src, indication = LocalIndication.current, role = Role.Tab, onClick = onClick)
+            .padding(horizontal = 12.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text("%02d".format(number), fontSize = 10.sp, fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace, color = fg.copy(alpha = 0.7f))
+            Icon(icon, contentDescription = null, tint = fg, modifier = Modifier.size(18.dp))
+            Text(label, fontSize = 13.sp, fontWeight = if (current) FontWeight.SemiBold else FontWeight.Medium, color = fg, maxLines = 1, softWrap = false)
+            if (count > 0) Text(
+                if (count > 9) "9+" else count.toString(), fontSize = 10.sp, fontWeight = FontWeight.Bold, color = pal.onSignal,
+                modifier = Modifier.clip(RoundedCornerShape(8.dp)).background(pal.signal).padding(horizontal = 5.dp, vertical = 1.dp),
+            )
+            if (badge) Box(Modifier.size(7.dp).clip(CircleShape).background(AttentionAmber))
+        }
+        Box(
+            Modifier.align(Alignment.BottomCenter).fillMaxWidth(line).height(3.dp)
+                .background(androidx.compose.ui.graphics.Brush.horizontalGradient(listOf(pal.primary, pal.primary2))),
+        )
     }
 }
 

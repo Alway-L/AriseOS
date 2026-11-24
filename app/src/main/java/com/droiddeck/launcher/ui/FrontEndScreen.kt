@@ -120,7 +120,7 @@ class FrontEndState(
     val shortcutLibraryScanning: Boolean = false,
     val gameSyncFolder: String? = null,
     val pageKey: String? = null,
-    val theme: String = Themes.GRAPHITE,
+    val theme: String = Themes.PRISMA,
     val language: String = "",
     val appScale: Int = com.droiddeck.launcher.core.AppUiPrefs.DEFAULT_SCALE,
     val isHomeApp: Boolean = false,
@@ -586,6 +586,7 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
             .onFocusChanged { anyFocused = it.hasFocus },
     ) {
         val bottomNavigation = maxHeight > maxWidth
+        val topNavigation = !bottomNavigation && !s.dualScreen && pal.id == Themes.PRISMA
         LaunchedEffect(processSettingsPageVisible) {
             if (processSettingsPageVisible) return@LaunchedEffect
             snapshotFlow { window.isWindowFocused }.first { it }
@@ -632,7 +633,7 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
             .focusProperties {
                 enter = { frontFocus.paneEntry() }
                 exit = { direction ->
-                    if (bottomNavigation && direction == FocusDirection.Down) frontFocus.railFor(railSelection)
+                    if ((bottomNavigation && direction == FocusDirection.Down) || (topNavigation && direction == FocusDirection.Up)) frontFocus.railFor(railSelection)
                     else FocusRequester.Default
                 }
             }
@@ -641,6 +642,7 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
             .focusProperties {
                 enter = { frontFocus.railFor(railSelection) }
                 if (bottomNavigation) up = frontFocus.paneEntry()
+                if (topNavigation) down = frontFocus.paneEntry()
             }
             .focusGroup()
         LaunchedEffect(Hops.restore) {
@@ -660,9 +662,10 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
             focusManager.clearFocus(force = true)
             onRailSelect(key)
         }, a)
+        if (pal.id == Themes.PRISMA) PrismaWallpaper(Modifier.matchParentSize())
         CompositionLocalProvider(LocalShowSection provides { key -> selected = key }) {
         LauncherLayout(
-            bottomNavigation && !s.dualScreen, pal.line,
+            bottomNavigation && !s.dualScreen, pal.line, topNavigation = topNavigation,
             Modifier.fillMaxSize().onGloballyPositioned { screenAt = it.positionInRoot() }
                 .then(if (s.dualScreen) Modifier.onKeyEvent { event ->
                     val step = dualPageStep(event.nativeKeyEvent) ?: return@onKeyEvent false
@@ -679,6 +682,7 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
             navigation = {
                 if (s.dualScreen) Unit
                 else if (bottomNavigation) BottomBar(s, railSelection, onRailSelect, onRailFocus, a, railFocus)
+                else if (topNavigation) TopTabs(s, railSelection, onRailSelect, onRailFocus, a, railFocus)
                 else SideRail(s, railSelection, onRailSelect, onRailFocus, a, railFocus.fillMaxHeight())
             },
         ) {

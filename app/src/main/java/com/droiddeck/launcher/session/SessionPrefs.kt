@@ -1101,7 +1101,24 @@ object SessionPrefs {
             ?: first.also { p.edit().putLong("addedAppId:$folderPath", it).apply() }
     }
 
-    fun theme(context: Context): String = prefs(context).getString("theme", "graphite") ?: "graphite"
+    /** Moves people still on the old default (Graphite) to Prisma once; any other choice is kept. */
+    fun theme(context: Context): String {
+        val p = prefs(context)
+        if (!p.getBoolean("prismaLook", false)) {
+            val stored = p.getString("theme", null)
+            val edit = p.edit().putBoolean("prismaLook", true)
+            if (stored == null || stored == "graphite") edit.putString("theme", "prisma")
+            edit.apply()
+            if (stored == null || stored == "graphite") return "prisma"
+        }
+        return p.getString("theme", "prisma") ?: "prisma"
+    }
+
+    fun userName(context: Context): String = prefs(context).getString("userName", "") ?: ""
+
+    fun setUserName(context: Context, name: String) {
+        prefs(context).edit().putString("userName", name.trim().take(24)).apply()
+    }
 
     fun setTheme(context: Context, id: String) {
         prefs(context).edit().putString("theme", id).apply()
