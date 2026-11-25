@@ -3511,4 +3511,11 @@
     <string name="dash_downloads">Transferências em curso: %1$d</string>
     <string name="dash_update">Atualização disponível</string>
     <string name="dash_update_hint">Toque para ver as novidades</string>
+    <string name="dash_fps">FPS médio</string>
+    <string name="dash_fps_hint">Última sessão</string>
+    <string name="dash_fps_none">Jogue para medir</string>
+    <string name="dash_today">Tempo hoje</string>
+    <string name="dash_today_none">Ainda não jogou hoje</string>
+    <string name="dash_vs_yesterday">do que ontem</string>
+    <string name="dash_total">%1$s no total</string>
 </resources>

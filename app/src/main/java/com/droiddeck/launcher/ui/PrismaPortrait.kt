@@ -221,9 +221,15 @@ internal fun PrismaDashboard(s: FrontEndState, a: FrontEndActions, modifier: Mod
     val ctx = LocalContext.current
     val pal = LocalPalette.current
     var vitals by remember { mutableStateOf<DeviceVitals?>(null) }
+    var recent by remember { mutableStateOf<com.droiddeck.launcher.session.GameStats.Game?>(null) }
+    var today by remember { mutableStateOf(0L) }
+    var yesterday by remember { mutableStateOf(0L) }
     LaunchedEffect(Unit) {
         while (true) {
             vitals = withContext(Dispatchers.IO) { readVitals(ctx.applicationContext) }
+            recent = com.droiddeck.launcher.session.GameStats.recent(ctx)
+            today = com.droiddeck.launcher.session.GameStats.todaySeconds(ctx)
+            yesterday = com.droiddeck.launcher.session.GameStats.yesterdaySeconds(ctx)
             delay(30_000)
         }
     }
@@ -238,20 +244,31 @@ internal fun PrismaDashboard(s: FrontEndState, a: FrontEndActions, modifier: Mod
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     Kpi(
+                        stringResource(R.string.dash_fps), recent?.lastAvgFps?.let { "%.0f".format(it) } ?: "—", null,
+                        detail = recent?.lastAvgFps?.let { stringResource(R.string.dash_fps_hint) } ?: stringResource(R.string.dash_fps_none),
+                        modifier = Modifier.weight(1f),
+                    )
+                    Kpi(
+                        stringResource(R.string.dash_today), com.droiddeck.launcher.session.GameStats.format(today), null,
+                        detail = (today - yesterday).let { d ->
+                            if (yesterday == 0L && today == 0L) stringResource(R.string.dash_today_none)
+                            else (if (d >= 0) "+" else "−") + com.droiddeck.launcher.session.GameStats.format(kotlin.math.abs(d)) + " " + stringResource(R.string.dash_vs_yesterday)
+                        },
+                        tint = if (today > yesterday && today > 0) pal.good else null, modifier = Modifier.weight(1f),
+                    )
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Kpi(
                         stringResource(R.string.dash_temperature), v?.tempC?.let { "%.0f°".format(it) } ?: "—", "C",
                         progress = v?.tempC?.let { ((it - 20f) / 30f).coerceIn(0f, 1f) },
                         tint = v?.tempC?.let { if (it >= 43f) AttentionAmber else null }, modifier = Modifier.weight(1f),
                     )
-                    Kpi(stringResource(R.string.dash_battery), v?.batteryPct?.toString() ?: "—", "%", progress = v?.batteryPct?.div(100f), modifier = Modifier.weight(1f))
-                }
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     val free = v?.let { Formatter.formatShortFileSize(ctx, it.freeBytes) }
                     val total = v?.let { Formatter.formatShortFileSize(ctx, it.totalBytes) }
                     Kpi(
                         stringResource(R.string.dash_storage), free ?: "—", null,
                         detail = total?.let { stringResource(R.string.dash_of_total, it) }, modifier = Modifier.weight(1f),
                     )
-                    Kpi(stringResource(R.string.dash_games), s.steamGames.size.toString(), null, detail = stringResource(R.string.dash_games_hint), modifier = Modifier.weight(1f))
                 }
             }
         }
@@ -298,7 +315,9 @@ private fun ContinueCard(s: FrontEndState, a: FrontEndActions, last: com.droidde
             Text(
                 when {
                     s.running != null -> ""
-                    last != null -> stringResource(R.string.dash_played, DateUtils.getRelativeTimeSpanString(last.lastPlayed, System.currentTimeMillis(), DateUtils.MINUTE_IN_MILLIS).toString())
+                    last != null -> stringResource(R.string.dash_played, DateUtils.getRelativeTimeSpanString(last.lastPlayed, System.currentTimeMillis(), DateUtils.MINUTE_IN_MILLIS).toString()) +
+                        (com.droiddeck.launcher.session.GameStats.game(LocalContext.current, last.gameIdString)?.totalSeconds?.takeIf { it > 0 }
+                            ?.let { " · " + stringResource(R.string.dash_total, com.droiddeck.launcher.session.GameStats.format(it)) } ?: "")
                     else -> stringResource(R.string.dash_no_recent_hint)
                 },
                 fontSize = 13.sp, color = colors.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f),

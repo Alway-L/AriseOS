@@ -62,6 +62,7 @@ class DroidDeckHudHost(context: Context) {
         }
 
         override fun onGameFrame() {
+            com.droiddeck.launcher.session.GameStats.frames.incrementAndGet()
             feed.onCompositorFrame(System.nanoTime())
         }
     }

@@ -3595,4 +3595,11 @@
     <string name="dash_downloads">Downloads in progress: %1$d</string>
     <string name="dash_update">Update available</string>
     <string name="dash_update_hint">Tap to see what is new</string>
+    <string name="dash_fps">Average FPS</string>
+    <string name="dash_fps_hint">Last session</string>
+    <string name="dash_fps_none">Play to measure</string>
+    <string name="dash_today">Played today</string>
+    <string name="dash_today_none">Nothing played yet</string>
+    <string name="dash_vs_yesterday">vs yesterday</string>
+    <string name="dash_total">%1$s in total</string>
 </resources>

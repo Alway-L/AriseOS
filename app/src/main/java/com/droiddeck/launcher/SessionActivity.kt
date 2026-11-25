@@ -947,6 +947,16 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                         runCatching { com.droiddeck.launcher.session.TelemetryOutput.applyAutomatic(this@SessionActivity, nextGame) }
                     }
                 }
+                LaunchedEffect(Unit) {
+                    while (true) {
+                        kotlinx.coroutines.delay(com.droiddeck.launcher.session.GameStats.TICK_SECONDS * 1000L)
+                        val game = if (SessionState.suspended) null else gestureGame
+                        val fps = if (::hud.isInitialized) hud.liveFps else null
+                        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                            runCatching { com.droiddeck.launcher.session.GameStats.tick(this@SessionActivity, game, fps) }
+                        }
+                    }
+                }
                 LaunchedEffect(drawerOpen, pcKeyboardOpen, achievementsOpen, gestureSettingsOpen, pipUi, SessionState.suspended) {
                     if (drawerOpen || pcKeyboardOpen || achievementsOpen || gestureSettingsOpen || pipUi || SessionState.suspended) {
                         backQamInput.cancel()
