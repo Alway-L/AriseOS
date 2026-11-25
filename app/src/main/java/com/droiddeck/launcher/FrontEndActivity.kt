@@ -986,6 +986,9 @@ class FrontEndActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        java.io.File(filesDir, "kali").takeIf { it.exists() }?.let { leftover ->
+            Thread({ com.droiddeck.launcher.core.FileUtils.delete(leftover) }, "kali-cleanup").apply { isDaemon = true; start() }
+        }
         if (savedInstanceState == null) readIntegrationIntent(intent)
         readGameIntent(intent)
         gameSyncFolder = GameFileSync.folder(this)

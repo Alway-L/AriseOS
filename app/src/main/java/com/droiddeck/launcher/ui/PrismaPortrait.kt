@@ -43,7 +43,6 @@ import androidx.compose.material.icons.outlined.Download
 import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.SportsEsports
 import androidx.compose.material.icons.outlined.SystemUpdate
-import androidx.compose.material.icons.outlined.Terminal
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -259,12 +258,7 @@ internal fun PrismaDashboard(s: FrontEndState, a: FrontEndActions, modifier: Mod
         Rise(2) {
             Column(Modifier.fillMaxWidth().clip(Card).background(pal.surface.copy(alpha = 0.82f)).border(1.dp, pal.line, Card)) {
                 DashRow(Icons.Outlined.SportsEsports, stringResource(R.string.rail_steam), stringResource(R.string.dash_steam_hint), stringResource(R.string.dash_open), divider = true, onClick = a.onPlay)
-                DashRow(Icons.Outlined.DesktopWindows, stringResource(R.string.rail_workspace), stringResource(R.string.dash_desktop_hint), stringResource(R.string.dash_more), divider = true) { onSelect(DESKTOP_PAGE) }
-                DashRow(
-                    Icons.Outlined.Terminal, stringResource(R.string.kali_title),
-                    stringResource(if (com.droiddeck.launcher.runtime.KaliLinux.installed(ctx)) R.string.kali_row_ready else R.string.kali_row_install),
-                    stringResource(R.string.dash_open), divider = s.storeDownloadsActive > 0 || s.updates.hasUpdate,
-                ) { ctx.startActivity(android.content.Intent(ctx, com.droiddeck.launcher.KaliActivity::class.java)) }
+                DashRow(Icons.Outlined.DesktopWindows, stringResource(R.string.rail_workspace), stringResource(R.string.dash_desktop_hint), stringResource(R.string.dash_more), divider = s.storeDownloadsActive > 0 || s.updates.hasUpdate) { onSelect(DESKTOP_PAGE) }
                 if (s.storeDownloadsActive > 0) DashRow(
                     Icons.Outlined.Download, stringResource(R.string.dash_downloads, s.storeDownloadsActive), null, stringResource(R.string.dash_open),
                     divider = s.updates.hasUpdate,
