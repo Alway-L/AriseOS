@@ -38,6 +38,7 @@ class VncView(context: Context) : View(context) {
     private var pixels = IntArray(0)
     private var bitmap: Bitmap? = null
     private val paint = Paint(Paint.FILTER_BITMAP_FLAG)
+    private val black = Paint().apply { color = 0xFF000000.toInt() }
     private val matrix = Matrix()
     private var scale = 1f
     private var offX = 0f
@@ -192,8 +193,11 @@ class VncView(context: Context) : View(context) {
     override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) = layoutFrame()
 
     override fun onDraw(canvas: Canvas) {
-        canvas.drawColor(0xFF000000.toInt())
+        canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), black)
+        canvas.save()
+        canvas.clipRect(0, 0, width, height)
         synchronized(this) { bitmap?.let { canvas.drawBitmap(it, matrix, paint) } }
+        canvas.restore()
     }
 
     private fun pointer(mask: Int) {

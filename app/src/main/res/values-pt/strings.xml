@@ -3544,4 +3544,5 @@
 %1$s</string>
     <string name="kali_desktop_start">Abrir a área de trabalho</string>
     <string name="kali_desktop_touch">Toque para clicar, toque longo para o botão direito, arraste para mover ou selecionar, dois dedos para rolar. Use Teclado para digitar.</string>
+    <string name="kali_desktop_log">Ver log</string>
 </resources>

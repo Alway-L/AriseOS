@@ -42,6 +42,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
@@ -177,7 +178,8 @@ class KaliActivity : ComponentActivity() {
 
     private val deskTail = ArrayDeque<String>()
 
-    private fun deskLog(fallback: String): String = synchronized(deskTail) { deskTail.joinToString("\n") }.ifBlank { fallback }
+    private fun deskLog(fallback: String, lines: Int = 10): String = synchronized(deskTail) { deskTail.toList().takeLast(lines).joinToString("\n") }.ifBlank { fallback }
+    private var showLog by mutableStateOf(false)
 
     private fun startDesktop() {
         if (desk == Desk.Starting || desk == Desk.On) return
@@ -197,7 +199,7 @@ class KaliActivity : ComponentActivity() {
                     runCatching {
                         process.inputStream.bufferedReader().forEachLine { line ->
                             Log.i("KaliDesktop", line)
-                            synchronized(tail) { tail.addLast(line); while (tail.size > 8) tail.removeFirst() }
+                            synchronized(tail) { tail.addLast(line); while (tail.size > 80) tail.removeFirst() }
                         }
                     }
                 }, "kali-desktop-log").apply { isDaemon = true; start() }
@@ -277,6 +279,7 @@ class KaliActivity : ComponentActivity() {
                     Key("CTRL+C") { vnc?.tapKey('c'.code, 0xffe3) }
                     Key("CTRL+V") { vnc?.tapKey('v'.code, 0xffe3) }
                     Key("ALT+TAB") { vnc?.tapKey(0xff09, 0xffe9) }
+                    SecondaryButton(stringResource(R.string.kali_desktop_log), compact = true) { showLog = true }
                     SecondaryButton(stringResource(R.string.kali_desktop_stop), compact = true) { stopDesktop() }
                 }
             }
@@ -302,7 +305,7 @@ class KaliActivity : ComponentActivity() {
                 stringResource(R.string.kali_session_ended), fontSize = 13.sp, color = pal.signal,
                 modifier = Modifier.fillMaxWidth().background(colors.surface).clickable { restart() }.padding(12.dp),
             )
-            Box(Modifier.fillMaxWidth().weight(1f)) {
+            Box(Modifier.fillMaxWidth().weight(1f).clipToBounds()) {
                 AndroidView(
                     factory = { ctx -> createTerminal(ctx) },
                     update = { it.visibility = if (tab == 0) android.view.View.VISIBLE else android.view.View.GONE },
@@ -321,6 +324,17 @@ class KaliActivity : ComponentActivity() {
                 if (tab == 1 && desk != Desk.On) DesktopPanel()
             }
         }
+        if (showLog) AlertDialog(
+            onDismissRequest = { showLog = false },
+            title = { Text(stringResource(R.string.kali_desktop_log)) },
+            text = {
+                Text(
+                    deskLog("—", 60), fontSize = 11.sp, fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                    modifier = Modifier.verticalScroll(rememberScrollState()),
+                )
+            },
+            confirmButton = { TextButton(onClick = { showLog = false }) { Text(stringResource(R.string.common_close)) } },
+        )
         if (confirmRemove) AlertDialog(
             onDismissRequest = { confirmRemove = false },
             title = { Text(stringResource(R.string.kali_remove_title)) },

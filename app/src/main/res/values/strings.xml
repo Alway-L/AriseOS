@@ -3628,4 +3628,5 @@
 %1$s</string>
     <string name="kali_desktop_start">Open the desktop</string>
     <string name="kali_desktop_touch">Tap to click, long press for right click, drag to move or select, two fingers to scroll. Use Keyboard to type.</string>
+    <string name="kali_desktop_log">Log</string>
 </resources>

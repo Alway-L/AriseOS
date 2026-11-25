@@ -142,16 +142,15 @@ object KaliLinux {
         x=${'$'}!
         for i in ${'$'}(seq 1 50); do [ -e /tmp/.X11-unix/X1 ] && break; sleep 0.2; done
         eval "${'$'}(dbus-launch --sh-syntax 2>/dev/null)" || true
+        echo "starting xfce4-session"
         startxfce4 &
-        sleep 8
+        sleep 12
         command -v xfconf-query >/dev/null 2>&1 && xfconf-query -c xfwm4 -p /general/use_compositing -n -t bool -s false 2>/dev/null
         while kill -0 ${'$'}x 2>/dev/null; do
-          if ! pgrep -x xfce4-session >/dev/null 2>&1; then
-            pgrep -x xfwm4 >/dev/null 2>&1 || { xfwm4 --replace >/dev/null 2>&1 & }
-            pgrep -x xfdesktop >/dev/null 2>&1 || { xfdesktop >/dev/null 2>&1 & }
-          fi
-          pgrep -x xfce4-panel >/dev/null 2>&1 || { echo "restarting the panel"; xfce4-panel >/dev/null 2>&1 & }
-          sleep 4
+          pgrep -x xfwm4 >/dev/null 2>&1 || { echo "starting xfwm4"; xfwm4 --replace --compositor=off & }
+          pgrep -x xfdesktop >/dev/null 2>&1 || { echo "starting xfdesktop"; xfdesktop & }
+          pgrep -x xfce4-panel >/dev/null 2>&1 || { echo "starting xfce4-panel"; xfce4-panel & }
+          sleep 6
         done
         [ -n "${'$'}{DBUS_SESSION_BUS_PID:-}" ] && kill ${'$'}DBUS_SESSION_BUS_PID 2>/dev/null
     """.trimIndent()
