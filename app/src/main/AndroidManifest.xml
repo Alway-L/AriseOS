@@ -4,8 +4,17 @@
 
     <queries>
         <!-- AriseOS: native Android emulators the desktop dock opens (AndroidEmulators). -->
-        <package android:name="dev.lichii.android" />
-        <package android:name="dev.lichii.android.nightly" />
+        <package android:name="io.github.lime3ds.android" />
+        <package android:name="org.azahar_emu.azahar" />
+        <package android:name="me.magnum.melonds" />
+        <package android:name="me.magnum.melonds.nightly" />
+        <package android:name="org.vita3k.emulator" />
+        <package android:name="dev.eden.eden_emulator" />
+        <package android:name="dev.legacy.eden_emulator" />
+        <package android:name="com.limelight" />
+        <package android:name="com.limelight.root" />
+        <package android:name="io.github.streetpea.chiaking" />
+        <package android:name="com.metallic.chiaki" />
         <intent>
             <action android:name="android.content.pm.action.CONFIRM_INSTALL" />
         </intent>

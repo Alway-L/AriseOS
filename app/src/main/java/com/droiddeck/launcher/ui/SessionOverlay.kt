@@ -221,6 +221,8 @@ class DrawerActions(
     val micAvailable: Boolean = false,
     val micEnabled: Boolean = false,
     val onMicEnabled: (Boolean) -> Unit = {},
+    val clipRecording: Boolean = false,
+    val onClipRecording: (Boolean) -> Unit = {},
     val backActionsInverted: Boolean,
     val backDoubleTapMs: Int = 500,
     val onBackDoubleTapMs: (Int) -> Unit = {},
@@ -766,6 +768,9 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                                 if (a.micAvailable) ToggleRow(host, "microphone", stringResource(R.string.mode_mic),
                                     stringResource(R.string.drawer_mic_hint), a.micEnabled,
                                     chipModifier = focus.track(page, "microphone"), onChange = a.onMicEnabled)
+                                ToggleRow(host, "clip", stringResource(R.string.clip_record),
+                                    stringResource(R.string.clip_record_hint), a.clipRecording,
+                                    chipModifier = focus.track(page, "clip"), onChange = a.onClipRecording)
                                 ChoiceRow(
                                     host, "suspend", stringResource(R.string.mode_suspend),
                                     null,

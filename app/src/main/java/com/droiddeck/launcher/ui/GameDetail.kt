@@ -557,6 +557,11 @@ private fun buyLabel(item: CatalogItem): String = when {
 private fun FileButtons(game: Library.SteamGame, a: FrontEndActions) {
     game.gameFiles?.takeIf { it.isDirectory }?.let { dir -> SecondaryButton(stringResource(R.string.games_files), compact = true) { a.onBrowseFiles(dir) } }
     game.protonPrefix?.takeIf { it.isDirectory }?.let { dir -> SecondaryButton(stringResource(R.string.games_prefix), compact = true) { a.onBrowseFiles(dir) } }
+    if (game.gameFiles?.isDirectory == true) {
+        var mods by remember(game.gameId) { mutableStateOf(false) }
+        SecondaryButton(stringResource(R.string.mods_button), compact = true) { mods = true }
+        if (mods) GameModsDialog(game) { mods = false }
+    }
 }
 
 @Composable

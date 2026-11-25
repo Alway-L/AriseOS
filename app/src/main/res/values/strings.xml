@@ -3602,4 +3602,23 @@
     <string name="dash_today_none">Nothing played yet</string>
     <string name="dash_vs_yesterday">vs yesterday</string>
     <string name="dash_total">%1$s in total</string>
+    <string name="pc_launcher_detail">PC store · Proton</string>
+    <string name="clip_record">Record clip</string>
+    <string name="clip_record_hint">Records the screen to an MP4 in the gallery (Movies/AriseOS), without sound. Turn it off to save the clip.</string>
+    <string name="clip_saved">Clip saved to the gallery (Movies/AriseOS).</string>
+    <string name="clip_failed">The clip could not be recorded.</string>
+    <string name="mods_button">Mods</string>
+    <string name="mods_title">Mods · %1$s</string>
+    <string name="mods_hint">Pick a mod\'s .zip: it is unpacked into the game folder. Files it replaces are kept, and Remove puts them back.</string>
+    <string name="mods_none">No mods installed yet.</string>
+    <string name="mods_add">Install .zip</string>
+    <string name="mods_working">Working…</string>
+    <string name="mods_remove">Remove</string>
+    <string name="mods_workshop">Steam Workshop</string>
+    <string name="mods_installed">Mod installed</string>
+    <string name="mods_failed">The mod could not be installed: %1$s</string>
+    <plurals name="mods_files">
+        <item quantity="one">%d file</item>
+        <item quantity="other">%d files</item>
+    </plurals>
 </resources>

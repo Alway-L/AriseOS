@@ -1,0 +1,157 @@
+#!/usr/bin/python3
+"""Installs and starts a Windows PC game launcher under Proton, each in a prefix of its own.
+
+    droiddeck-pclauncher ea|ubisoft|rockstar
+
+The first start downloads the vendor's installer and runs it in the launcher's prefix; every start
+after that opens the installed client.
+"""
+import http.client
+import os
+import shutil
+import subprocess
+import sys
+import urllib.request
+
+HOME = os.environ.get("HOME") or "/root"
+PROTON_RUN = "/usr/local/bin/droiddeck-proton-run"
+CACHE = os.path.join(HOME, ".cache", "droiddeck", "pclauncher")
+MIN_INSTALLER = 1 << 20
+
+LAUNCHERS = {
+    "ea": {
+        "name": "EA app",
+        "prefix": "2596113171",
+        "url": "https://origin-a.akamaihd.net/EA-Desktop-Client-Download/installer-releases/EAappInstaller.exe",
+        "setup": "EAappInstaller.exe",
+        "args": [],
+        "client": [
+            ("Program Files", "Electronic Arts", "EA Desktop", "EA Desktop", "EALauncher.exe"),
+            ("Program Files", "Electronic Arts", "EA Desktop", "EA Desktop", "EADesktop.exe"),
+        ],
+    },
+    "ubisoft": {
+        "name": "Ubisoft Connect",
+        "prefix": "2596113172",
+        "url": "https://static3.cdn.ubi.com/orbit/launcher_installer/UbisoftConnectInstaller.exe",
+        "setup": "UbisoftConnectInstaller.exe",
+        "args": ["/S"],
+        "client": [
+            ("Program Files (x86)", "Ubisoft", "Ubisoft Game Launcher", "UbisoftConnect.exe"),
+            ("Program Files (x86)", "Ubisoft", "Ubisoft Game Launcher", "upc.exe"),
+        ],
+    },
+    "rockstar": {
+        "name": "Rockstar Games Launcher",
+        "prefix": "2596113173",
+        "url": "https://gamedownloads.rockstargames.com/public/installer/Rockstar-Games-Launcher.exe",
+        "setup": "Rockstar-Games-Launcher.exe",
+        "args": [],
+        "client": [
+            ("Program Files", "Rockstar Games", "Launcher", "Launcher.exe"),
+            ("Program Files", "Rockstar Games", "Launcher", "LauncherPatcher.exe"),
+        ],
+    },
+}
+
+
+def say(message):
+    print("droiddeck-pclauncher: %s" % message, file=sys.stderr, flush=True)
+
+
+def notify(title, body, icon="dialog-information"):
+    if not os.environ.get("DBUS_SESSION_BUS_ADDRESS") or not shutil.which("notify-send"):
+        return
+    try:
+        subprocess.run(["notify-send", "-a", "AriseOS", "-i", icon, title, body],
+                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=5)
+    except (OSError, subprocess.SubprocessError):
+        pass
+
+
+def steam_root():
+    return os.environ.get("STEAM_COMPAT_CLIENT_INSTALL_PATH") or os.path.join(HOME, ".local", "share", "Steam")
+
+
+def drive_c(launcher):
+    return os.path.join(steam_root(), "steamapps", "compatdata", launcher["prefix"], "pfx", "drive_c")
+
+
+def client(launcher):
+    for parts in launcher["client"]:
+        path = os.path.join(drive_c(launcher), *parts)
+        if os.path.isfile(path):
+            return path
+    return None
+
+
+def is_installer(path):
+    try:
+        with open(path, "rb") as f:
+            return f.read(2) == b"MZ" and os.path.getsize(path) >= MIN_INSTALLER
+    except OSError:
+        return False
+
+
+def download(launcher):
+    os.makedirs(CACHE, exist_ok=True)
+    dest = os.path.join(CACHE, launcher["setup"])
+    if is_installer(dest):
+        return dest
+    part = dest + ".part"
+    try:
+        try:
+            request = urllib.request.Request(launcher["url"], headers={"User-Agent": "Mozilla/5.0"})
+            with urllib.request.urlopen(request, timeout=60) as response, open(part, "wb") as f:
+                shutil.copyfileobj(response, f)
+        except (OSError, http.client.HTTPException) as error:
+            if not shutil.which("curl"):
+                raise
+            say("download through Python failed (%s); trying curl" % error)
+            if subprocess.call(["curl", "-fsSL", "--max-time", "600", "-o", part, launcher["url"]]) != 0:
+                raise OSError("curl could not download it")
+        if not is_installer(part):
+            raise OSError("not a Windows program")
+        os.replace(part, dest)
+        return dest
+    except (OSError, http.client.HTTPException) as error:
+        say("installer download failed: %s" % error)
+        try:
+            os.unlink(part)
+        except OSError:
+            pass
+        return None
+
+
+def proton(launcher, program, args=()):
+    cmd = [PROTON_RUN, "--prefix", launcher["prefix"], program] + list(args)
+    say(" ".join(cmd))
+    try:
+        return subprocess.call(cmd)
+    except OSError as error:
+        say("%s: %s" % (PROTON_RUN, error))
+        return 127
+
+
+def main(argv):
+    if len(argv) != 2 or argv[1] not in LAUNCHERS:
+        say("usage: droiddeck-pclauncher %s" % "|".join(LAUNCHERS))
+        return 2
+    launcher = LAUNCHERS[argv[1]]
+    exe = client(launcher)
+    if exe is None:
+        setup = download(launcher)
+        if setup is None:
+            notify("%s could not be downloaded" % launcher["name"], "Check the connection and try again.", "dialog-error")
+            return 1
+        notify("Installing %s" % launcher["name"], "The installer opens in a window. It can take a few minutes.")
+        proton(launcher, setup, launcher["args"])
+        exe = client(launcher)
+        if exe is None:
+            say("%s is not installed after its installer closed" % launcher["name"])
+            return 1
+    return proton(launcher, exe)
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv))

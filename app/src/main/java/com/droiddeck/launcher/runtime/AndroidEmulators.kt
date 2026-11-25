@@ -23,10 +23,28 @@ object AndroidEmulators {
     class Extra(
         val id: String, val name: String, val system: String, val repo: String, val iconRes: Int,
         val asset: Regex, val tag: Regex, val packages: List<String>,
+        val skip: Regex? = null, val page: String? = null,
     )
 
-    // Lichii Android (pavelgajdo/Lichii-Android) left the list: Kanario is the Switch 2 emulator in use.
-    val all = emptyList<Extra>()
+    private val apk = Regex("(?i)\\.apk$")
+    private val anyTag = Regex("")
+    private val notPhone = Regex("(?i)x86|armeabi|v7a|debug|googleplay|playstore|\\broot")
+
+    val all = listOf(
+        Extra("azahar", "Azahar", "3DS", "azahar-emu/azahar", R.drawable.app_azahar, apk, anyTag,
+            listOf("io.github.lime3ds.android", "org.azahar_emu.azahar"), notPhone),
+        Extra("melonds", "melonDS", "Nintendo DS", "rafaelvcaetano/melonDS-android", R.drawable.app_melonds, apk, anyTag,
+            listOf("me.magnum.melonds", "me.magnum.melonds.nightly"), notPhone),
+        Extra("vita3k", "Vita3K", "PS Vita", "Vita3K/Vita3K-Android", R.drawable.app_vita3k, apk, anyTag,
+            listOf("org.vita3k.emulator"), notPhone),
+        // Eden left GitHub after Nintendo's DMCA notices, so it is fetched from its own site.
+        Extra("eden", "Eden", "Switch", "", R.drawable.app_eden, apk, anyTag,
+            listOf("dev.eden.eden_emulator", "dev.legacy.eden_emulator"), page = "https://eden-emu.dev/"),
+        Extra("moonlight", "Moonlight", "PC streaming", "moonlight-stream/moonlight-android", R.drawable.app_moonlight, apk, anyTag,
+            listOf("com.limelight", "com.limelight.root"), notPhone),
+        Extra("chiaki", "chiaki-ng", "PS4/PS5 Remote Play", "streetpea/chiaki-ng", R.drawable.app_chiaki, apk, anyTag,
+            listOf("io.github.streetpea.chiaking", "com.metallic.chiaki"), notPhone),
+    )
 
     var working by mutableStateOf<String?>(null)
         private set
@@ -50,6 +68,10 @@ object AndroidEmulators {
 
     fun install(context: Context, extra: Extra) {
         if (working != null) return
+        extra.page?.let {
+            context.startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse(it)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+            return
+        }
         val app = context.applicationContext
         working = extra.id; percent = -1; error = null
         Thread({
@@ -70,7 +92,8 @@ object AndroidEmulators {
             val assets = r.optJSONArray("assets") ?: continue
             for (j in 0 until assets.length()) {
                 val a = assets.getJSONObject(j)
-                if (extra.asset.containsMatchIn(a.getString("name"))) {
+                val n = a.getString("name")
+                if (extra.asset.containsMatchIn(n) && extra.skip?.containsMatchIn(n) != true) {
                     url = a.getString("browser_download_url"); name = a.getString("name")
                     sha = Hashes.githubSha256(a.optString("digest")); break@loop
                 }

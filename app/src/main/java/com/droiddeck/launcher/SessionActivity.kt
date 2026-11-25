@@ -457,6 +457,14 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private val pickLossless = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { r ->
         if (r.resultCode == RESULT_OK) InAppFilePicker.pickedFile(r.data)?.let { importLossless(it) }
     }
+    private val pickClip = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { r ->
+        val data = r.data
+        if (r.resultCode != RESULT_OK || data == null) return@registerForActivityResult
+        val started = com.droiddeck.launcher.session.ClipRecorder.start(this, r.resultCode, data) { ok ->
+            android.widget.Toast.makeText(applicationContext, if (ok) R.string.clip_saved else R.string.clip_failed, android.widget.Toast.LENGTH_LONG).show()
+        }
+        if (!started) android.widget.Toast.makeText(this, R.string.clip_failed, android.widget.Toast.LENGTH_LONG).show()
+    }
     private var frameGen by mutableStateOf(FrameGen.Mode.OFF)
     private var frameGenPip = false
     private val frameGenRequests = java.util.concurrent.atomic.AtomicInteger()
@@ -1202,6 +1210,11 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             micAvailable = SessionState.micAvailable && !SessionState.suspended,
             micEnabled = SessionState.micEnabled,
             onMicEnabled = { SessionService.setMicEnabled(this@SessionActivity, it) },
+            clipRecording = com.droiddeck.launcher.session.ClipRecorder.recording,
+            onClipRecording = { on ->
+                if (!on) com.droiddeck.launcher.session.ClipRecorder.stop(this@SessionActivity)
+                else runCatching { pickClip.launch(com.droiddeck.launcher.session.ClipRecorder.request(this@SessionActivity)) }
+            },
             touchAuto = getString(if (usingTouchpad()) R.string.session_touch_auto_touchpad else R.string.session_touch_auto_direct),
             fexPreset = fexPreset,
             secondScreenMode = secondScreenMode,
@@ -4592,6 +4605,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     }
 
     override fun onDestroy() {
+        if (isFinishing) com.droiddeck.launcher.session.ClipRecorder.stop(this)
         com.droiddeck.launcher.input.HomeButtonShortcuts.detach(this)
         backQamInput.cancel()
         steamVrRecovery.close()
