@@ -285,6 +285,7 @@ private fun DesktopDock(
     val portrait = !compactDesktop() && LocalConfiguration.current.screenHeightDp > LocalConfiguration.current.screenWidthDp
     BoxWithConstraints(Modifier.fillMaxWidth().padding(top = if (compactDesktop()) 14.dp else 22.dp)) {
         val budget = (maxHeight - 390.dp).coerceAtLeast(150.dp)
+        val boxWidth = maxWidth
         Column(Modifier.fillMaxWidth()) {
             Text(
                 stringResource(R.string.user_apps_section).uppercase(), fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.6.sp,
@@ -301,7 +302,7 @@ private fun DesktopDock(
                 }
             }
             if (portrait) {
-                val cols = ((maxWidth - pad * 2) / 88.dp).toInt().coerceIn(3, 6)
+                val cols = ((boxWidth - pad * 2) / 88.dp).toInt().coerceIn(3, 6)
                 Column(
                     verticalArrangement = Arrangement.spacedBy(14.dp),
                     modifier = Modifier.fillMaxWidth().heightIn(max = budget).onGloballyPositioned { dockAt = it.boundsInRoot() }
