@@ -6,12 +6,12 @@ import com.droiddeck.launcher.R
 object PcLaunchers {
     const val PROGRAM = "/usr/local/bin/droiddeck-pclauncher"
 
-    class Launcher(val id: String, val name: String, val iconRes: Int)
+    class Launcher(val id: String, val name: String, val iconRes: Int, val dot: Long)
 
     val all = listOf(
-        Launcher("ea", "EA app", R.drawable.store_ea),
-        Launcher("ubisoft", "Ubisoft Connect", R.drawable.store_ubisoft),
-        Launcher("rockstar", "Rockstar Games", R.drawable.store_rockstar),
+        Launcher("ea", "EA app", R.drawable.store_ea, 0xFFFF4747),
+        Launcher("ubisoft", "Ubisoft Connect", R.drawable.store_ubisoft, 0xFF2E7DFF),
+        Launcher("rockstar", "Rockstar", R.drawable.store_rockstar, 0xFFF5B81C),
     )
 
     fun app(launcher: Launcher) = UserApps.App(

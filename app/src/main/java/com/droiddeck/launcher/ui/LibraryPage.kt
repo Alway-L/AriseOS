@@ -515,7 +515,9 @@ private fun LibraryGrid(
                     }
                 }
             }
-            if (!s.shortcutPicker && unconnected.isNotEmpty()) item(key = "connect-store", span = { GridItemSpan(maxLineSpan) }) { ConnectStores(unconnected) }
+            if (!s.shortcutPicker) item(key = "connect-store", span = { GridItemSpan(maxLineSpan) }) {
+                ConnectStores(unconnected) { l -> if (s.ready && !s.busy) a.onUserApp(com.droiddeck.launcher.runtime.PcLaunchers.app(l)) }
+            }
         }
         else if (visible.isEmpty() && hiddenUninstalled > 0) item(key = "browse-owned", span = { GridItemSpan(maxLineSpan) }) {
             Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth().padding(vertical = 32.dp)) {
@@ -1125,7 +1127,7 @@ private fun SectionCard(
 
 /** "Conectar outra loja": one chip per store not signed in yet; each opens that store to sign in. */
 @Composable
-private fun ConnectStores(stores: List<Store>) {
+private fun ConnectStores(stores: List<Store>, onPcLauncher: (com.droiddeck.launcher.runtime.PcLaunchers.Launcher) -> Unit) {
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
     val show = LocalShowSection.current
@@ -1147,6 +1149,23 @@ private fun ConnectStores(stores: List<Store>) {
                     Icon(Icons.Filled.Add, null, tint = pal.signal, modifier = Modifier.size(16.dp))
                     Box(Modifier.size(9.dp).background(sourceColours(store.id).dot, CircleShape))
                     Text(store.shortLabel, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = colors.onBackground, maxLines = 1)
+                }
+            }
+            for (l in com.droiddeck.launcher.runtime.PcLaunchers.all) {
+                val src = remember { MutableInteractionSource() }
+                val hot = rememberHot(src)
+                val shape = RoundedCornerShape(99.dp)
+                val open = { onPcLauncher(l) }
+                Row(
+                    verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.paneItem("libconnect:pc:${l.id}").testTag("library-connect-pc-${l.id}").heightIn(min = 44.dp).clip(shape)
+                        .background(colors.surface).border(1.dp, if (hot) pal.signal else pal.line2, shape)
+                        .hoverable(src).clickable(role = Role.Button, interactionSource = src, indication = LocalIndication.current, onClick = open)
+                        .controllerConfirm(onClick = open).padding(horizontal = 14.dp, vertical = 10.dp),
+                ) {
+                    Icon(Icons.Filled.Add, null, tint = pal.signal, modifier = Modifier.size(16.dp))
+                    Box(Modifier.size(9.dp).background(Color(l.dot), CircleShape))
+                    Text(l.name, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = colors.onBackground, maxLines = 1)
                 }
             }
         }

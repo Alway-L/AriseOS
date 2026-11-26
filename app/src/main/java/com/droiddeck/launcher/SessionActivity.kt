@@ -465,6 +465,14 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         }
         if (!started) android.widget.Toast.makeText(this, R.string.clip_failed, android.widget.Toast.LENGTH_LONG).show()
     }
+    private val clipSoundPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) {
+        runCatching { pickClip.launch(com.droiddeck.launcher.session.ClipRecorder.request(this)) }
+    }
+    private fun startClip() {
+        if (android.os.Build.VERSION.SDK_INT >= 29 && checkSelfPermission(android.Manifest.permission.RECORD_AUDIO) != android.content.pm.PackageManager.PERMISSION_GRANTED)
+            clipSoundPermission.launch(android.Manifest.permission.RECORD_AUDIO)
+        else runCatching { pickClip.launch(com.droiddeck.launcher.session.ClipRecorder.request(this)) }
+    }
     private var frameGen by mutableStateOf(FrameGen.Mode.OFF)
     private var frameGenPip = false
     private val frameGenRequests = java.util.concurrent.atomic.AtomicInteger()
@@ -1213,7 +1221,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             clipRecording = com.droiddeck.launcher.session.ClipRecorder.recording,
             onClipRecording = { on ->
                 if (!on) com.droiddeck.launcher.session.ClipRecorder.stop(this@SessionActivity)
-                else runCatching { pickClip.launch(com.droiddeck.launcher.session.ClipRecorder.request(this@SessionActivity)) }
+                else startClip()
             },
             touchAuto = getString(if (usingTouchpad()) R.string.session_touch_auto_touchpad else R.string.session_touch_auto_direct),
             fexPreset = fexPreset,

@@ -289,13 +289,6 @@ private fun DesktopDock(
                     }
                 }
             }
-            com.droiddeck.launcher.runtime.PcLaunchers.all.forEach { l ->
-                key("pc:${l.id}") {
-                    DesktopCard("pc:${l.id}", l.name, stringResource(R.string.pc_launcher_detail), art = l.iconRes) { _ ->
-                        if (s.ready && !s.busy) a.onUserApp(com.droiddeck.launcher.runtime.PcLaunchers.app(l))
-                    }
-                }
-            }
             extras.forEach { x ->
                 key("extra:${x.id}") {
                     val busyHere = UserAppsState.working == x.name
