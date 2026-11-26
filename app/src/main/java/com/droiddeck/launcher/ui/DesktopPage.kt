@@ -118,6 +118,7 @@ internal fun DesktopPage(s: FrontEndState, a: FrontEndActions, modifier: Modifie
     val tabs = DESKTOP_TABS.map { it to sheetTabLabel(it) }
     val open = if (s.desktopInstalled) stringResource(R.string.content_open_desktop) else stringResource(R.string.content_install_open_desktop)
     val portrait = portraitScreen()
+    val stageWidth = if (LocalConfiguration.current.screenWidthDp >= 1000) 480.dp else 340.dp
     fun openFrom(at: Rect?, art: Any?, page: String) {
         at?.let { PageOrigin.mark(Origin(it, 16f * density.density, art = art)) }
         onSelect(page)
@@ -146,14 +147,14 @@ internal fun DesktopPage(s: FrontEndState, a: FrontEndActions, modifier: Modifie
                         DesktopDock(s, a, installed, apps, openFrom = ::openFrom, portrait = true, width = width)
                     }
                 } else {
-                    DesktopStage(Modifier.padding(start = 20.dp, top = 14.dp, bottom = 10.dp).width(STAGE_WIDTH).fillMaxHeight())
+                    DesktopStage(Modifier.padding(start = 20.dp, top = 14.dp, bottom = 10.dp).width(stageWidth).fillMaxHeight())
                     Column(
                         verticalArrangement = Arrangement.spacedBy(12.dp),
-                        modifier = Modifier.fillMaxSize().padding(start = STAGE_WIDTH + 36.dp)
+                        modifier = Modifier.fillMaxSize().padding(start = stageWidth + 36.dp)
                             .verticalScroll(rememberScrollState()).padding(top = 14.dp, end = 20.dp, bottom = 14.dp),
                     ) {
                         DashSummary(s, a, onSelect, big = false)
-                        DesktopDock(s, a, installed, apps, openFrom = ::openFrom, portrait = false, width = width - STAGE_WIDTH - 56.dp, startPad = 0.dp)
+                        DesktopDock(s, a, installed, apps, openFrom = ::openFrom, portrait = false, width = width - stageWidth - 56.dp, startPad = 0.dp)
                     }
                 }
             }
@@ -182,7 +183,7 @@ internal fun DesktopPage(s: FrontEndState, a: FrontEndActions, modifier: Modifie
                     }
                 }
                 BusyChip(s)
-            } else Column(verticalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.widthIn(max = STAGE_WIDTH - 40.dp)) {
+            } else Column(verticalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.widthIn(max = stageWidth - 40.dp)) {
                 label()
                 Text(stringResource(R.string.rail_workspace), fontSize = 28.sp, lineHeight = 32.sp, fontWeight = FontWeight.Black, color = colors.onBackground)
                 status()
@@ -200,7 +201,7 @@ internal fun DesktopPage(s: FrontEndState, a: FrontEndActions, modifier: Modifie
                 WorkspaceShortcuts(s)
                 HeroIconButton(Icons.Outlined.Storefront, stringResource(R.string.flathub_name), FlathubTeal, "desktop:flathub") { at -> openFrom(at, null, "store") }
                 HeroIconButton(Icons.Filled.Add, stringResource(R.string.user_apps_add), null, "desktop:add") { if (!s.busy) adding = true }
-                if (s.desktopPresent && portrait) UninstallDesktop(enabled = !s.runtimeActionsBlocked, onUninstall = a.onRemoveDesktop)
+                if (s.desktopPresent && (portrait || stageWidth > 400.dp)) UninstallDesktop(enabled = !s.runtimeActionsBlocked, onUninstall = a.onRemoveDesktop)
             }
         },
         rows = { tab ->
@@ -211,7 +212,6 @@ internal fun DesktopPage(s: FrontEndState, a: FrontEndActions, modifier: Modifie
     if (adding && !s.busy) AddAppDialog(s.ready, onDismiss = { adding = false }) { request, label -> UserAppsState.add(ctx, request, label) }
 }
 
-private val STAGE_WIDTH = 340.dp
 
 /** A drawn preview of the Linux desktop: two windows over the wallpaper and a taskbar. */
 @Composable
