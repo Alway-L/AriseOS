@@ -216,8 +216,9 @@ private fun readVitals(context: Context): DeviceVitals {
     )
 }
 
+/** Continue card, device vitals and play time at the top of the desktop screen in portrait. */
 @Composable
-internal fun PrismaDashboard(s: FrontEndState, a: FrontEndActions, modifier: Modifier, onSelect: (String) -> Unit) {
+internal fun DashSummary(s: FrontEndState, a: FrontEndActions, onSelect: (String) -> Unit, modifier: Modifier = Modifier) {
     val ctx = LocalContext.current
     val pal = LocalPalette.current
     var vitals by remember { mutableStateOf<DeviceVitals?>(null) }
@@ -234,56 +235,34 @@ internal fun PrismaDashboard(s: FrontEndState, a: FrontEndActions, modifier: Mod
         }
     }
     val last = s.steamGames.filter { it.lastPlayed > 0L }.maxByOrNull { it.lastPlayed }
-    Column(
-        verticalArrangement = Arrangement.spacedBy(14.dp),
-        modifier = modifier.verticalScroll(rememberScrollState()).padding(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 20.dp),
-    ) {
-        Rise(0) { ContinueCard(s, a, last, onSelect) }
-        val v = vitals
+    val v = vitals
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp), modifier = modifier.fillMaxWidth()) {
+        Rise(0) { ContinueStrip(s, a, last, onSelect) }
         Rise(1) {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Kpi(
-                        stringResource(R.string.dash_fps), recent?.lastAvgFps?.let { "%.0f".format(it) } ?: "—", null,
-                        detail = recent?.lastAvgFps?.let { stringResource(R.string.dash_fps_hint) } ?: stringResource(R.string.dash_fps_none),
-                        modifier = Modifier.weight(1f),
-                    )
-                    Kpi(
-                        stringResource(R.string.dash_today), com.droiddeck.launcher.session.GameStats.format(today), null,
-                        detail = (today - yesterday).let { d ->
-                            if (yesterday == 0L && today == 0L) stringResource(R.string.dash_today_none)
-                            else (if (d >= 0) "+" else "−") + com.droiddeck.launcher.session.GameStats.format(kotlin.math.abs(d)) + " " + stringResource(R.string.dash_vs_yesterday)
-                        },
-                        tint = if (today > yesterday && today > 0) pal.good else null, modifier = Modifier.weight(1f),
-                    )
-                }
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Kpi(
-                        stringResource(R.string.dash_temperature), v?.tempC?.let { "%.0f°".format(it) } ?: "—", "C",
-                        progress = v?.tempC?.let { ((it - 20f) / 30f).coerceIn(0f, 1f) },
-                        tint = v?.tempC?.let { if (it >= 43f) AttentionAmber else null }, modifier = Modifier.weight(1f),
-                    )
-                    val free = v?.let { Formatter.formatShortFileSize(ctx, it.freeBytes) }
-                    val total = v?.let { Formatter.formatShortFileSize(ctx, it.totalBytes) }
-                    Kpi(
-                        stringResource(R.string.dash_storage), free ?: "—", null,
-                        detail = total?.let { stringResource(R.string.dash_of_total, it) }, modifier = Modifier.weight(1f),
-                    )
-                }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                MiniKpi(stringResource(R.string.dash_fps), recent?.lastAvgFps?.let { "%.0f".format(it) } ?: "—", Modifier.weight(1f))
+                MiniKpi(
+                    stringResource(R.string.dash_today), com.droiddeck.launcher.session.GameStats.format(today), Modifier.weight(1f),
+                    tint = if (today > yesterday && today > 0) pal.good else null,
+                )
+                MiniKpi(
+                    stringResource(R.string.dash_temperature), v?.tempC?.let { "%.0f°C".format(it) } ?: "—", Modifier.weight(1f),
+                    progress = v?.tempC?.let { ((it - 20f) / 30f).coerceIn(0f, 1f) },
+                    tint = v?.tempC?.let { if (it >= 43f) AttentionAmber else null },
+                )
+                MiniKpi(
+                    stringResource(R.string.dash_storage), v?.let { Formatter.formatShortFileSize(ctx, it.freeBytes) } ?: "—", Modifier.weight(1f),
+                    progress = v?.takeIf { it.totalBytes > 0 }?.let { 1f - it.freeBytes.toFloat() / it.totalBytes },
+                )
             }
         }
-        Rise(2) {
-            Column(Modifier.fillMaxWidth().clip(Card).background(pal.surface.copy(alpha = 0.82f)).border(1.dp, pal.line, Card)) {
-                DashRow(Icons.Outlined.SportsEsports, stringResource(R.string.rail_steam), stringResource(R.string.dash_steam_hint), stringResource(R.string.dash_open), divider = true, onClick = a.onPlay)
-                DashRow(Icons.Outlined.DesktopWindows, stringResource(R.string.rail_workspace), stringResource(R.string.dash_desktop_hint), stringResource(R.string.dash_more), divider = s.storeDownloadsActive > 0 || s.updates.hasUpdate) { onSelect(DESKTOP_PAGE) }
-                if (s.storeDownloadsActive > 0) DashRow(
-                    Icons.Outlined.Download, stringResource(R.string.dash_downloads, s.storeDownloadsActive), null, stringResource(R.string.dash_open),
-                    divider = s.updates.hasUpdate,
-                ) {
+        if (s.storeDownloadsActive > 0 || s.updates.hasUpdate) Rise(2) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (s.storeDownloadsActive > 0) AlertPill(Icons.Outlined.Download, stringResource(R.string.dash_downloads, s.storeDownloadsActive)) {
                     com.droiddeck.launcher.stores.StoresState.openDownloads = true
                     onSelect("stores")
                 }
-                if (s.updates.hasUpdate) DashRow(Icons.Outlined.SystemUpdate, stringResource(R.string.dash_update), stringResource(R.string.dash_update_hint), stringResource(R.string.dash_open), divider = false) { onSelect("updates") }
+                if (s.updates.hasUpdate) AlertPill(Icons.Outlined.SystemUpdate, stringResource(R.string.dash_update)) { onSelect("updates") }
             }
         }
     }
@@ -292,83 +271,69 @@ internal fun PrismaDashboard(s: FrontEndState, a: FrontEndActions, modifier: Mod
 internal const val DESKTOP_PAGE = "desktop-page"
 
 @Composable
-private fun ContinueCard(s: FrontEndState, a: FrontEndActions, last: com.droiddeck.launcher.frontend.Library.SteamGame?, onSelect: (String) -> Unit) {
+private fun ContinueStrip(s: FrontEndState, a: FrontEndActions, last: com.droiddeck.launcher.frontend.Library.SteamGame?, onSelect: (String) -> Unit) {
     val pal = LocalPalette.current
     val colors = MaterialTheme.colorScheme
-    Column(Modifier.fillMaxWidth().clip(Card).background(pal.surface.copy(alpha = 0.82f)).border(1.dp, pal.line, Card)) {
-        Box(Modifier.fillMaxWidth().aspectRatio(2.3f).background(Brush.linearGradient(listOf(pal.primary, pal.primary2)))) {
+    val ctx = LocalContext.current
+    Row(
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp),
+        modifier = Modifier.fillMaxWidth().clip(Card).background(pal.surface.copy(alpha = 0.82f)).border(1.dp, pal.line, Card).padding(10.dp),
+    ) {
+        Box(Modifier.size(width = 84.dp, height = 56.dp).clip(RoundedCornerShape(12.dp)).background(Brush.linearGradient(listOf(pal.primary, pal.primary2)))) {
             val art = last?.hero ?: last?.art
             if (art != null) coil.compose.AsyncImage(model = art, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
-            Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color.Transparent, Color(0xE6050610)))))
-            Column(Modifier.align(Alignment.BottomStart).padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text(
-                    stringResource(if (s.running != null) R.string.dash_running else R.string.dash_continue).uppercase(),
-                    fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.2.sp, color = pal.signal,
-                )
-                Text(
-                    s.running ?: last?.name ?: stringResource(R.string.dash_no_recent), fontSize = 20.sp, fontWeight = FontWeight.Bold,
-                    color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis,
-                )
-            }
         }
-        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Text(
-                when {
-                    s.running != null -> ""
-                    last != null -> stringResource(R.string.dash_played, DateUtils.getRelativeTimeSpanString(last.lastPlayed, System.currentTimeMillis(), DateUtils.MINUTE_IN_MILLIS).toString()) +
-                        (com.droiddeck.launcher.session.GameStats.game(LocalContext.current, last.gameIdString)?.totalSeconds?.takeIf { it > 0 }
-                            ?.let { " · " + stringResource(R.string.dash_total, com.droiddeck.launcher.session.GameStats.format(it)) } ?: "")
-                    else -> stringResource(R.string.dash_no_recent_hint)
-                },
-                fontSize = 13.sp, color = colors.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f),
+                stringResource(if (s.running != null) R.string.dash_running else R.string.dash_continue).uppercase(),
+                fontSize = 10.5.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.1.sp, color = pal.signal,
             )
-            Spacer(Modifier.width(12.dp))
-            when {
-                s.running != null -> PrimaryButton(stringResource(R.string.dash_resume), compact = true, icon = Icons.Filled.PlayArrow, onClick = a.onResume)
-                last != null -> PrimaryButton(stringResource(R.string.dash_play), compact = true, enabled = !s.busy, icon = Icons.Filled.PlayArrow) { a.onSteamGame(last) }
-                else -> SecondaryButton(stringResource(R.string.dash_open_library), compact = true) { onSelect("games") }
-            }
+            Text(
+                s.running ?: last?.name ?: stringResource(R.string.dash_no_recent), fontSize = 15.sp, fontWeight = FontWeight.Bold,
+                color = colors.onBackground, maxLines = 1, overflow = TextOverflow.Ellipsis,
+            )
+            val total = last?.let { com.droiddeck.launcher.session.GameStats.game(ctx, it.gameIdString)?.totalSeconds }?.takeIf { it > 0 }
+            if (s.running == null && last != null) Text(
+                DateUtils.getRelativeTimeSpanString(last.lastPlayed, System.currentTimeMillis(), DateUtils.MINUTE_IN_MILLIS).toString() +
+                    (total?.let { " · " + stringResource(R.string.dash_total, com.droiddeck.launcher.session.GameStats.format(it)) } ?: ""),
+                fontSize = 11.5.sp, color = colors.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis,
+            )
+        }
+        when {
+            s.running != null -> PrimaryButton(stringResource(R.string.dash_resume), compact = true, icon = Icons.Filled.PlayArrow, onClick = a.onResume)
+            last != null -> PrimaryButton(stringResource(R.string.dash_play), compact = true, enabled = !s.busy, icon = Icons.Filled.PlayArrow) { a.onSteamGame(last) }
+            else -> SecondaryButton(stringResource(R.string.dash_open_library), compact = true) { onSelect("games") }
         }
     }
 }
 
 @Composable
-private fun Kpi(label: String, value: String, unit: String?, modifier: Modifier, progress: Float? = null, detail: String? = null, tint: Color? = null) {
+private fun MiniKpi(label: String, value: String, modifier: Modifier, progress: Float? = null, tint: Color? = null) {
     val pal = LocalPalette.current
     val colors = MaterialTheme.colorScheme
     Column(
-        verticalArrangement = Arrangement.spacedBy(6.dp),
-        modifier = modifier.clip(Card).background(pal.surface.copy(alpha = 0.82f)).border(1.dp, pal.line, Card).padding(14.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+        modifier = modifier.clip(RoundedCornerShape(14.dp)).background(pal.surface.copy(alpha = 0.82f)).border(1.dp, pal.line, RoundedCornerShape(14.dp))
+            .padding(horizontal = 10.dp, vertical = 9.dp),
     ) {
-        Text(label, fontSize = 12.sp, color = colors.onSurfaceVariant, maxLines = 1)
-        Row(verticalAlignment = Alignment.Bottom) {
-            Text(value, fontSize = 24.sp, fontWeight = FontWeight.Bold, color = tint ?: colors.onBackground, maxLines = 1)
-            if (unit != null) Text(" $unit", fontSize = 13.sp, color = colors.onSurfaceVariant, modifier = Modifier.padding(bottom = 3.dp))
+        Text(label, fontSize = 10.5.sp, color = colors.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text(value, fontSize = 16.sp, fontWeight = FontWeight.Bold, color = tint ?: colors.onBackground, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Box(Modifier.fillMaxWidth().height(3.dp).clip(CircleShape).background(if (progress != null) pal.line else Color.Transparent)) {
+            if (progress != null) Box(Modifier.fillMaxWidth(progress).height(3.dp).clip(CircleShape).background(Brush.horizontalGradient(listOf(pal.primary, tint ?: pal.primary2))))
         }
-        if (progress != null) Box(Modifier.fillMaxWidth().height(4.dp).clip(CircleShape).background(pal.line)) {
-            Box(Modifier.fillMaxWidth(progress).height(4.dp).clip(CircleShape).background(Brush.horizontalGradient(listOf(pal.primary, tint ?: pal.primary2))))
-        }
-        if (detail != null) Text(detail, fontSize = 11.sp, color = colors.onSurfaceVariant, maxLines = 1)
     }
 }
 
 @Composable
-private fun DashRow(icon: ImageVector, title: String, hint: String?, action: String, divider: Boolean, onClick: () -> Unit) {
+private fun AlertPill(icon: ImageVector, text: String, onClick: () -> Unit) {
     val pal = LocalPalette.current
     val colors = MaterialTheme.colorScheme
     Row(
-        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp),
-        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 16.dp, vertical = 13.dp),
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp),
+        modifier = Modifier.clip(RoundedCornerShape(99.dp)).background(pal.signal.copy(alpha = 0.14f)).border(1.dp, pal.signal.copy(alpha = 0.4f), RoundedCornerShape(99.dp))
+            .clickable(onClick = onClick).padding(horizontal = 12.dp, vertical = 7.dp),
     ) {
-        Box(Modifier.size(36.dp).clip(RoundedCornerShape(10.dp)).background(pal.surfaceVariant), contentAlignment = Alignment.Center) {
-            Icon(icon, contentDescription = null, tint = pal.signal, modifier = Modifier.size(19.dp))
-        }
-        Column(Modifier.weight(1f)) {
-            Text(title, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            if (hint != null) Text(hint, fontSize = 12.sp, color = colors.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
-        }
-        Text(action, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = pal.signal)
-        Icon(Icons.Outlined.ChevronRight, contentDescription = null, tint = colors.onSurfaceVariant, modifier = Modifier.size(18.dp))
+        Icon(icon, contentDescription = null, tint = pal.signal, modifier = Modifier.size(15.dp))
+        Text(text, fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground, maxLines = 1)
     }
-    if (divider) Box(Modifier.padding(start = 66.dp).fillMaxWidth().height(1.dp).background(pal.line))
 }

@@ -131,15 +131,27 @@ internal fun DesktopPage(s: FrontEndState, a: FrontEndActions, modifier: Modifie
         },
         scrim = { lifted ->
             WallFade()
-            Box(Modifier.graphicsLayer { val v = lifted(); alpha = 1f - v; translationY = -12.dp.toPx() * v }) {
-                DesktopDock(s, a, installed, apps, openFrom = ::openFrom)
+            BoxWithConstraints(Modifier.fillMaxWidth().graphicsLayer { val v = lifted(); alpha = 1f - v; translationY = -12.dp.toPx() * v }) {
+                val portrait = portraitScreen()
+                val width = maxWidth
+                if (portrait) {
+                    val scroll = rememberScrollState()
+                    Column(
+                        verticalArrangement = Arrangement.spacedBy(14.dp),
+                        modifier = Modifier.fillMaxWidth().heightIn(max = (maxHeight - 250.dp).coerceAtLeast(160.dp))
+                            .verticalScroll(scroll).padding(top = 12.dp, bottom = 12.dp),
+                    ) {
+                        DashSummary(s, a, onSelect, Modifier.padding(horizontal = 20.dp))
+                        DesktopDock(s, a, installed, apps, openFrom = ::openFrom, portrait = true, width = width)
+                    }
+                } else DesktopDock(s, a, installed, apps, openFrom = ::openFrom, portrait = false, width = width)
             }
         },
         words = {
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 val pal = LocalPalette.current
                 remember { UserName.load(ctx) }
-                if (UserName.name.isNotBlank()) Text(
+                if (UserName.name.isNotBlank() && !(prismaLook() && portraitScreen())) Text(
                     greeting(UserName.name), fontSize = if (short) 15.sp else 18.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground,
                     maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                 )
@@ -197,7 +209,7 @@ private val STREAMING_APPS = setOf("moonlight", "chiaki")
 @Composable
 private fun DesktopDock(
     s: FrontEndState, a: FrontEndActions, installed: List<Library.Emulator>, apps: List<UserApps.App>,
-    openFrom: (Rect?, Any?, String) -> Unit,
+    openFrom: (Rect?, Any?, String) -> Unit, portrait: Boolean, width: androidx.compose.ui.unit.Dp,
 ) {
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
@@ -282,10 +294,7 @@ private fun DesktopDock(
     )
     val shown = filters[filter.coerceIn(0, filters.lastIndex)].second
     val pad = if (narrow) 20.dp else 44.dp
-    val portrait = !compactDesktop() && LocalConfiguration.current.screenHeightDp > LocalConfiguration.current.screenWidthDp
-    BoxWithConstraints(Modifier.fillMaxWidth().padding(top = if (compactDesktop()) 14.dp else 22.dp)) {
-        val budget = (maxHeight - 390.dp).coerceAtLeast(150.dp)
-        val boxWidth = maxWidth
+    Box(Modifier.fillMaxWidth().padding(top = if (portrait) 6.dp else if (compactDesktop()) 14.dp else 22.dp)) {
         Column(Modifier.fillMaxWidth()) {
             Text(
                 stringResource(R.string.user_apps_section).uppercase(), fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.6.sp,
@@ -302,11 +311,11 @@ private fun DesktopDock(
                 }
             }
             if (portrait) {
-                val cols = ((boxWidth - pad * 2) / 88.dp).toInt().coerceIn(3, 6)
+                val cols = ((width - pad * 2) / 88.dp).toInt().coerceIn(3, 6)
                 Column(
                     verticalArrangement = Arrangement.spacedBy(14.dp),
-                    modifier = Modifier.fillMaxWidth().heightIn(max = budget).onGloballyPositioned { dockAt = it.boundsInRoot() }
-                        .verticalScroll(rememberScrollState()).padding(start = pad, end = pad, top = 4.dp, bottom = 8.dp),
+                    modifier = Modifier.fillMaxWidth().onGloballyPositioned { dockAt = it.boundsInRoot() }
+                        .padding(start = pad, end = pad, top = 4.dp, bottom = 8.dp),
                 ) {
                     shown.chunked(cols).forEachIndexed { r, row ->
                         Row(Modifier.fillMaxWidth()) {

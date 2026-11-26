@@ -267,8 +267,7 @@ private fun Content(
         return
     }
     if (selected == "desktop") {
-        if (prismaLook() && portraitScreen()) PrismaDashboard(s, a, modifier, onSelect)
-        else DesktopPage(s, a, modifier, onSelect)
+        DesktopPage(s, a, modifier, onSelect)
         return
     }
     if (selected == DESKTOP_PAGE) {
