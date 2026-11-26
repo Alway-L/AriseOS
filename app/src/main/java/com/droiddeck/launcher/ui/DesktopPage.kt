@@ -191,7 +191,7 @@ internal fun DesktopPage(s: FrontEndState, a: FrontEndActions, modifier: Modifie
             }
         },
         button = { click ->
-            PrimaryButton(if (portrait || !s.desktopInstalled) open else stringResource(R.string.store_open), enabled = !s.busy, main = true, large = true, icon = Icons.Outlined.DesktopWindows, onClick = click)
+            PrimaryButton(if (portrait || !s.desktopInstalled || stageWidth > 400.dp) open else stringResource(R.string.store_open), enabled = !s.busy, main = true, large = true, icon = Icons.Outlined.DesktopWindows, onClick = click)
         },
         beside = {
             Row(
