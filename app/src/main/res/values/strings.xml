@@ -3602,6 +3602,10 @@
     <string name="dash_today_none">Nothing played yet</string>
     <string name="dash_vs_yesterday">vs yesterday</string>
     <string name="dash_total">%1$s in total</string>
+    <string name="dock_filter_all">All</string>
+    <string name="dock_filter_installed">Installed</string>
+    <string name="dock_filter_get">To install</string>
+    <string name="dock_filter_streaming">Streaming</string>
     <string name="clip_record">Record clip</string>
     <string name="clip_record_hint">Records the screen and the game sound to an MP4 in the gallery (Movies/AriseOS). Turn it off to save the clip.</string>
     <string name="clip_saved">Clip saved to the gallery (Movies/AriseOS).</string>

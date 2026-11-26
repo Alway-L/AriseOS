@@ -3518,6 +3518,10 @@
     <string name="dash_today_none">Ainda não jogou hoje</string>
     <string name="dash_vs_yesterday">do que ontem</string>
     <string name="dash_total">%1$s no total</string>
+    <string name="dock_filter_all">Todos</string>
+    <string name="dock_filter_installed">Instalados</string>
+    <string name="dock_filter_get">Para instalar</string>
+    <string name="dock_filter_streaming">Streaming</string>
     <string name="clip_record">Gravar clipe</string>
     <string name="clip_record_hint">Grava a tela e o som do jogo num MP4 na galeria (Filmes/AriseOS). Desligue para salvar o clipe.</string>
     <string name="clip_saved">Clipe salvo na galeria (Filmes/AriseOS).</string>

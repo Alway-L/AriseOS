@@ -29,6 +29,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.material.icons.outlined.Download
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -181,6 +183,17 @@ internal fun DesktopPage(s: FrontEndState, a: FrontEndActions, modifier: Modifie
 @Composable
 private fun compactDesktop() = LocalNarrowPane.current || LocalConfiguration.current.screenHeightDp < 600
 
+private enum class DockState { READY, GET, WORKING }
+
+private class DockItem(
+    val key: String, val name: String, val detail: String, val art: Any?,
+    val fallback: androidx.compose.ui.graphics.vector.ImageVector, val state: DockState,
+    val progress: Int? = null, val streaming: Boolean = false, val bleed: Boolean = false,
+    val onClick: (Rect?) -> Unit,
+)
+
+private val STREAMING_APPS = setOf("moonlight", "chiaki")
+
 @Composable
 private fun DesktopDock(
     s: FrontEndState, a: FrontEndActions, installed: List<Library.Emulator>, apps: List<UserApps.App>,
@@ -191,125 +204,217 @@ private fun DesktopDock(
     val narrow = LocalNarrowPane.current
     val available = s.emulators.filter { !it.installed }
     val flatpaks = com.droiddeck.launcher.store.StoreState.installed.filter { f -> apps.none { it.key == "flatpak:${f.id}" } }
-    val keys = installed.map { "emu:${it.id}" } + apps.map { "user:${it.key}" } + flatpaks.map { "flatpak:${it.id}" }
-    var lastAt by remember { mutableStateOf<Rect?>(null) }
     var dockAt by remember { mutableStateOf<Rect?>(null) }
-    val seen = remember { mutableSetOf<String>() }
-    val mounted = remember { booleanArrayOf(false) }
-    LaunchedEffect(Unit) { mounted[0] = true }
-    val scroll = rememberScrollState()
     val dockContext = LocalContext.current
     val extras = com.droiddeck.launcher.runtime.ExtraEmulators.all.filter { com.droiddeck.launcher.runtime.ExtraEmulators.installed(apps, it) == null }
-    val androidExtras = com.droiddeck.launcher.runtime.AndroidEmulators.all
+    val ae = com.droiddeck.launcher.runtime.AndroidEmulators
     val lifecycle = androidx.compose.ui.platform.LocalLifecycleOwner.current
     androidx.compose.runtime.DisposableEffect(lifecycle) {
         val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
-            if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) com.droiddeck.launcher.runtime.AndroidEmulators.refresh++
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) ae.refresh++
         }
         lifecycle.lifecycle.addObserver(observer)
         onDispose { lifecycle.lifecycle.removeObserver(observer) }
     }
-    if (keys.isEmpty() && available.isEmpty() && extras.isEmpty() && androidExtras.isEmpty() && UserAppsState.working == null && UserAppsState.lastError == null) return
-    Column(Modifier.fillMaxWidth().padding(top = if (compactDesktop()) 14.dp else 22.dp)) {
-        Text(
-            stringResource(R.string.user_apps_section).uppercase(), fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.6.sp,
-            color = colors.onSurfaceVariant, modifier = Modifier.padding(start = if (narrow) 20.dp else 44.dp, bottom = 8.dp),
-        )
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.Top,
-            modifier = Modifier.fillMaxWidth().onGloballyPositioned { dockAt = it.boundsInRoot() }
-                .edgeFade(scroll).horizontalScroll(scroll).padding(start = if (narrow) 20.dp else 44.dp, end = 20.dp, top = 2.dp, bottom = 4.dp),
-        ) {
-            keys.forEachIndexed { i, k ->
-                key(k) {
-                    val state = remember { MutableTransitionState(!mounted[0] || k in seen) }.apply { targetState = true }
-                    LaunchedEffect(Unit) { seen += k }
-                    AnimatedVisibility(state, enter = expandHorizontally(Motion.sp(0.75f)) + fadeIn(Motion.tw(300, 80))) {
-                        Box(if (i == keys.lastIndex) Modifier.onGloballyPositioned { lastAt = it.boundsInRoot() } else Modifier) {
-                            val e = installed.firstOrNull { "emu:${it.id}" == k }
-                            val flatpak = flatpaks.firstOrNull { "flatpak:${it.id}" == k }
-                            val app = apps.firstOrNull { "user:${it.key}" == k }
-                            if (e != null) {
-                                val system = if (e.systemRes != 0) stringResource(e.systemRes) else e.system.replaceFirstChar { c -> c.uppercase() }
-                                DesktopCard(
-                                    k, e.name,
-                                    if (e.id == "retroarch") system else "$system · " + pluralStringResource(R.plurals.mode_added_count, e.games.size, e.games.size),
-                                    art = e.iconRes, first = i == 0,
-                                ) { at -> openFrom(at, e.iconRes, k) }
-                            } else if (flatpak != null) DesktopCard(
-                                k, flatpak.name, flatpak.summary ?: stringResource(R.string.flathub_name),
-                                art = flatpak.icon ?: com.droiddeck.launcher.store.FlathubApi.iconUrl(flatpak.id), first = i == 0,
-                            ) { at ->
-                                com.droiddeck.launcher.store.StoreState.openRequest = flatpak.id
-                                openFrom(at, flatpak.icon, "store")
-                            } else if (app != null) DesktopCard(k, app.name, stringResource(app.kind.label()), art = app.icon, fallback = if (app.kind == UserApps.Kind.SCRIPT) Icons.Outlined.Terminal else Icons.Outlined.Apps, first = i == 0) { at ->
-                                openFrom(at, app.icon, k)
+    val installedAndroid = remember(ae.refresh, ae.working) { ae.all.associate { it.id to ae.installedPackage(dockContext, it) } }
+    val items = buildList {
+        installed.forEach { e ->
+            val k = "emu:${e.id}"
+            val system = if (e.systemRes != 0) stringResource(e.systemRes) else e.system.replaceFirstChar { c -> c.uppercase() }
+            add(DockItem(k, e.name, if (e.id == "retroarch") system else "$system · " + pluralStringResource(R.plurals.mode_added_count, e.games.size, e.games.size),
+                e.iconRes, Icons.Outlined.Apps, DockState.READY) { at -> openFrom(at, e.iconRes, k) })
+        }
+        flatpaks.forEach { f ->
+            add(DockItem("flatpak:${f.id}", f.name, f.summary ?: stringResource(R.string.flathub_name),
+                f.icon ?: com.droiddeck.launcher.store.FlathubApi.iconUrl(f.id), Icons.Outlined.Apps, DockState.READY) { at ->
+                com.droiddeck.launcher.store.StoreState.openRequest = f.id
+                openFrom(at, f.icon, "store")
+            })
+        }
+        apps.forEach { app ->
+            val k = "user:${app.key}"
+            add(DockItem(k, app.name, stringResource(app.kind.label()), app.icon,
+                if (app.kind == UserApps.Kind.SCRIPT) Icons.Outlined.Terminal else Icons.Outlined.Apps, DockState.READY) { at -> openFrom(at, app.icon, k) })
+        }
+        ae.all.forEach { x ->
+            val pkg = installedAndroid[x.id]
+            val busyHere = ae.working == x.id
+            add(DockItem("android:${x.id}", x.name,
+                if (busyHere) (if (ae.percent >= 0) "${ae.percent}%" else stringResource(R.string.store_installing)) else x.system,
+                x.iconRes, Icons.Outlined.Apps, if (busyHere) DockState.WORKING else if (pkg != null) DockState.READY else DockState.GET,
+                progress = if (busyHere) ae.percent else null, streaming = x.id in STREAMING_APPS, bleed = true) { _ ->
+                if (pkg != null) ae.launch(dockContext, x) else if (ae.working == null) ae.install(dockContext, x)
+            })
+        }
+        available.forEach { e ->
+            val pkg = Library.packageId(e.id)?.let { id -> s.packages?.firstOrNull { it.id == id } }
+            val busyHere = pkg != null && s.packageBusyId == pkg.id
+            val canGet = pkg != null && !s.busy && s.packageBusyId == null && s.ready && !s.packageCatalogLoading && !s.sessionRunning
+            val system = if (e.systemRes != 0) stringResource(e.systemRes) else e.system.replaceFirstChar { c -> c.uppercase() }
+            add(DockItem("emu:${e.id}", e.name, if (busyHere) (s.packageStage ?: stringResource(R.string.store_installing)) else system,
+                e.iconRes, Icons.Outlined.Apps, if (busyHere) DockState.WORKING else DockState.GET,
+                progress = if (busyHere) s.packagePercent else null) { at ->
+                if (canGet && pkg != null && at != null) {
+                    a.onInstallPackage(pkg.id)
+                    val row = dockAt
+                    Flights.fly(Flight(at, to = { val r = row ?: return@Flight null; Offset(r.center.x, r.top) }))
+                } else openFrom(at, e.iconRes, "emu:${e.id}")
+            })
+        }
+        extras.forEach { x ->
+            val busyHere = UserAppsState.working == x.name
+            add(DockItem("extra:${x.id}", x.name, if (busyHere) (UserAppsState.stage ?: stringResource(R.string.store_installing)) else x.system,
+                x.iconRes, Icons.Outlined.Apps, if (busyHere) DockState.WORKING else DockState.GET,
+                progress = if (busyHere) UserAppsState.percent else null) { _ ->
+                if (UserAppsState.working == null && s.ready && !s.busy) {
+                    UserAppsState.add(dockContext, com.droiddeck.launcher.runtime.ExtraEmulators.request(dockContext, x), x.name)
+                }
+            })
+        }
+    }
+    if (items.isEmpty() && UserAppsState.working == null && UserAppsState.lastError == null) return
+    var filter by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(0) }
+    val filters = listOf(
+        stringResource(R.string.dock_filter_all) to items,
+        stringResource(R.string.dock_filter_installed) to items.filter { it.state == DockState.READY },
+        stringResource(R.string.dock_filter_get) to items.filter { it.state != DockState.READY },
+        stringResource(R.string.dock_filter_streaming) to items.filter { it.streaming },
+    )
+    val shown = filters[filter.coerceIn(0, filters.lastIndex)].second
+    val pad = if (narrow) 20.dp else 44.dp
+    val portrait = !compactDesktop() && LocalConfiguration.current.screenHeightDp > LocalConfiguration.current.screenWidthDp
+    BoxWithConstraints(Modifier.fillMaxWidth().padding(top = if (compactDesktop()) 14.dp else 22.dp)) {
+        val budget = (maxHeight - 390.dp).coerceAtLeast(150.dp)
+        Column(Modifier.fillMaxWidth()) {
+            Text(
+                stringResource(R.string.user_apps_section).uppercase(), fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.6.sp,
+                color = colors.onSurfaceVariant, modifier = Modifier.padding(start = pad, bottom = 8.dp),
+            )
+            val chipScroll = rememberScrollState()
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.fillMaxWidth().edgeFade(chipScroll).horizontalScroll(chipScroll).padding(start = pad, end = 20.dp, bottom = 10.dp),
+            ) {
+                filters.forEachIndexed { i, (label, list) ->
+                    if (i == 3 && list.isEmpty()) return@forEachIndexed
+                    DockFilterChip("$label · ${list.size}", selected = filter == i, id = "dock-filter-$i") { filter = i }
+                }
+            }
+            if (portrait) {
+                val cols = ((maxWidth - pad * 2) / 88.dp).toInt().coerceIn(3, 6)
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(14.dp),
+                    modifier = Modifier.fillMaxWidth().heightIn(max = budget).onGloballyPositioned { dockAt = it.boundsInRoot() }
+                        .verticalScroll(rememberScrollState()).padding(start = pad, end = pad, top = 4.dp, bottom = 8.dp),
+                ) {
+                    shown.chunked(cols).forEachIndexed { r, row ->
+                        Row(Modifier.fillMaxWidth()) {
+                            row.forEachIndexed { c, item ->
+                                Box(Modifier.weight(1f), contentAlignment = Alignment.TopCenter) {
+                                    key(item.key) { DockIcon(item, first = r == 0 && c == 0) }
+                                }
                             }
+                            repeat(cols - row.size) { Spacer(Modifier.weight(1f)) }
                         }
                     }
                 }
-            }
-            if (keys.isNotEmpty()) Box(Modifier.padding(horizontal = 4.dp).width(1.dp).height(120.dp).background(pal.line2))
-            available.forEach { e ->
-                key(e.id) {
-                    val pkg = Library.packageId(e.id)?.let { id -> s.packages?.firstOrNull { it.id == id } }
-                    val busyHere = pkg != null && s.packageBusyId == pkg.id
-                    val canGet = pkg != null && !s.busy && s.packageBusyId == null && s.ready && !s.packageCatalogLoading && !s.sessionRunning
-                    val system = if (e.systemRes != 0) stringResource(e.systemRes) else e.system.replaceFirstChar { c -> c.uppercase() }
-                    DesktopCard(
-                        "emu:${e.id}", e.name, if (busyHere) (s.packageStage ?: stringResource(R.string.store_installing)) else system,
-                        art = e.iconRes, badge = if (busyHere) null else stringResource(R.string.comp_get),
-                        progress = if (busyHere) s.packagePercent else null, first = keys.isEmpty() && e == available.first(),
-                    ) { at ->
-                        if (canGet && pkg != null && at != null) {
-                            a.onInstallPackage(pkg.id)
-                            val end = lastAt
-                            val row = dockAt
-                            Flights.fly(Flight(at, to = {
-                                val r = row ?: return@Flight null
-                                Offset((end?.right ?: r.left) + 70.dp.toPx(), r.center.y)
-                            }))
-                        } else openFrom(at, e.iconRes, "emu:${e.id}")
-                    }
+            } else {
+                val scroll = rememberScrollState()
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.Top,
+                    modifier = Modifier.fillMaxWidth().onGloballyPositioned { dockAt = it.boundsInRoot() }
+                        .edgeFade(scroll).horizontalScroll(scroll).padding(start = pad - 8.dp, end = 20.dp, top = 4.dp, bottom = 4.dp),
+                ) {
+                    shown.forEachIndexed { i, item -> key(item.key) { Box(Modifier.width(92.dp), contentAlignment = Alignment.TopCenter) { DockIcon(item, first = i == 0) } } }
                 }
             }
-            androidExtras.forEach { x ->
-                key("android:${x.id}") {
-                    val ae = com.droiddeck.launcher.runtime.AndroidEmulators
-                    val installedPkg = remember(ae.refresh, ae.working) { ae.installedPackage(dockContext, x) }
-                    val busyHere = ae.working == x.id
-                    DesktopCard(
-                        "android:${x.id}", x.name,
-                        if (busyHere) (if (ae.percent >= 0) "${ae.percent}%" else stringResource(R.string.store_installing)) else x.system,
-                        art = x.iconRes, badge = if (busyHere || installedPkg != null) null else stringResource(R.string.comp_get),
-                        progress = if (busyHere) ae.percent else null,
-                    ) { _ ->
-                        if (installedPkg != null) ae.launch(dockContext, x)
-                        else if (ae.working == null) ae.install(dockContext, x)
-                    }
+            if (UserAppsState.working != null || UserAppsState.lastError != null) {
+                Box(Modifier.padding(start = pad, end = 20.dp, top = 6.dp)) { UserAppsProgressLine() }
+            }
+            ae.error?.let { msg ->
+                Text(msg, fontSize = 12.5.sp, color = pal.error, modifier = Modifier.padding(start = pad, end = 20.dp, top = 6.dp))
+            }
+        }
+    }
+}
+
+@Composable
+private fun DockFilterChip(label: String, selected: Boolean, id: String, onClick: () -> Unit) {
+    val colors = MaterialTheme.colorScheme
+    val pal = LocalPalette.current
+    val src = remember { MutableInteractionSource() }
+    val hot = rememberHot(src)
+    val shape = RoundedCornerShape(99.dp)
+    Box(
+        contentAlignment = Alignment.Center,
+        modifier = Modifier.paneItem("chip:$id").heightIn(min = 36.dp).clip(shape)
+            .background(if (selected) colors.onBackground else colors.surface.copy(alpha = 0.85f))
+            .glideBorder(hot, shape, pal.signal, if (selected) Color.Transparent else pal.line2)
+            .hoverable(src).clickable(interactionSource = src, indication = LocalIndication.current, role = Role.Tab, onClick = onClick)
+            .controllerConfirm(onClick = onClick).padding(horizontal = 14.dp, vertical = 8.dp),
+    ) {
+        Text(label, fontSize = 13.sp, fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+            color = if (selected) colors.background else colors.onSurfaceVariant, maxLines = 1)
+    }
+}
+
+@Composable
+private fun DockIcon(item: DockItem, first: Boolean) {
+    val colors = MaterialTheme.colorScheme
+    val pal = LocalPalette.current
+    val src = remember { MutableInteractionSource() }
+    val hot = rememberHot(src)
+    val pressed by src.collectIsPressedAsState()
+    val scale by animateFloatAsState(if (pressed) 0.94f else if (hot) 1.06f else 1f, Motion.sp(0.5f, Spring.StiffnessMedium), label = "dockIcon")
+    val size = 62.dp
+    val shape = RoundedCornerShape(19.dp)
+    var at by remember { mutableStateOf<Rect?>(null) }
+    val dim = item.state == DockState.GET && !hot
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier.width(84.dp).paneItem("tile:desktop:${item.key}").then(if (first) Modifier.firstTile() else Modifier)
+            .clip(RoundedCornerShape(16.dp))
+            .hoverable(src).clickable(interactionSource = src, indication = LocalIndication.current, role = Role.Button) { item.onClick(at) }
+            .controllerConfirm { item.onClick(at) }
+            .semantics { contentDescription = item.name }
+            .padding(vertical = 4.dp),
+    ) {
+        Box(Modifier.graphicsLayer { scaleX = scale; scaleY = scale; alpha = if (dim) 0.62f else 1f }) {
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier.size(size).onGloballyPositioned { at = it.boundsInRoot() }
+                    .then(if (hot) Modifier.border(2.dp, pal.signal, RoundedCornerShape(22.dp)).padding(3.dp) else Modifier)
+                    .clip(shape).background(Brush.linearGradient(listOf(colors.surfaceVariant, colors.surface))),
+            ) {
+                when (val art = item.art) {
+                    is Int -> Image(
+                        painterResource(art), null, contentScale = if (item.bleed) ContentScale.Crop else ContentScale.Fit,
+                        modifier = if (item.bleed) Modifier.fillMaxSize() else Modifier.size(size * 0.66f),
+                    )
+                    null -> Icon(item.fallback, null, tint = colors.onSurfaceVariant, modifier = Modifier.size(size * 0.42f))
+                    else -> AsyncImage(model = art, contentDescription = null, contentScale = ContentScale.Fit, modifier = Modifier.size(size * 0.66f))
                 }
             }
-            extras.forEach { x ->
-                key("extra:${x.id}") {
-                    val busyHere = UserAppsState.working == x.name
-                    DesktopCard(
-                        "extra:${x.id}", x.name, if (busyHere) (UserAppsState.stage ?: stringResource(R.string.store_installing)) else x.system,
-                        art = x.iconRes, badge = if (busyHere) null else stringResource(R.string.comp_get),
-                        progress = if (busyHere) UserAppsState.percent else null,
-                    ) { _ ->
-                        if (UserAppsState.working == null && s.ready && !s.busy) {
-                            UserAppsState.add(dockContext, com.droiddeck.launcher.runtime.ExtraEmulators.request(dockContext, x), x.name)
-                        }
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier.align(Alignment.BottomEnd).offset(x = 4.dp, y = 4.dp).size(22.dp)
+                    .background(colors.background, androidx.compose.foundation.shape.CircleShape),
+            ) {
+                when (item.state) {
+                    DockState.READY -> Box(Modifier.size(9.dp).background(Color(0xFF34D399), androidx.compose.foundation.shape.CircleShape))
+                    DockState.GET -> Icon(Icons.Outlined.Download, null, tint = pal.signal, modifier = Modifier.size(13.dp))
+                    DockState.WORKING -> {
+                        val p = item.progress
+                        if (p != null && p >= 0) CircularProgressIndicator(progress = { p / 100f }, strokeWidth = 2.dp, color = pal.signal, trackColor = pal.signal.copy(alpha = 0.25f), modifier = Modifier.size(16.dp))
+                        else CircularProgressIndicator(strokeWidth = 2.dp, color = pal.signal, modifier = Modifier.size(16.dp))
                     }
                 }
             }
         }
-        if (UserAppsState.working != null || UserAppsState.lastError != null) {
-            Box(Modifier.padding(start = if (narrow) 20.dp else 44.dp, end = 20.dp, top = 6.dp)) { UserAppsProgressLine() }
-        }
-        com.droiddeck.launcher.runtime.AndroidEmulators.error?.let { msg ->
-            Text(msg, fontSize = 12.5.sp, color = pal.error, modifier = Modifier.padding(start = if (narrow) 20.dp else 44.dp, end = 20.dp, top = 6.dp))
-        }
+        Text(item.name, fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground, maxLines = 1,
+            overflow = TextOverflow.Ellipsis, textAlign = androidx.compose.ui.text.style.TextAlign.Center, modifier = Modifier.padding(top = 8.dp))
+        Text(item.detail, fontSize = 11.sp, lineHeight = 13.sp, color = colors.onSurfaceVariant.copy(alpha = if (dim) 0.7f else 1f), maxLines = 1,
+            overflow = TextOverflow.Ellipsis, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
     }
 }
 
@@ -342,77 +447,6 @@ private fun DesktopWall(icons: List<Any>) {
     val ground = remember(pal) { Brush.linearGradient(listOf(pal.surfaceVariant, pal.surface)) }
     TiltedWall(icons.size, if (icons.isEmpty()) 75_000 else 50_000, capW = 132.dp, capH = 84.dp, gap = 14.dp, corner = 8.dp) { i ->
         WallCapsule(ground, edge = pal.line2, icon = icons.getOrNull(i), bar = pal.background.copy(alpha = 0.7f))
-    }
-}
-
-@Composable
-private fun DesktopCard(
-    key: String, name: String, detail: String, art: Any?,
-    fallback: androidx.compose.ui.graphics.vector.ImageVector = Icons.Outlined.Apps,
-    first: Boolean = false, badge: String? = null, progress: Int? = null, accent: Boolean = false, tint: Color? = null,
-    onClick: (Rect?) -> Unit,
-) {
-    val colors = MaterialTheme.colorScheme
-    val pal = LocalPalette.current
-    val src = remember { MutableInteractionSource() }
-    val hot = rememberHot(src)
-    val pressed by src.collectIsPressedAsState()
-    val scale by animateFloatAsState(if (pressed) 0.96f else if (hot) 1.03f else 1f, Motion.sp(0.5f, Spring.StiffnessMedium), label = "deskCard")
-    val shape = RoundedCornerShape(16.dp)
-    var artAt by remember { mutableStateOf<Rect?>(null) }
-    val width = if (LocalNarrowPane.current) 116.dp else 132.dp
-    val artH = width * 0.62f
-    val ground = tint?.copy(alpha = 0.25f) ?: if (accent) pal.signal.copy(alpha = 0.12f) else colors.surfaceVariant
-    Column(
-        Modifier.width(width).paneItem("tile:desktop:$key").then(if (first) Modifier.firstTile() else Modifier)
-            .graphicsLayer { scaleX = scale; scaleY = scale }
-            .clip(shape).background(if (hot) pal.signal.copy(alpha = 0.10f) else colors.surface)
-            .glideBorder(hot, shape, pal.signal, pal.line)
-            .hoverable(src).clickable(interactionSource = src, indication = LocalIndication.current, role = Role.Button) { onClick(artAt) }
-            .controllerConfirm { onClick(artAt) }
-            .semantics { contentDescription = name },
-    ) {
-        Box(
-            contentAlignment = Alignment.Center,
-            modifier = Modifier.fillMaxWidth().height(artH).onGloballyPositioned { artAt = it.boundsInRoot() }
-                .clip(RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp)).background(ground),
-        ) {
-            when (art) {
-                is Int -> {
-                    Image(
-                        painterResource(art), null, contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxSize().graphicsLayer { scaleX = 1.8f; scaleY = 1.8f; alpha = 0.5f }
-                            .then(if (Build.VERSION.SDK_INT >= 31) Modifier.blur(18.dp) else Modifier),
-                    )
-                    Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.35f)))
-                    Image(painterResource(art), null, modifier = Modifier.size(artH * 0.6f))
-                }
-                null -> Icon(fallback, null, tint = tint ?: if (accent) pal.signal else colors.onSurfaceVariant, modifier = Modifier.size(artH * 0.42f))
-                else -> {
-                    AsyncImage(
-                        model = art, contentDescription = null, contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxSize().graphicsLayer { scaleX = 1.8f; scaleY = 1.8f; alpha = 0.5f }
-                            .then(if (Build.VERSION.SDK_INT >= 31) Modifier.blur(18.dp) else Modifier),
-                    )
-                    Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.35f)))
-                    AsyncImage(model = art, contentDescription = null, contentScale = ContentScale.Fit, modifier = Modifier.size(artH * 0.6f))
-                }
-            }
-            Box(Modifier.align(Alignment.TopEnd).padding(6.dp)) {
-                if (progress != null) Box(Modifier.clip(RoundedCornerShape(99.dp)).background(Color.Black.copy(alpha = 0.55f)).padding(4.dp)) {
-                    if (progress >= 0) CircularProgressIndicator(progress = { progress / 100f }, strokeWidth = 2.dp, color = pal.signal, trackColor = pal.signal.copy(alpha = 0.25f), modifier = Modifier.size(16.dp))
-                    else CircularProgressIndicator(strokeWidth = 2.dp, color = pal.signal, modifier = Modifier.size(16.dp))
-                }
-                else if (badge != null) Text(
-                    badge, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = pal.onSignal, maxLines = 1,
-                    modifier = Modifier.clip(RoundedCornerShape(99.dp)).background(pal.signal).padding(horizontal = 8.dp, vertical = 2.dp),
-                )
-            }
-        }
-        Column(Modifier.fillMaxWidth().padding(start = 10.dp, end = 10.dp, top = 8.dp, bottom = 10.dp)) {
-            Text(name, fontSize = 13.5.sp, fontWeight = FontWeight.SemiBold, lineHeight = 17.sp, color = colors.onBackground, maxLines = 2, overflow = TextOverflow.Ellipsis)
-            Text(detail, fontSize = 12.sp, lineHeight = 15.sp, color = colors.onSurfaceVariant, minLines = 2, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 3.dp))
-        }
     }
 }
 
