@@ -29,6 +29,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material.icons.outlined.Download
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
@@ -105,7 +107,6 @@ internal fun DesktopPage(s: FrontEndState, a: FrontEndActions, modifier: Modifie
     val ctx = LocalContext.current
     val density = LocalDensity.current
     val narrow = LocalNarrowPane.current
-    val short = compactDesktop()
     val colors = MaterialTheme.colorScheme
     LaunchedEffect(Unit) { UserAppsState.refresh(ctx) }
     LaunchedEffect(s.ready) { com.droiddeck.launcher.store.StoreState.refresh(ctx) }
@@ -115,6 +116,7 @@ internal fun DesktopPage(s: FrontEndState, a: FrontEndActions, modifier: Modifie
     val mode = SessionService.MODE_DESKTOP
     val tabs = DESKTOP_TABS.map { it to sheetTabLabel(it) }
     val open = if (s.desktopInstalled) stringResource(R.string.content_open_desktop) else stringResource(R.string.content_install_open_desktop)
+    val portrait = portraitScreen()
     fun openFrom(at: Rect?, art: Any?, page: String) {
         at?.let { PageOrigin.mark(Origin(it, 16f * density.density, art = art)) }
         onSelect(page)
@@ -131,47 +133,63 @@ internal fun DesktopPage(s: FrontEndState, a: FrontEndActions, modifier: Modifie
         },
         scrim = { lifted ->
             WallFade()
-            BoxWithConstraints(Modifier.fillMaxWidth().graphicsLayer { val v = lifted(); alpha = 1f - v; translationY = -12.dp.toPx() * v }) {
-                val portrait = portraitScreen()
+            BoxWithConstraints(Modifier.fillMaxSize().graphicsLayer { val v = lifted(); alpha = 1f - v; translationY = -12.dp.toPx() * v }) {
                 val width = maxWidth
                 if (portrait) {
-                    val scroll = rememberScrollState()
                     Column(
                         verticalArrangement = Arrangement.spacedBy(14.dp),
-                        modifier = Modifier.fillMaxWidth().heightIn(max = (maxHeight - 250.dp).coerceAtLeast(160.dp))
-                            .verticalScroll(scroll).padding(top = 12.dp, bottom = 12.dp),
+                        modifier = Modifier.fillMaxWidth().heightIn(max = (maxHeight - 236.dp).coerceAtLeast(160.dp))
+                            .verticalScroll(rememberScrollState()).padding(top = 12.dp, bottom = 12.dp),
                     ) {
-                        DashSummary(s, a, onSelect, Modifier.padding(horizontal = 20.dp))
+                        DashSummary(s, a, onSelect, Modifier.padding(horizontal = 20.dp), big = true)
                         DesktopDock(s, a, installed, apps, openFrom = ::openFrom, portrait = true, width = width)
                     }
-                } else DesktopDock(s, a, installed, apps, openFrom = ::openFrom, portrait = false, width = width)
+                } else {
+                    DesktopStage(Modifier.padding(start = 20.dp, top = 14.dp, bottom = 10.dp).width(STAGE_WIDTH).fillMaxHeight())
+                    Column(
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                        modifier = Modifier.fillMaxSize().padding(start = STAGE_WIDTH + 36.dp)
+                            .verticalScroll(rememberScrollState()).padding(top = 14.dp, end = 20.dp, bottom = 14.dp),
+                    ) {
+                        DashSummary(s, a, onSelect, big = false)
+                        DesktopDock(s, a, installed, apps, openFrom = ::openFrom, portrait = false, width = width - STAGE_WIDTH - 56.dp, startPad = 0.dp)
+                    }
+                }
             }
         },
         words = {
-            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                val pal = LocalPalette.current
-                remember { UserName.load(ctx) }
-                if (UserName.name.isNotBlank() && !(prismaLook() && portraitScreen())) Text(
-                    greeting(UserName.name), fontSize = if (short) 15.sp else 18.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground,
-                    maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-                )
+            val pal = LocalPalette.current
+            val label = @Composable {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Box(Modifier.size(8.dp).background(androidx.compose.ui.graphics.Brush.linearGradient(listOf(pal.primary, pal.signal)), androidx.compose.foundation.shape.CircleShape))
-                    Text(stringResource(R.string.workspace_desktop).uppercase(), fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 1.6.sp, color = colors.onSurfaceVariant)
+                    Text(stringResource(R.string.workspace_desktop).uppercase(), fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 1.6.sp, color = colors.onSurfaceVariant)
                 }
-                if (LocalConfiguration.current.screenHeightDp >= 400) Text(
-                    stringResource(R.string.rail_workspace), fontSize = if (short) 30.sp else 40.sp, lineHeight = if (short) 34.sp else 44.sp,
-                    fontWeight = FontWeight.Black, color = colors.onBackground,
-                )
+            }
+            val status = @Composable {
                 Text(
                     stringResource(if (s.desktopInstalled) R.string.arise_desktop_ready else R.string.arise_desktop_missing),
-                    fontSize = 14.sp, color = if (s.desktopInstalled) pal.signal else colors.onSurfaceVariant,
+                    fontSize = 13.5.sp, color = if (s.desktopInstalled) pal.signal else colors.onSurfaceVariant,
                 )
+            }
+            if (portrait) Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                    DesktopStage(Modifier.size(width = 92.dp, height = 62.dp), small = true)
+                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        label()
+                        Text(stringResource(R.string.rail_workspace), fontSize = 22.sp, lineHeight = 26.sp, fontWeight = FontWeight.Black, color = colors.onBackground)
+                        status()
+                    }
+                }
+                BusyChip(s)
+            } else Column(verticalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.widthIn(max = STAGE_WIDTH - 40.dp)) {
+                label()
+                Text(stringResource(R.string.rail_workspace), fontSize = 28.sp, lineHeight = 32.sp, fontWeight = FontWeight.Black, color = colors.onBackground)
+                status()
                 BusyChip(s)
             }
         },
         button = { click ->
-            PrimaryButton(open, enabled = !s.busy, main = true, large = true, icon = Icons.Outlined.DesktopWindows, onClick = click)
+            PrimaryButton(if (portrait || !s.desktopInstalled) open else stringResource(R.string.store_open), enabled = !s.busy, main = true, large = true, icon = Icons.Outlined.DesktopWindows, onClick = click)
         },
         beside = {
             Row(
@@ -181,7 +199,7 @@ internal fun DesktopPage(s: FrontEndState, a: FrontEndActions, modifier: Modifie
                 WorkspaceShortcuts(s)
                 HeroIconButton(Icons.Outlined.Storefront, stringResource(R.string.flathub_name), FlathubTeal, "desktop:flathub") { at -> openFrom(at, null, "store") }
                 HeroIconButton(Icons.Filled.Add, stringResource(R.string.user_apps_add), null, "desktop:add") { if (!s.busy) adding = true }
-                if (s.desktopPresent) UninstallDesktop(enabled = !s.runtimeActionsBlocked, onUninstall = a.onRemoveDesktop)
+                if (s.desktopPresent && portrait) UninstallDesktop(enabled = !s.runtimeActionsBlocked, onUninstall = a.onRemoveDesktop)
             }
         },
         rows = { tab ->
@@ -190,6 +208,41 @@ internal fun DesktopPage(s: FrontEndState, a: FrontEndActions, modifier: Modifie
         },
     )
     if (adding && !s.busy) AddAppDialog(s.ready, onDismiss = { adding = false }) { request, label -> UserAppsState.add(ctx, request, label) }
+}
+
+private val STAGE_WIDTH = 340.dp
+
+/** A drawn preview of the Linux desktop: two windows over the wallpaper and a taskbar. */
+@Composable
+private fun DesktopStage(modifier: Modifier, small: Boolean = false) {
+    val pal = LocalPalette.current
+    val corner = if (small) 12.dp else 22.dp
+    val drift = androidx.compose.animation.core.rememberInfiniteTransition(label = "stage")
+    val t by drift.animateFloat(0f, 1f, androidx.compose.animation.core.infiniteRepeatable(androidx.compose.animation.core.tween(9000), androidx.compose.animation.core.RepeatMode.Reverse), label = "stageDrift")
+    Box(
+        modifier.clip(RoundedCornerShape(corner))
+            .background(Brush.linearGradient(listOf(pal.primary.copy(alpha = 0.42f), pal.primary2.copy(alpha = 0.34f))))
+            .border(1.dp, Color.White.copy(alpha = 0.10f), RoundedCornerShape(corner)),
+    ) {
+        androidx.compose.foundation.Canvas(Modifier.fillMaxSize()) {
+            val w = size.width
+            val h = size.height
+            val r = androidx.compose.ui.geometry.CornerRadius(if (small) 3.dp.toPx() else 7.dp.toPx())
+            val fill = Color(0x8C080A18)
+            val edge = Color.White.copy(alpha = 0.16f)
+            val stroke = androidx.compose.ui.graphics.drawscope.Stroke(1.dp.toPx())
+            fun win(x: Float, y: Float, ww: Float, wh: Float) {
+                drawRoundRect(fill, Offset(x, y), androidx.compose.ui.geometry.Size(ww, wh), r)
+                drawRoundRect(edge, Offset(x, y), androidx.compose.ui.geometry.Size(ww, wh), r, style = stroke)
+                drawRoundRect(Color.White.copy(alpha = 0.35f), Offset(x + wh * 0.06f, y + wh * 0.07f), androidx.compose.ui.geometry.Size(ww * 0.18f, wh * 0.05f), r)
+            }
+            val bar = if (small) 6.dp.toPx() else 16.dp.toPx()
+            win(w * (0.08f + 0.02f * t), h * 0.10f, w * 0.48f, (h - bar) * 0.48f)
+            win(w * (0.42f - 0.02f * t), h * 0.24f, w * 0.48f, (h - bar) * 0.48f)
+            drawRect(Color(0xB3080A18), Offset(0f, h - bar), androidx.compose.ui.geometry.Size(w, bar))
+        }
+        if (!small) Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0.35f to Color.Transparent, 1f to Color(0xCC060814))))
+    }
 }
 
 @Composable
@@ -210,6 +263,7 @@ private val STREAMING_APPS = setOf("moonlight", "chiaki")
 private fun DesktopDock(
     s: FrontEndState, a: FrontEndActions, installed: List<Library.Emulator>, apps: List<UserApps.App>,
     openFrom: (Rect?, Any?, String) -> Unit, portrait: Boolean, width: androidx.compose.ui.unit.Dp,
+    startPad: androidx.compose.ui.unit.Dp? = null,
 ) {
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
@@ -293,8 +347,8 @@ private fun DesktopDock(
         stringResource(R.string.dock_filter_streaming) to items.filter { it.streaming },
     )
     val shown = filters[filter.coerceIn(0, filters.lastIndex)].second
-    val pad = if (narrow) 20.dp else 44.dp
-    Box(Modifier.fillMaxWidth().padding(top = if (portrait) 6.dp else if (compactDesktop()) 14.dp else 22.dp)) {
+    val pad = startPad ?: if (narrow) 20.dp else 44.dp
+    Box(Modifier.fillMaxWidth().padding(top = if (portrait || startPad != null) 6.dp else if (compactDesktop()) 14.dp else 22.dp)) {
         Column(Modifier.fillMaxWidth()) {
             Text(
                 stringResource(R.string.user_apps_section).uppercase(), fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.6.sp,
@@ -333,7 +387,7 @@ private fun DesktopDock(
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.Top,
                     modifier = Modifier.fillMaxWidth().onGloballyPositioned { dockAt = it.boundsInRoot() }
-                        .edgeFade(scroll).horizontalScroll(scroll).padding(start = pad - 8.dp, end = 20.dp, top = 4.dp, bottom = 4.dp),
+                        .edgeFade(scroll).horizontalScroll(scroll).padding(start = (pad - 8.dp).coerceAtLeast(0.dp), end = 20.dp, top = 4.dp, bottom = 4.dp),
                 ) {
                     shown.forEachIndexed { i, item -> key(item.key) { Box(Modifier.width(92.dp), contentAlignment = Alignment.TopCenter) { DockIcon(item, first = i == 0) } } }
                 }

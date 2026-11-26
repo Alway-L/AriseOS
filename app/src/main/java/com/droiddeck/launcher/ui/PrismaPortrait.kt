@@ -218,7 +218,7 @@ private fun readVitals(context: Context): DeviceVitals {
 
 /** Continue card, device vitals and play time at the top of the desktop screen in portrait. */
 @Composable
-internal fun DashSummary(s: FrontEndState, a: FrontEndActions, onSelect: (String) -> Unit, modifier: Modifier = Modifier) {
+internal fun DashSummary(s: FrontEndState, a: FrontEndActions, onSelect: (String) -> Unit, modifier: Modifier = Modifier, big: Boolean = false) {
     val ctx = LocalContext.current
     val pal = LocalPalette.current
     var vitals by remember { mutableStateOf<DeviceVitals?>(null) }
@@ -237,7 +237,7 @@ internal fun DashSummary(s: FrontEndState, a: FrontEndActions, onSelect: (String
     val last = s.steamGames.filter { it.lastPlayed > 0L }.maxByOrNull { it.lastPlayed }
     val v = vitals
     Column(verticalArrangement = Arrangement.spacedBy(10.dp), modifier = modifier.fillMaxWidth()) {
-        Rise(0) { ContinueStrip(s, a, last, onSelect) }
+        Rise(0) { if (big) ContinueBanner(s, a, last, onSelect) else ContinueStrip(s, a, last, onSelect) }
         Rise(1) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 MiniKpi(stringResource(R.string.dash_fps), recent?.lastAvgFps?.let { "%.0f".format(it) } ?: "—", Modifier.weight(1f))
@@ -269,6 +269,51 @@ internal fun DashSummary(s: FrontEndState, a: FrontEndActions, onSelect: (String
 }
 
 internal const val DESKTOP_PAGE = "desktop-page"
+
+@Composable
+private fun ContinueBanner(s: FrontEndState, a: FrontEndActions, last: com.droiddeck.launcher.frontend.Library.SteamGame?, onSelect: (String) -> Unit) {
+    val pal = LocalPalette.current
+    val ctx = LocalContext.current
+    val shape = RoundedCornerShape(22.dp)
+    Box(
+        Modifier.fillMaxWidth().height(156.dp).clip(shape)
+            .background(Brush.linearGradient(listOf(pal.primary, pal.primary2))).border(1.dp, pal.line, shape),
+    ) {
+        val art = last?.hero ?: last?.art
+        if (art != null) coil.compose.AsyncImage(model = art, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+        Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0.25f to Color.Transparent, 1f to Color(0xE6050610))))
+        Row(
+            verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(12.dp),
+            modifier = Modifier.align(Alignment.BottomStart).fillMaxWidth().padding(16.dp),
+        ) {
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                Text(
+                    stringResource(if (s.running != null) R.string.dash_running else R.string.dash_continue).uppercase(),
+                    fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.2.sp, color = pal.signal,
+                )
+                Text(
+                    s.running ?: last?.name ?: stringResource(R.string.dash_no_recent), fontSize = 21.sp, lineHeight = 24.sp, fontWeight = FontWeight.Bold,
+                    color = Color.White, maxLines = 2, overflow = TextOverflow.Ellipsis,
+                )
+                val total = last?.let { com.droiddeck.launcher.session.GameStats.game(ctx, it.gameIdString)?.totalSeconds }?.takeIf { it > 0 }
+                Text(
+                    when {
+                        s.running != null -> ""
+                        last != null -> DateUtils.getRelativeTimeSpanString(last.lastPlayed, System.currentTimeMillis(), DateUtils.MINUTE_IN_MILLIS).toString() +
+                            (total?.let { " · " + stringResource(R.string.dash_total, com.droiddeck.launcher.session.GameStats.format(it)) } ?: "")
+                        else -> stringResource(R.string.dash_no_recent_hint)
+                    },
+                    fontSize = 12.sp, color = Color.White.copy(alpha = 0.8f), maxLines = 1, overflow = TextOverflow.Ellipsis,
+                )
+            }
+            when {
+                s.running != null -> PrimaryButton(stringResource(R.string.dash_resume), compact = true, icon = Icons.Filled.PlayArrow, onClick = a.onResume)
+                last != null -> PrimaryButton(stringResource(R.string.dash_play), compact = true, enabled = !s.busy, icon = Icons.Filled.PlayArrow) { a.onSteamGame(last) }
+                else -> SecondaryButton(stringResource(R.string.dash_open_library), compact = true) { onSelect("games") }
+            }
+        }
+    }
+}
 
 @Composable
 private fun ContinueStrip(s: FrontEndState, a: FrontEndActions, last: com.droiddeck.launcher.frontend.Library.SteamGame?, onSelect: (String) -> Unit) {
