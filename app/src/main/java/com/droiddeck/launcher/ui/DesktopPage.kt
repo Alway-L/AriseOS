@@ -118,6 +118,8 @@ internal fun DesktopPage(s: FrontEndState, a: FrontEndActions, modifier: Modifie
     val tabs = DESKTOP_TABS.map { it to sheetTabLabel(it) }
     val open = if (s.desktopInstalled) stringResource(R.string.content_open_desktop) else stringResource(R.string.content_install_open_desktop)
     val portrait = portraitScreen()
+    var heroTop by remember { mutableStateOf<Float?>(null) }
+    var scrimTop by remember { mutableStateOf<Float?>(null) }
     val stageWidth = if (LocalConfiguration.current.screenWidthDp >= 1000) 480.dp else 340.dp
     fun openFrom(at: Rect?, art: Any?, page: String) {
         at?.let { PageOrigin.mark(Origin(it, 16f * density.density, art = art)) }
@@ -135,12 +137,20 @@ internal fun DesktopPage(s: FrontEndState, a: FrontEndActions, modifier: Modifie
         },
         scrim = { lifted ->
             WallFade()
-            BoxWithConstraints(Modifier.fillMaxSize().graphicsLayer { val v = lifted(); alpha = 1f - v; translationY = -12.dp.toPx() * v }) {
+            BoxWithConstraints(Modifier.fillMaxSize().onGloballyPositioned { scrimTop = it.boundsInRoot().top }.graphicsLayer { val v = lifted(); alpha = 1f - v; translationY = -12.dp.toPx() * v }) {
                 val width = maxWidth
                 if (portrait) {
+                    val heroAt = heroTop
+                    val top = scrimTop
+                    val heroDp = if (heroAt != null && top != null) with(density) { (heroAt - top).toDp() } else maxHeight - 236.dp
+                    Box(
+                        Modifier.padding(horizontal = 16.dp).fillMaxWidth().offset(y = heroDp - 16.dp).height((maxHeight - heroDp - 24.dp).coerceAtLeast(0.dp))
+                            .clip(RoundedCornerShape(22.dp)).background(colors.surface.copy(alpha = 0.82f))
+                            .border(1.dp, LocalPalette.current.line, RoundedCornerShape(22.dp)),
+                    )
                     Column(
                         verticalArrangement = Arrangement.spacedBy(14.dp),
-                        modifier = Modifier.fillMaxWidth().heightIn(max = (maxHeight - 236.dp).coerceAtLeast(160.dp))
+                        modifier = Modifier.fillMaxWidth().heightIn(max = (heroDp - 28.dp).coerceAtLeast(160.dp))
                             .verticalScroll(rememberScrollState()).padding(top = 12.dp, bottom = 12.dp),
                     ) {
                         DashSummary(s, a, onSelect, Modifier.padding(horizontal = 20.dp), big = true)
@@ -173,7 +183,7 @@ internal fun DesktopPage(s: FrontEndState, a: FrontEndActions, modifier: Modifie
                     fontSize = 13.5.sp, color = if (s.desktopInstalled) pal.signal else colors.onSurfaceVariant,
                 )
             }
-            if (portrait) Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            if (portrait) Column(verticalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.onGloballyPositioned { heroTop = it.boundsInRoot().top }) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
                     DesktopStage(Modifier.size(width = 92.dp, height = 62.dp), small = true)
                     Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
@@ -191,7 +201,7 @@ internal fun DesktopPage(s: FrontEndState, a: FrontEndActions, modifier: Modifie
             }
         },
         button = { click ->
-            PrimaryButton(if (portrait || !s.desktopInstalled || stageWidth > 400.dp) open else stringResource(R.string.store_open), enabled = !s.busy, main = true, large = true, icon = Icons.Outlined.DesktopWindows, onClick = click)
+            PrimaryButton(if (portrait || !s.desktopInstalled || stageWidth > 400.dp) open else stringResource(R.string.store_open), enabled = !s.busy, main = true, large = !portrait, icon = Icons.Outlined.DesktopWindows, onClick = click)
         },
         beside = {
             Row(
@@ -199,9 +209,10 @@ internal fun DesktopPage(s: FrontEndState, a: FrontEndActions, modifier: Modifie
                 modifier = Modifier.horizontalScroll(rememberScrollState()),
             ) {
                 WorkspaceShortcuts(s)
-                HeroIconButton(Icons.Outlined.Storefront, stringResource(R.string.flathub_name), FlathubTeal, "desktop:flathub") { at -> openFrom(at, null, "store") }
-                HeroIconButton(Icons.Filled.Add, stringResource(R.string.user_apps_add), null, "desktop:add") { if (!s.busy) adding = true }
-                if (s.desktopPresent && (portrait || stageWidth > 400.dp)) UninstallDesktop(enabled = !s.runtimeActionsBlocked, onUninstall = a.onRemoveDesktop)
+                val iconSize = if (portrait) 46.dp else 56.dp
+                HeroIconButton(Icons.Outlined.Storefront, stringResource(R.string.flathub_name), FlathubTeal, "desktop:flathub", iconSize) { at -> openFrom(at, null, "store") }
+                HeroIconButton(Icons.Filled.Add, stringResource(R.string.user_apps_add), null, "desktop:add", iconSize) { if (!s.busy) adding = true }
+                if (s.desktopPresent && stageWidth > 400.dp) UninstallDesktop(enabled = !s.runtimeActionsBlocked, onUninstall = a.onRemoveDesktop)
             }
         },
         rows = { tab ->
@@ -484,7 +495,7 @@ private fun DockIcon(item: DockItem, first: Boolean) {
 }
 
 @Composable
-private fun HeroIconButton(icon: androidx.compose.ui.graphics.vector.ImageVector, description: String, tint: Color?, id: String, onClick: (Rect?) -> Unit) {
+private fun HeroIconButton(icon: androidx.compose.ui.graphics.vector.ImageVector, description: String, tint: Color?, id: String, size: androidx.compose.ui.unit.Dp = 56.dp, onClick: (Rect?) -> Unit) {
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
     val src = remember { MutableInteractionSource() }
@@ -496,14 +507,14 @@ private fun HeroIconButton(icon: androidx.compose.ui.graphics.vector.ImageVector
     var at by remember { mutableStateOf<Rect?>(null) }
     Box(
         contentAlignment = Alignment.Center,
-        modifier = Modifier.size(56.dp).paneItem("btn:$id").onGloballyPositioned { at = it.boundsInRoot() }
+        modifier = Modifier.size(size).paneItem("btn:$id").onGloballyPositioned { at = it.boundsInRoot() }
             .graphicsLayer { scaleX = scale; scaleY = scale }
             .clip(shape).background(if (hot) accent.copy(alpha = 0.18f) else colors.surface.copy(alpha = 0.92f))
             .glideBorder(hot, shape, accent, pal.line2)
             .hoverable(src).clickable(interactionSource = src, indication = LocalIndication.current, role = Role.Button) { onClick(at) }
             .controllerConfirm { onClick(at) }
             .semantics { contentDescription = description },
-    ) { Icon(icon, null, tint = accent, modifier = Modifier.size(26.dp)) }
+    ) { Icon(icon, null, tint = accent, modifier = Modifier.size(size * 0.46f)) }
 }
 
 @Composable
