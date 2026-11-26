@@ -120,12 +120,48 @@ def state_default():
         return None
 
 
+def version_key(name):
+    return [int(n) for n in re.findall(r"\d+", name)]
+
+
+def family(name):
+    m = re.match(r"(.*?[A-Za-z])-?\d", name or "")
+    return m.group(1) if m else None
+
+
+def same_family(name, available):
+    """The newest available tool of the family a missing one belongs to (DroidDeck-Proton-11-12.8 -> DroidDeck-Proton-11-13.1)."""
+    wanted = family(name)
+    matches = [n for n in available if wanted and family(n) == wanted]
+    return max(matches, key=version_key) if matches else None
+
+
+def requested_by_app(appid, available):
+    """The Proton picked for this title in the app, which reaches config.vdf only when the client next starts."""
+    try:
+        request = compat()["game_requests"]().get(str(appid))
+    except Exception:
+        return None
+    if not isinstance(request, dict) or not isinstance(request.get("dir"), str):
+        return None
+    for name, (folder, _) in available.items():
+        if os.path.basename(folder.rstrip("/")) == request["dir"]:
+            return name
+    return None
+
+
 def choose_tool(appid, current, available):
-    """(tool name, why) from the client's mapping, else the session's own default."""
+    """(tool name, why) from the app's pick, the client's mapping, else the session's own default."""
+    picked = requested_by_app(appid, available)
+    if picked:
+        return picked, "the app's choice for this title"
     for key, why in ((appid, "Steam's choice for this title"), ("0", "Steam's default")):
         name = current.get(key)
         if name in available:
             return name, why
+        newer = same_family(name, available) if name else None
+        if newer:
+            return newer, why + " (%s, now %s)" % (name, newer)
     c = compat()
     for name in (state_default(), c["TOOL"], c["TOOL_11"]):
         if name in available:
