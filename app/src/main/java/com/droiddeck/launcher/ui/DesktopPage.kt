@@ -46,6 +46,7 @@ import androidx.compose.material.icons.outlined.Apps
 import androidx.compose.material.icons.outlined.DesktopWindows
 import androidx.compose.material.icons.outlined.Storefront
 import androidx.compose.material.icons.outlined.Terminal
+import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -118,14 +119,41 @@ internal fun DesktopPage(s: FrontEndState, a: FrontEndActions, modifier: Modifie
     val tabs = DESKTOP_TABS.map { it to sheetTabLabel(it) }
     val open = if (s.desktopInstalled) stringResource(R.string.content_open_desktop) else stringResource(R.string.content_install_open_desktop)
     val portrait = portraitScreen()
-    var heroTop by remember { mutableStateOf<Float?>(null) }
-    var scrimTop by remember { mutableStateOf<Float?>(null) }
     val stageWidth = if (LocalConfiguration.current.screenWidthDp >= 1000) 480.dp else 340.dp
     fun openFrom(at: Rect?, art: Any?, page: String) {
         at?.let { PageOrigin.mark(Origin(it, 16f * density.density, art = art)) }
         onSelect(page)
     }
 
+    if (portrait) {
+        var settings by rememberSaveable { mutableStateOf(false) }
+        Box(modifier.clipToBounds()) {
+            if (prismaLook()) PrismaWallpaper(Modifier.fillMaxSize())
+            else AriseWallpaper(Modifier.fillMaxSize(), markX = 0.5f, markY = 0.34f)
+            BoxWithConstraints(Modifier.fillMaxSize()) {
+                val width = maxWidth
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(16.dp),
+                    modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(top = 12.dp, bottom = 24.dp),
+                ) {
+                    DashSummary(s, a, onSelect, Modifier.padding(horizontal = 20.dp), big = true)
+                    DesktopDock(s, a, installed, apps, openFrom = ::openFrom, portrait = true, width = width)
+                    DesktopCard(
+                        s, open, Modifier.padding(horizontal = 20.dp),
+                        onOpen = a.onDesktop,
+                        onStore = { at -> openFrom(at, null, "store") },
+                        onAdd = { if (!s.busy) adding = true },
+                        onSettings = { settings = true },
+                    )
+                }
+            }
+        }
+        if (settings) DesktopSettingsDialog(tabs, onOpen = a.onDesktopSettings, onDismiss = { settings = false }) { tab ->
+            if (tab == SheetTab.FILES) DesktopFiles(s, a) else a.modeSheet(mode, tab, SheetExtras())
+        }
+        if (adding && !s.busy) AddAppDialog(s.ready, onDismiss = { adding = false }) { request, label -> UserAppsState.add(ctx, request, label) }
+        return
+    }
     LiftHero(
         key = "desktop", tabs = tabs,
         onOpen = a.onDesktopSettings, onPrimary = a.onDesktop,
@@ -137,26 +165,9 @@ internal fun DesktopPage(s: FrontEndState, a: FrontEndActions, modifier: Modifie
         },
         scrim = { lifted ->
             WallFade()
-            BoxWithConstraints(Modifier.fillMaxSize().onGloballyPositioned { scrimTop = it.boundsInRoot().top }.graphicsLayer { val v = lifted(); alpha = 1f - v; translationY = -12.dp.toPx() * v }) {
+            BoxWithConstraints(Modifier.fillMaxSize().graphicsLayer { val v = lifted(); alpha = 1f - v; translationY = -12.dp.toPx() * v }) {
                 val width = maxWidth
-                if (portrait) {
-                    val heroAt = heroTop
-                    val top = scrimTop
-                    val heroDp = if (heroAt != null && top != null) with(density) { (heroAt - top).toDp() } else maxHeight - 236.dp
-                    Box(
-                        Modifier.padding(horizontal = 16.dp).fillMaxWidth().offset(y = heroDp - 16.dp).height((maxHeight - heroDp - 24.dp).coerceAtLeast(0.dp))
-                            .clip(RoundedCornerShape(22.dp)).background(colors.surface.copy(alpha = 0.82f))
-                            .border(1.dp, LocalPalette.current.line, RoundedCornerShape(22.dp)),
-                    )
-                    Column(
-                        verticalArrangement = Arrangement.spacedBy(14.dp),
-                        modifier = Modifier.fillMaxWidth().heightIn(max = (heroDp - 28.dp).coerceAtLeast(160.dp))
-                            .verticalScroll(rememberScrollState()).padding(top = 12.dp, bottom = 12.dp),
-                    ) {
-                        DashSummary(s, a, onSelect, Modifier.padding(horizontal = 20.dp), big = true)
-                        DesktopDock(s, a, installed, apps, openFrom = ::openFrom, portrait = true, width = width)
-                    }
-                } else {
+                run {
                     DesktopStage(Modifier.padding(start = 20.dp, top = 14.dp, bottom = 10.dp).width(stageWidth).fillMaxHeight())
                     Column(
                         verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -183,7 +194,7 @@ internal fun DesktopPage(s: FrontEndState, a: FrontEndActions, modifier: Modifie
                     fontSize = 13.5.sp, color = if (s.desktopInstalled) pal.signal else colors.onSurfaceVariant,
                 )
             }
-            if (portrait) Column(verticalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.onGloballyPositioned { heroTop = it.boundsInRoot().top }) {
+            if (portrait) Column(verticalArrangement = Arrangement.spacedBy(6.dp), ) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
                     DesktopStage(Modifier.size(width = 92.dp, height = 62.dp), small = true)
                     Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
@@ -254,6 +265,62 @@ private fun DesktopStage(modifier: Modifier, small: Boolean = false) {
             drawRect(Color(0xB3080A18), Offset(0f, h - bar), androidx.compose.ui.geometry.Size(w, bar))
         }
         if (!small) Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0.35f to Color.Transparent, 1f to Color(0xCC060814))))
+    }
+}
+
+@Composable
+private fun DesktopCard(
+    s: FrontEndState, open: String, modifier: Modifier,
+    onOpen: () -> Unit, onStore: (Rect?) -> Unit, onAdd: () -> Unit, onSettings: () -> Unit,
+) {
+    val colors = MaterialTheme.colorScheme
+    val pal = LocalPalette.current
+    val shape = RoundedCornerShape(22.dp)
+    Column(
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+        modifier = modifier.fillMaxWidth().clip(shape).background(colors.surface.copy(alpha = 0.82f)).border(1.dp, pal.line, shape).padding(14.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+            DesktopStage(Modifier.size(width = 92.dp, height = 62.dp), small = true)
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Box(Modifier.size(7.dp).background(Brush.linearGradient(listOf(pal.primary, pal.signal)), androidx.compose.foundation.shape.CircleShape))
+                    Text(stringResource(R.string.workspace_desktop).uppercase(), fontSize = 10.5.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 1.4.sp, color = colors.onSurfaceVariant)
+                }
+                Text(stringResource(R.string.rail_workspace), fontSize = 18.sp, fontWeight = FontWeight.Black, color = colors.onBackground)
+                Text(
+                    stringResource(if (s.desktopInstalled) R.string.arise_desktop_ready else R.string.arise_desktop_missing),
+                    fontSize = 12.5.sp, color = if (s.desktopInstalled) pal.signal else colors.onSurfaceVariant,
+                )
+            }
+        }
+        BusyChip(s)
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            PrimaryButton(
+                if (s.desktopInstalled) stringResource(R.string.store_open) else open, enabled = !s.busy, main = true, compact = true, fill = true,
+                icon = Icons.Outlined.DesktopWindows, modifier = Modifier.weight(1f), onClick = onOpen,
+            )
+            HeroIconButton(Icons.Outlined.Storefront, stringResource(R.string.flathub_name), FlathubTeal, "desktop:flathub", 42.dp, onStore)
+            HeroIconButton(Icons.Filled.Add, stringResource(R.string.user_apps_add), null, "desktop:add", 42.dp) { onAdd() }
+            HeroIconButton(Icons.Outlined.Tune, stringResource(R.string.rail_setup), colors.onSurfaceVariant, "desktop:settings", 42.dp) { onSettings() }
+        }
+    }
+}
+
+@Composable
+private fun DesktopSettingsDialog(
+    tabs: List<Pair<String, String>>, onOpen: () -> Unit, onDismiss: () -> Unit, rows: @Composable (String) -> Unit,
+) {
+    val shown = rememberShown(onDismiss)
+    val close = { shown.targetState = false }
+    var tab by rememberSaveable { mutableStateOf(0) }
+    LaunchedEffect(Unit) { onOpen() }
+    AppDialog(shown, close, "desktopSettings", wide = true) {
+        DialogTitleRow(stringResource(R.string.rail_workspace), onClose = close)
+        SheetChips(tabs.map { it.second }, tab) { tab = it }
+        Column(Modifier.fillMaxWidth().heightIn(max = 480.dp).verticalScroll(rememberScrollState()).padding(top = 8.dp)) {
+            rows(tabs[tab.coerceIn(0, tabs.lastIndex)].first)
+        }
     }
 }
 
